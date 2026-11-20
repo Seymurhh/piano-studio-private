@@ -1,0 +1,72 @@
+Glyph outlines used by assets/js/glyphs.js for the 3D lettering of the sheet-music view
+
+Both files in this folder are converted subsets of open fonts. They stay under the SIL Open Font
+License 1.1 (full text and copyright notices in OFL.txt), not under the licence of this app. They may
+be bundled with the app and sold as part of it, but not sold on their own. They are Modified Versions
+in the licence's sense, so they are not offered under the fonts' Reserved Font Names: they are
+described below as outlines "converted from" each font.
+
+
+music.json - music symbols
+--------------------------
+Converted from: Bravura, version 1.482, the reference font of the Standard Music Font Layout (SMuFL)
+Designer:       Daniel Spreadbury et al.
+Copyright:      Copyright © 2026, Steinberg Media Technologies GmbH, with Reserved Font Name "Bravura".
+                Bravura is a registered trademark of Steinberg Media Technologies GmbH.
+Licence:        SIL Open Font License 1.1
+Source:         https://github.com/steinbergmedia/bravura
+                commit 37b194378b710cc40e406ab6c4b07608bb9548ae (24 August 2026):
+                redist/otf/Bravura.otf, redist/Bravura.json (metadata), LICENSE.txt
+                Symbol names and code points: SMuFL glyphnames.json,
+                https://github.com/w3c-cg/smufl (metadata/glyphnames.json)
+What was changed (converted subset):
+  - 51 symbols taken by SMuFL code point: clefs (G, F, C), brace, accidentals, rests, flags,
+    noteheads, augmentation dot, time-signature digits and common/cut time, metronome notes, repeat
+    dot, segno, coda, fermata, dynamics p f m, trill, tuplet 3 and 6.
+  - Outlines rewritten as SVG-like path strings in staff spaces (font units divided by 250, since
+    1 em = 4 staff spaces), y up, origin at each symbol's SMuFL origin, rounded to 1/1000 of a
+    staff space. Contours were re-wound (filled parts counter-clockwise, holes clockwise) and
+    zero-length segments removed; the shapes were checked against the original font's fill.
+  - Advance widths and bounding boxes recomputed from the outlines (they match Bravura.json);
+    glyph anchors (for example stemUpSE, stemDownNW on noteheads, stemUpNW, stemDownSW on flags)
+    and the engraving defaults (staff line, stem, beam and ledger line thicknesses) copied from
+    Bravura.json.
+  - Everything else left out: all other glyphs, hinting, OpenType tables and features.
+
+
+text.json - title and tempo text
+--------------------------------
+Converted from: Libre Baskerville Regular, version 2.005
+Designers:      Pablo Impallari and Rodrigo Fuenzalida
+Copyright:      Copyright (c) 2012, Pablo Impallari; Copyright (c) 2012, Rodrigo Fuenzalida;
+                with Reserved Font Name Libre Baskerville (the notice in the upstream OFL.txt,
+                reproduced in OFL.txt here). The font file itself names the holders as
+                "The Libre Baskerville Project Authors
+                (https://github.com/impallari/Libre-Baskerville)".
+                Libre Baskerville is a trademark of Pablo Impallari.
+Licence:        SIL Open Font License 1.1
+Source:         https://github.com/impallari/Libre-Baskerville
+                commit 9852edf75ece3af500a5ec61245f94788c3d4633 (16 October 2025):
+                fonts/ttf/LibreBaskerville-Regular.ttf, OFL.txt
+                (in that OFL.txt the "@" of the second e-mail address is a stray byte; it is
+                written as "@" in OFL.txt here, otherwise the notice is unchanged)
+What was changed (converted subset):
+  - 330 characters: printable ASCII, Latin-1 Supplement, Latin Extended-A (for titles such as
+    Gymnopédie, Träumerei, Für Elise, Dvořák), Ș ș Ț ț, en and em dashes, curly quotes, bullet,
+    ellipsis. The font has no soft hyphen, ŉ or ſ, so those are not included.
+  - Outlines rewritten as SVG-like path strings in ems (font units divided by 1000), y up,
+    baseline at y = 0, rounded to 1/1000 em; contours re-wound and zero-length segments removed
+    as above; advance widths and bounding boxes kept; ascender, descender, cap height and x-height
+    copied.
+  - Kerning: pair values read from the font's GPOS table ('kern' feature, Latin script, the values
+    of all its pair-adjustment lookups added together, as a text shaper applies them), in
+    thousandths of an em, stored as kern[left][right]: all 3,769 pairs of at least 4/1000 em
+    between unaccented characters (spaces included), plus 246 pairs with an accented letter where
+    the font's value differs by 4/1000 em or more from the pair of the base letters. Any other
+    accented pair uses the pair of its base letters.
+  - Everything else left out: all other glyphs, hinting, other OpenType features.
+
+
+Conversion
+----------
+Made with opentype.js 1.3.4 (MIT licence; used only for the conversion, not shipped with the app).
