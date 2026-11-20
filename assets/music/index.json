@@ -1,0 +1,146 @@
+[
+ {
+  "file": "satie-gnossienne-1.smf",
+  "title": "Gnossienne No. 1",
+  "composer": "Erik Satie",
+  "credit": "Notes after the edition typeset by Knute Snortum for the Mutopia Project (CC BY-SA 4.0)"
+ },
+ {
+  "file": "satie-gymnopedie-1.smf",
+  "title": "Gymnopédie No. 1",
+  "composer": "Erik Satie",
+  "credit": "Typeset by Evin Robertson for the Mutopia Project (public domain)"
+ },
+ {
+  "file": "bach-prelude-in-c.smf",
+  "title": "Prelude in C major, BWV 846",
+  "composer": "Johann Sebastian Bach",
+  "credit": "Typeset by Tobias Erbsland for the Mutopia Project (public domain)"
+ },
+ {
+  "file": "bach-prelude-in-c-minor.smf",
+  "title": "Prelude in C minor, BWV 847",
+  "composer": "Johann Sebastian Bach",
+  "credit": "Typeset by Davide Castellone for the Mutopia Project (public domain)"
+ },
+ {
+  "file": "mozart-rondo-alla-turca.smf",
+  "title": "Rondo alla Turca",
+  "composer": "Wolfgang Amadeus Mozart",
+  "credit": "Typeset by Rune Zedeler and Chris Sawer for the Mutopia Project (public domain)"
+ },
+ {
+  "file": "mozart-fantasia-in-d-minor.smf",
+  "title": "Fantasia in D minor, K. 397",
+  "composer": "Wolfgang Amadeus Mozart",
+  "credit": "Typeset by Andrés Necochea for the Mutopia Project (public domain)"
+ },
+ {
+  "file": "beethoven-fur-elise.smf",
+  "title": "Für Elise",
+  "composer": "Ludwig van Beethoven",
+  "credit": "Typeset by Stelios Samelis for the Mutopia Project (public domain)"
+ },
+ {
+  "file": "beethoven-moonlight-sonata-1.smf",
+  "title": "Moonlight Sonata, first movement",
+  "composer": "Ludwig van Beethoven",
+  "credit": "Typeset by Stewart Holmes for the Mutopia Project (CC BY-SA 2.5)"
+ },
+ {
+  "file": "beethoven-moonlight-sonata-3.smf",
+  "title": "Moonlight Sonata, third movement",
+  "composer": "Ludwig van Beethoven",
+  "credit": "Typeset by Stewart Holmes for the Mutopia Project (CC BY-SA 2.5)"
+ },
+ {
+  "file": "beethoven-pathetique-2.smf",
+  "title": "Pathétique Sonata, second movement",
+  "composer": "Ludwig van Beethoven",
+  "credit": "Typeset by Chris Sawer for the Mutopia Project (public domain)"
+ },
+ {
+  "file": "beethoven-pathetique-3.smf",
+  "title": "Pathétique Sonata, third movement",
+  "composer": "Ludwig van Beethoven",
+  "credit": "Typeset by Chris Sawer for the Mutopia Project (public domain)"
+ },
+ {
+  "file": "chopin-nocturne-op9-no2.smf",
+  "title": "Nocturne in E-flat, Op. 9 No. 2",
+  "composer": "Frédéric Chopin",
+  "credit": "Typeset by Renato Biolcati Rinaldi for the Mutopia Project (CC BY-SA 3.0)"
+ },
+ {
+  "file": "chopin-prelude-in-e-minor.smf",
+  "title": "Prelude in E minor, Op. 28 No. 4",
+  "composer": "Frédéric Chopin",
+  "credit": "Typeset by Magnus Lewis-Smith for the Mutopia Project (public domain)"
+ },
+ {
+  "file": "chopin-fantaisie-impromptu.smf",
+  "title": "Fantaisie-Impromptu, Op. 66",
+  "composer": "Frédéric Chopin",
+  "credit": "Typeset by Guy D. Lederfein for the Mutopia Project (public domain)"
+ },
+ {
+  "file": "chopin-revolutionary-etude.smf",
+  "title": "Revolutionary Étude, Op. 10 No. 12",
+  "composer": "Frédéric Chopin",
+  "credit": "Typeset by Roland Goretzki for the Mutopia Project (public domain)"
+ },
+ {
+  "file": "chopin-etude-op25-no1.smf",
+  "title": "Étude in A-flat, Op. 25 No. 1 (Aeolian Harp)",
+  "composer": "Frédéric Chopin",
+  "credit": "Typeset by Roland Goretzki for the Mutopia Project (public domain)"
+ },
+ {
+  "file": "schumann-traumerei.smf",
+  "title": "Träumerei",
+  "composer": "Robert Schumann",
+  "credit": "Typeset by Ying-Chun Liu for the Mutopia Project (public domain)"
+ },
+ {
+  "file": "liszt-consolation-3.smf",
+  "title": "Consolation No. 3",
+  "composer": "Franz Liszt",
+  "credit": "Typeset by Ryan Prince for the Mutopia Project (CC BY 3.0)"
+ },
+ {
+  "file": "grieg-hall-of-the-mountain-king.smf",
+  "title": "In the Hall of the Mountain King",
+  "composer": "Edvard Grieg",
+  "credit": "Typeset by Coyau for the Mutopia Project (public domain)"
+ },
+ {
+  "file": "grieg-wedding-day-at-troldhaugen.smf",
+  "title": "Wedding Day at Troldhaugen",
+  "composer": "Edvard Grieg",
+  "credit": "Typeset by David Whipple for the Mutopia Project (public domain)"
+ },
+ {
+  "file": "debussy-clair-de-lune.smf",
+  "title": "Clair de lune",
+  "composer": "Claude Debussy",
+  "credit": "Typeset by Keith OHara for the Mutopia Project (public domain)"
+ },
+ {
+  "file": "debussy-arabesque-1.smf",
+  "title": "Arabesque No. 1",
+  "composer": "Claude Debussy",
+  "credit": "Typeset by Keith OHara for the Mutopia Project (public domain)"
+ },
+ {
+  "file": "rachmaninoff-prelude-in-g-minor.smf",
+  "title": "Prelude in G minor, Op. 23 No. 5",
+  "composer": "Sergei Rachmaninoff",
+  "credit": "Typeset by Joram Berger for the Mutopia Project (CC BY-SA 4.0)"
+ },
+ {
+  "file": "joplin-the-entertainer.smf",
+  "title": "The Entertainer",
+  "composer": "Scott Joplin",
+  "credit": "Typeset by Chris Sawer for the Mutopia Project (public domain)"
+ }
+]

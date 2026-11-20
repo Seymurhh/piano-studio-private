@@ -1,0 +1,19 @@
+Sounds used by the piano studio
+
+grand.pack
+  Salamander Grand Piano V3 by Alexander Holm: recordings of a Yamaha C5 grand piano.
+  Licence: Creative Commons Attribution 3.0 (https://creativecommons.org/licenses/by/3.0/).
+  Source: https://archive.org/details/SalamanderGrandPianoV3 (MP3 edition from the npm packages
+  @audio-samples/piano-mp3-velocity4 and -velocity12).
+  Changes made here: two of the sixteen loudness layers are used, each recording is shortened to
+  at most 9 seconds with a fade, and re-encoded as MP3.
+  "Bright Grand", "Soft Felt" and "Honky-tonk Upright" are made from the same recordings by
+  filtering, blending and detuning them in the browser.
+
+electric_grand_piano.pack, electric_piano_1.pack, harpsichord.pack
+  FluidR3 GM SoundFont by Frank Wen (MIT licence), as MP3 notes from the npm package
+  soundfont-for-samplers. Every third note is included; the notes between are played by
+  shifting the nearest one.
+
+File format of a .pack: 4 bytes (length of the index, little-endian), a JSON index
+{files:[{p: MIDI pitch, l: loudness layer, o: offset, n: bytes}]}, then the MP3 files end to end.

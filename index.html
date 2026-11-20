@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' blob: data:; media-src blob:; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Piano studio</title>
+<link rel="stylesheet" href="assets/css/studio.css?v=16">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="bar">
+  <a class="brand" href="./" title="Back to the journal"><svg viewBox="0 0 32 26" aria-hidden="true"><path d="M16 3c3.200 4 3.200 11 0 16c-3.200-5-3.200-12 0-16z"/><path d="M5 8c5 1 9 5 11 11c-6 0-11-4-11-11z"/><path d="M27 8c-5 1-9 5-11 11c6 0 11-4 11-11z"/><path d="M1 16c5-.5 10 .5 15 3c-5 3-11 2-15-3z"/><path d="M31 16c-5-.5-10 .5-15 3c5 3 11 2 15-3z"/></svg><span>Piano studio</span></a>
+  <div class="piece">
+    <h1 id="piece-title">Nothing loaded yet</h1>
+    <p id="piece-info">Connect the piano and play, choose a piece, or open a MIDI file.</p>
+  </div>
+  <button class="pill" id="connect" type="button"><i class="dot" aria-hidden="true"></i><span id="connect-text">Connect the piano</span></button>
+  <a class="back" href="./">Journal</a>
+</header>
+
+<main id="main" class="app" tabindex="-1">
+  <section class="left" aria-label="Stage">
+    <div class="stagebox" id="stagebox">
+      <canvas id="stage" aria-label="3D piano: glowing notes travel to the keys that play them"></canvas>
+      <p id="overlay" class="overlay"></p>
+      <p id="now" class="now" aria-hidden="true"></p>
+      <canvas id="cardview" class="cardview" hidden aria-hidden="true"></canvas>
+      <button id="unfill" class="unfill" type="button" aria-label="Leave full screen">Close</button>
+    </div>
+
+    <div class="transport" role="group" aria-label="Playback and recording">
+      <button class="round" id="play" type="button" disabled aria-label="Play">
+        <svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.500z"/></svg>
+        <svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3.500v14H7zM13.500 5H17v14h-3.500z"/></svg>
+      </button>
+      <span id="clock" class="clock">0:00 / 0:00</span>
+      <input type="range" id="seek" min="0" max="1" step="0.01" value="0" aria-label="Position in the piece" disabled>
+      <label class="mini">Speed <select id="speed"><option value="0.5">Half</option><option value="0.75">Slower</option><option value="1" selected>Normal</option></select></label>
+      <button class="btn rec" id="record" type="button"><i class="dot" aria-hidden="true"></i><span id="record-text">Record</span></button>
+      <button class="btn quiet icon" id="full" type="button" aria-label="Full screen" title="Full screen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+
+    <div class="sources">
+      <label class="btn quiet" for="midifile">Open a MIDI file</label><input type="file" id="midifile" accept=".mid,.midi,audio/midi">
+      <select class="btn quiet pick" id="library" aria-label="Play a piece from the library"><option value="">Play a piece…</option></select>
+      <button class="btn quiet" id="demo" type="button" hidden>Try the demo</button>
+      <button class="btn quiet" id="savemidi" type="button" disabled>Save as MIDI file</button>
+      <button class="btn quiet" id="mic" type="button">Listen with the microphone</button>
+    </div>
+    <p id="rec-msg" class="msg" role="status">Plug the piano's USB TO HOST port into this computer, switch the piano on, and press "Connect the piano". Use Chrome or Edge. You can also press the keys in the picture.</p>
+  </section>
+
+  <aside class="side" aria-label="Settings">
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-sound" aria-controls="panel-sound" aria-selected="true" type="button">Sound</button>
+      <button role="tab" id="tab-look" aria-controls="panel-look" aria-selected="false" type="button" tabindex="-1">Look</button>
+      <button role="tab" id="tab-video" aria-controls="panel-video" aria-selected="false" type="button" tabindex="-1">Video</button>
+    </div>
+
+    <section class="panel" id="panel-sound" role="tabpanel" aria-labelledby="tab-sound">
+      <h2>Instrument</h2>
+      <div class="cards" id="instruments" role="radiogroup" aria-label="Instrument"></div>
+      <h2>Room</h2>
+      <div class="seg" id="rooms" role="radiogroup" aria-label="Room"></div>
+      <label class="slider"><span>Volume</span><input type="range" id="volume" min="0" max="1.4" step="0.01" value="0.9"></label>
+      <label class="check"><input type="checkbox" id="monitor" checked><span>Play this sound while she plays<small>Turn the piano's own volume down to hear only the studio's sound.</small></span></label>
+      <p class="fine">You can also try the sounds with the computer keyboard: the row A S D F G H J K is C D E F G A B C, and W E T Y U are the black keys.</p>
+    </section>
+
+    <section class="panel" id="panel-look" role="tabpanel" aria-labelledby="tab-look" hidden>
+      <h2>Colours</h2>
+      <div class="swatches" id="themes" role="radiogroup" aria-label="Colours"></div>
+      <h2>Picture</h2>
+      <div class="seg" id="views" role="radiogroup" aria-label="Picture">
+        <button type="button" role="radio" data-v="piano" aria-checked="true">Piano keys</button>
+        <button type="button" role="radio" data-v="flight" aria-checked="false">Flight lines</button>
+        <button type="button" role="radio" data-v="sheet" aria-checked="false">Sheet music in light</button>
+        <button type="button" role="radio" data-v="dancer" aria-checked="false">Dancer</button>
+      </div>
+      <div id="dance-box" class="sub" hidden>
+        <p class="fine">The dancer moves to whatever the studio hears: press "Listen with the microphone" and play music near the computer, or press Play, or play the piano.</p>
+        <h2>Way of dancing</h2>
+        <div class="seg wrap" id="dances" role="radiogroup" aria-label="Way of dancing">
+          <button type="button" role="radio" data-v="auto" aria-checked="true">Follow the music</button>
+          <button type="button" role="radio" data-v="flow" aria-checked="false">Flowing</button>
+          <button type="button" role="radio" data-v="sway" aria-checked="false">Swaying</button>
+          <button type="button" role="radio" data-v="groove" aria-checked="false">Groove</button>
+          <button type="button" role="radio" data-v="energy" aria-checked="false">Energetic</button>
+        </div>
+      </div>
+      <h2 class="keys-only">Notes</h2>
+      <div class="seg keys-only" id="notes" role="radiogroup" aria-label="Notes">
+        <button type="button" role="radio" data-v="trails" aria-checked="true">Trails of light</button>
+        <button type="button" role="radio" data-v="water" aria-checked="false">Water</button>
+        <button type="button" role="radio" data-v="bars" aria-checked="false">Bars</button>
+      </div>
+      <h2 class="keys-only">Camera</h2>
+      <div class="seg keys-only" id="cameras" role="radiogroup" aria-label="Camera">
+        <button type="button" role="radio" data-v="front" aria-checked="true">Front</button>
+        <button type="button" role="radio" data-v="side" aria-checked="false">Along the keys</button>
+        <button type="button" role="radio" data-v="top" aria-checked="false">Above</button>
+      </div>
+      <h2>Shape</h2>
+      <div class="seg" id="shapes" role="radiogroup" aria-label="Shape">
+        <button type="button" role="radio" data-v="wide" aria-checked="true">Wide (TV, YouTube)</button>
+        <button type="button" role="radio" data-v="tall" aria-checked="false">Tall (phone, Shorts)</button>
+      </div>
+      <label class="check keys-only"><input type="checkbox" id="ribbon" checked><span>Written music on a film strip<small>The notes pass a line of light at the top and glow as they are played.</small></span></label>
+      <h2 class="keys-only">On the film strip</h2>
+      <div class="seg keys-only" id="strip" role="radiogroup" aria-label="On the film strip">
+        <button type="button" role="radio" data-v="notes" aria-checked="true">Written notes</button>
+        <button type="button" role="radio" data-v="lines" aria-checked="false">Flight lines</button>
+      </div>
+      <h2 class="sheet-only">Camera</h2>
+      <div class="seg wrap sheet-only" id="sheetcam" role="radiogroup" aria-label="Camera">
+        <button type="button" role="radio" data-v="low" aria-checked="false">Close and low</button>
+        <button type="button" role="radio" data-v="side" aria-checked="true">Higher</button>
+        <button type="button" role="radio" data-v="top" aria-checked="false">From above</button>
+        <button type="button" role="radio" data-v="move" aria-checked="false">Travelling</button>
+      </div>
+      <h2 class="sheet-only">Sky</h2>
+      <div class="seg wrap sheet-only" id="sky" role="radiogroup" aria-label="Sky">
+        <button type="button" role="radio" data-v="plain" aria-checked="false">Plain</button>
+        <button type="button" role="radio" data-v="stars" aria-checked="true">Stars</button>
+        <button type="button" role="radio" data-v="aurora" aria-checked="false">Aurora</button>
+        <button type="button" role="radio" data-v="galaxy" aria-checked="false">Galaxy</button>
+      </div>
+      <h2 class="sheet-only">Where a ball lands</h2>
+      <div class="seg sheet-only" id="landing" role="radiogroup" aria-label="Where a ball lands">
+        <button type="button" role="radio" data-v="sparks" aria-checked="true">Sparks</button>
+        <button type="button" role="radio" data-v="powder" aria-checked="false">Powder</button>
+        <button type="button" role="radio" data-v="both" aria-checked="false">Both</button>
+      </div>
+      <label class="slider sheet-only"><span>Glow of the notes <small>(left: matte)</small></span><input type="range" id="glow" min="0" max="1" step="0.05" value="0.45"></label>
+      <label class="check sheet-only"><input type="checkbox" id="paths" checked><span>Paths of light from note to note<small>A light for each hand hops along the music and lands on every note as it is played.</small></span></label>
+      <label class="check keys-only"><input type="checkbox" id="dots" checked><span>Bouncing balls on the film strip<small>A ball for each hand jumps from note to note and moves from left to right as the piece goes on, reaching the right end as it finishes.</small></span></label>
+      <label class="check"><input type="checkbox" id="labels"><span>Show note names</span></label>
+      <label class="check"><input type="checkbox" id="effects" checked><span>Sparks, mist and light beams</span></label>
+      <label class="check"><input type="checkbox" id="motion" checked><span>Gentle camera movement</span></label>
+      <label class="field"><span>Title shown in the picture (optional)</span><input type="text" id="vtitle" maxlength="60"></label>
+    </section>
+
+    <section class="panel" id="panel-video" role="tabpanel" aria-labelledby="tab-video" hidden>
+      <h2>Make a video of the piece</h2>
+      <div class="grid2">
+        <label class="field"><span>Size</span><select id="size"><option value="2160">4K (sharpest on YouTube, slow)</option><option value="1440">1440p (very sharp)</option><option value="1080" selected>Full HD (1080)</option><option value="720">HD (720)</option></select></label>
+        <label class="field"><span>Smoothness</span><select id="fps"><option value="30">30 frames a second</option><option value="60">60 frames a second</option></select></label>
+      </div>
+      <button class="btn main" id="export" type="button" disabled>Make the video</button>
+      <progress id="prog" max="1" value="0" hidden></progress>
+      <p id="exp-msg" class="fine" role="status">The video uses the instrument, room, colours, camera and shape you have chosen.</p>
+      <a id="download" class="btn main" hidden>Save the video</a>
+      <h2>Opening and closing cards</h2>
+      <p class="fine">Filled in from the piece you open; change anything before making the video. The sound's credit is always added to the closing card.</p>
+      <label class="check"><input type="checkbox" id="card-open" checked><span>Opening card<small>The name of the piece and its composer, for 5 seconds before the music.</small></span></label>
+      <label class="check"><input type="checkbox" id="card-close" checked><span>Closing card<small>A thank-you and the credits, for 7 seconds after the music, ending in black.</small></span></label>
+      <label class="field"><span>Look</span><select id="card-style"></select></label>
+      <label class="field"><span>Name of the piece</span><input type="text" id="card-title" maxlength="80"></label>
+      <div class="grid2">
+        <label class="field"><span>Composer</span><input type="text" id="card-composer" maxlength="60"></label>
+        <label class="field"><span>Line under it (optional)</span><input type="text" id="card-subtitle" maxlength="60" placeholder="Piano cover"></label>
+      </div>
+      <div class="grid2">
+        <label class="field"><span>Channel name</span><input type="text" id="card-channel" maxlength="40"></label>
+        <label class="field"><span>Closing words</span><input type="text" id="card-message" maxlength="60"></label>
+      </div>
+      <label class="field"><span>Credits (one per line)</span><textarea id="card-credits" rows="3" maxlength="400" placeholder="Arrangement: …"></textarea></label>
+      <div class="grid2">
+        <button class="btn" id="preview-open" type="button">Preview the opening</button>
+        <button class="btn" id="preview-close" type="button">Preview the closing</button>
+      </div>
+      <h2>Or film the screen live</h2>
+      <button class="btn" id="capture" type="button">Start filming</button>
+      <p id="cap-msg" class="fine" role="status">Films the picture with its sound until you press Stop. Use this to capture her playing live.</p>
+      <video id="cap-preview" controls playsinline hidden></video>
+      <a id="cap-link" class="btn main" hidden>Save this film</a>
+    </section>
+  </aside>
+</main>
+<footer class="credits">Grand piano recordings: Salamander Grand Piano by Alexander Holm (CC BY 3.0). Electric pianos and harpsichord: FluidR3 GM by Frank Wen.</footer>
+<script type="module" src="assets/js/studio.js?v=25"></script>
+</body>
+</html>

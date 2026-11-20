@@ -1,0 +1,110 @@
+Pieces in the studio's library
+
+All the music is in the public domain (the composers died between 1750 and 1943).
+The MIDI files were made from the free editions of the Mutopia Project (https://www.mutopiaproject.org)
+with LilyPond 2.24; each edition's own licence is given below and still applies to the file made from it.
+
+satie-gnossienne-1.smf
+  Erik Satie: Gnossienne No. 1
+  Notes after the edition typeset by Knute Snortum for the Mutopia Project (CC BY-SA 4.0)
+
+satie-gymnopedie-1.smf
+  Erik Satie: Gymnopédie No. 1
+  Typeset by Evin Robertson for the Mutopia Project (public domain)
+
+bach-prelude-in-c.smf
+  Johann Sebastian Bach: Prelude in C major, BWV 846
+  Typeset by Tobias Erbsland for the Mutopia Project (public domain)
+
+bach-prelude-in-c-minor.smf
+  Johann Sebastian Bach: Prelude in C minor, BWV 847
+  Typeset by Davide Castellone for the Mutopia Project (public domain)
+
+mozart-rondo-alla-turca.smf
+  Wolfgang Amadeus Mozart: Rondo alla Turca
+  Typeset by Rune Zedeler and Chris Sawer for the Mutopia Project (public domain)
+
+mozart-fantasia-in-d-minor.smf
+  Wolfgang Amadeus Mozart: Fantasia in D minor, K. 397
+  Typeset by Andrés Necochea for the Mutopia Project (public domain)
+
+beethoven-fur-elise.smf
+  Ludwig van Beethoven: Für Elise
+  Typeset by Stelios Samelis for the Mutopia Project (public domain)
+
+beethoven-moonlight-sonata-1.smf
+  Ludwig van Beethoven: Moonlight Sonata, first movement
+  Typeset by Stewart Holmes for the Mutopia Project (CC BY-SA 2.5)
+
+beethoven-moonlight-sonata-3.smf
+  Ludwig van Beethoven: Moonlight Sonata, third movement
+  Typeset by Stewart Holmes for the Mutopia Project (CC BY-SA 2.5)
+
+beethoven-pathetique-2.smf
+  Ludwig van Beethoven: Pathétique Sonata, second movement
+  Typeset by Chris Sawer for the Mutopia Project (public domain)
+
+beethoven-pathetique-3.smf
+  Ludwig van Beethoven: Pathétique Sonata, third movement
+  Typeset by Chris Sawer for the Mutopia Project (public domain)
+
+chopin-nocturne-op9-no2.smf
+  Frédéric Chopin: Nocturne in E-flat, Op. 9 No. 2
+  Typeset by Renato Biolcati Rinaldi for the Mutopia Project (CC BY-SA 3.0)
+
+chopin-prelude-in-e-minor.smf
+  Frédéric Chopin: Prelude in E minor, Op. 28 No. 4
+  Typeset by Magnus Lewis-Smith for the Mutopia Project (public domain)
+
+chopin-fantaisie-impromptu.smf
+  Frédéric Chopin: Fantaisie-Impromptu, Op. 66
+  Typeset by Guy D. Lederfein for the Mutopia Project (public domain)
+
+chopin-revolutionary-etude.smf
+  Frédéric Chopin: Revolutionary Étude, Op. 10 No. 12
+  Typeset by Roland Goretzki for the Mutopia Project (public domain)
+
+chopin-etude-op25-no1.smf
+  Frédéric Chopin: Étude in A-flat, Op. 25 No. 1 (Aeolian Harp)
+  Typeset by Roland Goretzki for the Mutopia Project (public domain)
+
+schumann-traumerei.smf
+  Robert Schumann: Träumerei
+  Typeset by Ying-Chun Liu for the Mutopia Project (public domain)
+
+liszt-consolation-3.smf
+  Franz Liszt: Consolation No. 3
+  Typeset by Ryan Prince for the Mutopia Project (CC BY 3.0)
+
+grieg-hall-of-the-mountain-king.smf
+  Edvard Grieg: In the Hall of the Mountain King
+  Typeset by Coyau for the Mutopia Project (public domain)
+
+grieg-wedding-day-at-troldhaugen.smf
+  Edvard Grieg: Wedding Day at Troldhaugen
+  Typeset by David Whipple for the Mutopia Project (public domain)
+
+debussy-clair-de-lune.smf
+  Claude Debussy: Clair de lune
+  Typeset by Keith OHara for the Mutopia Project (public domain)
+
+debussy-arabesque-1.smf
+  Claude Debussy: Arabesque No. 1
+  Typeset by Keith OHara for the Mutopia Project (public domain)
+
+rachmaninoff-prelude-in-g-minor.smf
+  Sergei Rachmaninoff: Prelude in G minor, Op. 23 No. 5
+  Typeset by Joram Berger for the Mutopia Project (CC BY-SA 4.0)
+
+joplin-the-entertainer.smf
+  Scott Joplin: The Entertainer
+  Typeset by Chris Sawer for the Mutopia Project (public domain)
+
+Changes made here: a tempo was set where the edition's file had none or an unsuitable one (Rondo alla Turca 126,
+Prelude in C 70, Moonlight Sonata first movement 54 and third movement 160, Gymnopédie 66, Arabesque 104). The sustain
+pedal was added by a simple rule (change the pedal when the bass note changes) to: Prelude in C, Moonlight Sonata first
+movement, Nocturne, Clair de lune, Gymnopédie, Träumerei, Arabesque, Pathétique second movement, Revolutionary Étude,
+Wedding Day at Troldhaugen, Prelude in G minor, Fantasia in D minor. The Gnossienne was entered by hand from its edition.
+
+The files end in .smf (Standard MIDI File) instead of .mid: they are ordinary MIDI files, renamed because this site
+never publishes .mid files, so that her own recordings cannot be published by accident.
