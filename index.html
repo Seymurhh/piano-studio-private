@@ -8,7 +8,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' blob: data:; media-src blob:; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Piano studio</title>
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="assets/css/studio.css?v=23">
+<link rel="stylesheet" href="assets/css/studio.css?v=24">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -198,8 +198,8 @@
         <p id="part-msg" class="fine" role="status">Open a piece, then write where the part starts and ends.</p>
       </div>
       <div class="grid2">
-        <label class="field"><span>Size</span><select id="size"><option value="2160">4K (sharpest on YouTube, slow)</option><option value="1440">1440p (very sharp)</option><option value="1080" selected>Full HD (1080)</option><option value="720">HD (720)</option></select></label>
-        <label class="field"><span>Smoothness</span><select id="fps"><option value="30">30 frames a second</option><option value="60">60 frames a second</option></select></label>
+        <label class="field"><span>Size</span><select id="size"><option value="2160">4K (sharpest, slow)</option><option value="1440">1440p (very sharp)</option><option value="1080" selected>Full HD (1080)</option><option value="720">HD (720)</option></select></label>
+        <label class="field"><span>Smoothness</span><select id="fps"><option value="30">30 frames/s</option><option value="60">60 frames/s (smoother)</option></select></label>
       </div>
       <button class="btn main" id="export" type="button" disabled>Make the video</button>
       <progress id="prog" max="1" value="0" hidden></progress>
