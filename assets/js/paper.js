@@ -352,19 +352,23 @@ export const CAM_MOVES = [
 const LIVE = { system: 30, gap: 6, chord: 0.06, behind: 90, period: 300, heads: 256, ledgers: 512, signs: 96, pins: 288 };
 // The ending. Over the last `over` s the camera slows a little and rises, falling `lag` ss behind the music by the
 // final note (so the last chord sits a little right of the usual place, whatever the speed); after the final note its
-// glide dies away (time constant `settle` s). It cranes straight up (12 ss/s, easing in) at tc, timed so that the
-// picture has faded out when the final notes stop sounding (`out` s after tc), but no sooner than wait[0] and no later
-// than wait[1] s after the final note. The picture fades (`fade`, s after tc), the balls last (`ballFade`); all within
-// the 2.5 s the app plays after the end of the piece.
-const ENDING = { lag: 7, over: 10, crane: 12, settle: 1, wait: [0.15, 3], out: 1.75, fade: [0.75, 1.55], ballFade: [0.95, 1.75] };
+// glide dies away (time constant `settle` s). It cranes straight up (12 ss/s, easing in) at tc: `lead` s before the
+// final notes stop sounding (tOff), but at least `land` s after the final note lands and at most `late` s after tOff, so
+// the rise is seen before the picture goes. The picture then fades smoothly over `fade` s, starting `fadeAt` s after
+// tOff and at least `rise` s into the crane; the balls go with it, a little behind (`ballLag`). It is all over within
+// `by` s after tOff, just inside the 2.5 s the app plays after the end of the piece, so the closing card follows after
+// only a breath of black.
+const ENDING = { lag: 7, over: 10, crane: 12, settle: 1, lead: 0.8, land: 0.4, late: 0.1, fadeAt: 0.2, rise: 0.4, fade: 1.85, ballLag: 0.15, by: 2.35 };
 // Opening: `at` seconds before the first note (when playback starts) the camera looks at the start of the system, the
 // bass end of the brace near the bass anchor, `margin` ss before it; the lead fades from `before` s before the first
-// note to `after` s after it.
-const OPENING = { at: 1.5, margin: 1, before: 4, after: 5 };
+// note to `after` s after it. The picture fades in from black over `fadeIn` s from the start of the video (`start`: the
+// app's runway, 1.5 s before music time 0).
+const OPENING = { at: 1.5, margin: 1, before: 4, after: 5, start: -1.5, fadeIn: 0.7 };
 
 // ---- sizes of the printing (ss) ----
 const INK = { depth: 0.03, bevelThickness: 0.04, bevelSize: 0.03, bevelSegments: 2, curveSegments: 6 }; // 0.11 high, flush-looking
 const RAISED = { depth: 0.09, bevelThickness: 0.03, bevelSize: 0.022, bevelSegments: 2, curveSegments: 8, lift: 0.35, pin: 0.055 };
+const COMPOSER = { size: 3.1, above: 3.4 }; // the composer's name: printed in ink, its baseline `above` ss over the top staff line, under the title's right end
 const TITLE = { cap: 12, maxW: 110, minScale: 0.45, rowScale: 0.7, depth: 0.46, bevelThickness: 0.07, bevelSize: 0.07, bevelSegments: 3, curveSegments: 10, lift: 0.8, pin: 0.14, gap: 8.5, x: 6 };
 // The semi-gloss paper mirrors the raised title and its pins softly: a dim copy below the paper, added to the paper's
 // colour and fading quickly with depth (k = strength, fall = ss over which it dims to 1/e, cap = the brightest it may
@@ -1607,8 +1611,15 @@ export function buildPaper(T, tools, piece, opts = {}) {
       const m = new THREE.Mesh(noDome(flat(new THREE.ShapeGeometry(tm, 8))), ink);
       m.position.set(1.0, LINE.lift + 0.002, -(TOP[0] + 2.4)); printed.add(m);
     }
-    // the title, raised on pins above the start of the music
+    // the title, raised on pins above the start of the music, and the composer printed under its right end, as in a score
     addTitle(String(opts.title || '').trim());
+    addComposer(String(opts.composer || '').trim());
+  }
+  function addComposer(text) {
+    if (!text || titleBox.isEmpty()) return;
+    const shapes = textShapes(text, { size: COMPOSER.size, letterSpacing: 0.02 }), right = titleBox.max.x;
+    const m = new THREE.Mesh(noDome(flat(new THREE.ShapeGeometry(shapes, 8))), ink);
+    m.position.set(Math.max(TITLE.x, right - shapes.width), LINE.lift + 0.002, -(TOP[0] + COMPOSER.above)); printed.add(m);
   }
   function addTitle(text) {
     if (!text) return;
@@ -1848,13 +1859,14 @@ export function buildPaper(T, tools, piece, opts = {}) {
     const ta = t1 - OPENING.at, want = Math.max(0, OPENING.margin - S.xOf(ta));
     // the end of the sound: the crane and fade are timed to finish as the final notes stop
     const tOff = piece.duration ?? Math.max(...piece.notes.map((n) => n.onset + n.dur));
-    const tc = Math.min(tEnd + ENDING.wait[1], Math.max(tEnd + ENDING.wait[0], tOff - ENDING.out));
-    layout = { xOf: S.xOf, speed: S.speed, t1, tEnd, tOff, tc, lead: want / (1 - sstep(t1 - OPENING.before, t1 + OPENING.after, ta)) };
+    const tc = Math.min(tOff + ENDING.late, Math.max(tEnd + ENDING.land, tOff - ENDING.lead));
+    const f0 = Math.min(tOff + ENDING.by - ENDING.fade, Math.max(tOff + ENDING.fadeAt, tc + ENDING.rise)), f1 = f0 + ENDING.fade;
+    layout = { xOf: S.xOf, speed: S.speed, t1, tEnd, tOff, tc, f0, f1, lead: want / (1 - sstep(t1 - OPENING.before, t1 + OPENING.after, ta)) };
   }
   // Live: the place moves on at the slowest layout speed, counted from liveBase (re-centred every LIVE.period s, a
   // whole number of systems, so nothing visibly moves when it changes). (Finite: the ramps below must not see infinities.)
   let liveBase = 0;
-  const liveLayout = { xOf: (t) => (t - liveBase) * LAYOUT.minSpeed, speed: LAYOUT.minSpeed, t1: -1e9, tEnd: 1e9, tOff: 1e9, tc: 1e9, lead: 0 };
+  const liveLayout = { xOf: (t) => (t - liveBase) * LAYOUT.minSpeed, speed: LAYOUT.minSpeed, t1: -1e9, tEnd: 1e9, tOff: 1e9, tc: 1e9, f0: 1e9, f1: 1e9 + 1, lead: 0 };
   const E = new THREE.Euler(0, 0, 0, 'YXZ'), D = new THREE.Vector3();
   const slowed = (u) => (u <= 0 ? 0 : u < 1 ? u * u * u - (u * u * u * u) / 2 : 0.5 + (u - 1)); // the integral of smoothstep
   // The x the camera follows: the music's own place, exactly, except at the two ends. At the start it runs a little
@@ -2694,7 +2706,9 @@ export function buildPaper(T, tools, piece, opts = {}) {
     camera.updateMatrixWorld();
     if (live) drawLive(o.live || NONE, p.x, c.live || 0);
     // the end: the picture fades to black, the balls last (smoothly in what the eye sees, so as linear light ^2.2)
-    const fS = 1 - sstep(L.tc + ENDING.fade[0], L.tc + ENDING.fade[1], t), fB = 1 - sstep(L.tc + ENDING.ballFade[0], L.tc + ENDING.ballFade[1], t);
+    // (and at the start it fades in from black, smoothly too; not in live playing)
+    const fIn = L === layout ? sstep(OPENING.start, OPENING.start + OPENING.fadeIn, t) : 1;
+    const fS = fIn * (1 - sstep(L.f0, L.f1, t)), fB = fIn * (1 - sstep(L.f0 + ENDING.ballLag, L.f1, t));
     const linS = Math.pow(fS, 2.2), linB = Math.pow(fB, 2.2) * (paperTone.dark ? linS : 1); // (on dark paper the balls and their light go with the rest: no points of light left in the dark)
     // the light pool and the key light travel with the camera: with the Steady camera (the cinematic camera keeps
     // them where the Steady camera has them, so the picture's brightness and the shadows do not swing as it moves;

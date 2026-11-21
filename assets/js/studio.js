@@ -1,8 +1,8 @@
 // Piano studio: play live from the piano, load or record a performance, watch it in 3D, and make a video. Everything runs in the browser.
 import { parseMidi, fromRecording, writeMidi, demoPiece, noteName } from './midi.js?v=13';
-import { createStage } from './stage.js?v=35';
+import { createStage } from './stage.js?v=36';
 import { createListener, STYLE_NAMES } from './listen.js?v=8';
-import { drawCard, OPEN, CLOSE, STYLES } from './cards.js?v=2';
+import { drawCard, OPEN, CLOSE, STYLES } from './cards.js?v=3';
 import { INSTRUMENTS, ROOMS, makeOutput, noteOn, voice, renderPiece, loadInstrument, isLoaded } from './synth.js?v=13';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -106,7 +106,7 @@ function load(piece, name, meta) {
   pause();
   if (piece) fillCard(meta || guessMeta(piece, name));
   P.piece = piece; P.name = name; P.pos = -LEAD; L.last = -99;
-  stage.setTitle(piece ? title3d() : null); // lettered in 3D at the start of the paper look
+  stage.setComposer(piece ? composer3d() : ''); stage.setTitle(piece ? title3d() : null); // lettered in 3D at the start of the paper look
   stage.setPiece(piece);
   say('piece-title', name);
   const pedals = piece ? piece.pedal.filter((p) => p.down).length : 0;
@@ -287,16 +287,18 @@ finishDesc();
 // The title lettered on the paper is the name of the piece (Video tab), which can also be changed here; typing
 // waits half a second before the picture is built again.
 function title3d() { return C.title3d ? $('#card-title').value.trim() : ''; }
+function composer3d() { return C.title3d ? $('#card-composer').value.trim() : ''; } // printed under the title's right end
 let titleTimer = 0;
 function titleChanged(now) {
   clearTimeout(titleTimer);
-  const go = () => { if (P.piece) stage.setTitle(title3d()); };
+  const go = () => { if (P.piece) { stage.setComposer(composer3d()); stage.setTitle(title3d()); } };
   if (now) go(); else titleTimer = setTimeout(go, 500);
 }
 ui.title3d.checked = C.title3d;
 ui.title3d.addEventListener('change', () => { C.title3d = ui.title3d.checked; remember(); titleChanged(true); });
 ui.ptitle.addEventListener('input', () => { $('#card-title').value = ui.ptitle.value; titleChanged(); });
 $('#card-title').addEventListener('input', () => { ui.ptitle.value = $('#card-title').value; titleChanged(); });
+$('#card-composer').addEventListener('input', () => titleChanged());
 setInterval(() => { if (C.view === 'dancer' && A.ear && !P.busy) A.ear.update(clock()); }, 12); // listening keeps its own steady pace, apart from the picture
 function hear() { // dancer view: tell the stage what the music is doing, and say it in words
   const F = A.ear ? A.ear.features : null;
@@ -791,8 +793,10 @@ async function makeVideo() {
       if (failed) throw failed;
       stopped();
       const t = i / fps - LEAD - intro; // music time: the opening card plays before the runway, the closing card after the end
-      stage.render(Math.min(t, end + 2.5));
-      g.drawImage(canvas, 0, 0, w, h);
+      // (paper: the opening card sits on black, then the picture fades in from black at the start of the runway, so
+      // the moving page and its 3D title never show through the card)
+      if (intro && t < -LEAD && paperOn()) { g.fillStyle = '#000'; g.fillRect(0, 0, w, h); }
+      else { stage.render(Math.min(t, end + 2.5)); g.drawImage(canvas, 0, 0, w, h); }
       if (title) {
         g.font = `600 ${Math.round(Math.min(w, h) * 0.045)}px Georgia, serif`; g.textBaseline = 'top';
         g.fillStyle = '#ffffff'; g.shadowColor = 'rgba(0,0,0,.8)'; g.shadowBlur = h * 0.012;

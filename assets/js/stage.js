@@ -6,7 +6,7 @@ import { buildFlight, voicesFromPiece } from './flight.js?v=14';
 import { buildDancer } from './dancer.js?v=9';
 import { buildScore } from './score.js?v=20';
 import { buildSheet } from './sheet.js?v=8';
-import { buildPaper, HAND_PAIRS, PAPERS, PAPER_DEFAULT, FINISHES, FINISH_DEFAULT, CORNER_STYLES, CAM_MOVES, SHINE_DEFAULT } from './paper.js?v=11';
+import { buildPaper, HAND_PAIRS, PAPERS, PAPER_DEFAULT, FINISHES, FINISH_DEFAULT, CORNER_STYLES, CAM_MOVES, SHINE_DEFAULT } from './paper.js?v=12';
 import { loadGlyphs } from './glyphs.js?v=1';
 
 const THEMES = {
@@ -143,7 +143,7 @@ export function createStage(canvas) {
   const clip = [new THREE.Plane(new THREE.Vector3(0, 0, -1), 0)]; // hide the part of a note that has passed the keys
   const dot = canvasTex(64, 64, (g) => { const r = g.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, '#fff'); r.addColorStop(0.35, 'rgba(255,255,255,.55)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); });
   const beamTex = canvasTex(32, 128, (g, w, h) => { const r = g.createLinearGradient(0, h, 0, 0); r.addColorStop(0, 'rgba(255,255,255,.95)'); r.addColorStop(0.25, 'rgba(255,255,255,.35)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, w, h); });
-  const S = { look: 'paper', title: null, glyphs: null, hands: 'rose', paperTone: PAPER_DEFAULT, finish: FINISH_DEFAULT, trails: false, corner: 'off', cornerK: 0.5, sparks: 0, camMove: 'steady', shine: SHINE_DEFAULT, ballK: 0.5, notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheet: null, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', score: null, theme: 'aurora', camera: 'front', trail: null, pool: [], labels: true, effects: true, motion: true, piece: null, view: 'piano', voices: [], mic: null, flight: null, scene: null, keys: [], items: [], beams: [], live: new Map(), far: 60, cam: null };
+  const S = { look: 'paper', title: null, composer: '', glyphs: null, hands: 'rose', paperTone: PAPER_DEFAULT, finish: FINISH_DEFAULT, trails: false, corner: 'off', cornerK: 0.5, sparks: 0, camMove: 'steady', shine: SHINE_DEFAULT, ballK: 0.5, notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheet: null, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', score: null, theme: 'aurora', camera: 'front', trail: null, pool: [], labels: true, effects: true, motion: true, piece: null, view: 'piano', voices: [], mic: null, flight: null, scene: null, keys: [], items: [], beams: [], live: new Map(), far: 60, cam: null };
   const labelMats = new Map(), ray = new THREE.Raycaster(), point = new THREE.Vector2(), bufSize = new THREE.Vector2();
   const paperLook = () => S.view === 'sheet' && S.look === 'paper';
   // The paper look's 3D lettering needs the glyph outlines, which load in the background. Until they arrive the paper
@@ -174,7 +174,7 @@ export function createStage(canvas) {
     }
     dof.enabled = S.view === 'sheet' && !paperLook();
     if (paperLook()) {
-      S.paper = buildPaper(THEMES[S.theme], { renderer }, S.piece, { title: S.title ?? (S.piece && S.piece.label) ?? '', glyphs: S.glyphs, hands: S.hands, paper: S.paperTone, finish: S.finish });
+      S.paper = buildPaper(THEMES[S.theme], { renderer }, S.piece, { title: S.title ?? (S.piece && S.piece.label) ?? '', composer: S.title === '' ? '' : S.composer, glyphs: S.glyphs, hands: S.hands, paper: S.paperTone, finish: S.finish });
       [bloom.strength, bloom.radius, bloom.threshold] = S.paper.bloom.pass; // tight, and only for what is brighter than white (the glows)
       bloom.compositeMaterial.uniforms.bloomFactors.value = S.paper.bloom.mips;
       renderer.toneMappingExposure = 1;
@@ -553,6 +553,8 @@ export function createStage(canvas) {
     setLook(v) { const look = v === 'night' ? 'night' : 'paper'; if (look !== S.look) { S.look = look; S.scene = null; } },
     // The title lettered in 3D at the start of the paper look (null: the piece's own name from its file).
     setTitle(text) { const v = text == null ? null : String(text); if (v !== S.title) { S.title = v; if (paperLook()) S.scene = null; } },
+    // The composer's name, printed under the right end of the 3D title in the paper look ('' for none).
+    setComposer(text) { const v = String(text || '').trim(); if (v !== S.composer) { S.composer = v; if (paperLook()) S.scene = null; } },
     // The paper look's colours for the two hands: the id of one of the pairs handPairs() lists (no rebuild needed).
     setHands(id) { S.hands = HAND_PAIRS.some((p) => p.id === id) ? id : 'rose'; if (S.paper) S.paper.setHands(S.hands); },
     handPairs: () => HAND_PAIRS.map(({ id, name, chips }) => ({ id, name, chips })),

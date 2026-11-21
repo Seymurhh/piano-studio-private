@@ -58,7 +58,7 @@ export function drawCard(g, w, h, kind, u, info, style, accent) {
     y = text(g, kind === 'open' ? info.title : info.message, x, y + rise(0.5), { ...left, font: `600 ${S * 0.062}px ${SERIF}`, alpha: step(0.5) }) + S * 0.058;
     y = text(g, kind === 'open' ? info.composer : [info.title, info.composer].filter(Boolean).join(' · '), x, y, { ...left, font: `italic ${S * 0.032}px ${SERIF}`, color: '#d9cfb8', alpha: step(0.9) }) + S * 0.045;
     if (kind === 'open') text(g, (info.subtitle || '').toUpperCase(), x, y, { ...left, font: `500 ${S * 0.018}px ${SANS}`, alpha: step(1.2) * 0.75, spacing: `${S * 0.005}px` });
-    else credits.forEach((c, i) => { y = text(g, c, x, y, { ...left, font: `${S * 0.021}px ${SANS}`, color: 'rgba(235,228,212,0.8)', alpha: step(1.4 + i * 0.25), lh: 1.35 }) + S * 0.028; });
+    else credits.forEach((c, i) => { y = text(g, c, x, y, { ...left, font: `${S * 0.026}px ${SANS}`, color: 'rgba(235,228,212,0.8)', alpha: step(1.4 + i * 0.25), lh: 1.35 }) + S * 0.028; });
   } else if (style === 'cinema') {
     veil(g, w, h, 0.66 * a);
     const sweep = ease((u - 0.3) / 1.4); // a band of light passes over the title and leaves it written
@@ -75,7 +75,7 @@ export function drawCard(g, w, h, kind, u, info, style, accent) {
     if (kind === 'open') text(g, info.subtitle, cx, y, { font: `italic ${S * 0.026}px ${SERIF}`, alpha: step(1.9) * 0.8, maxW });
     else {
       y += S * 0.04;
-      credits.forEach((c, i) => { y = text(g, c, cx, y, { font: `${S * 0.021}px ${SANS}`, color: 'rgba(235,228,212,0.8)', alpha: step(2 + i * 0.25), maxW, lh: 1.35 }) + S * 0.03; });
+      credits.forEach((c, i) => { y = text(g, c, cx, y, { font: `${S * 0.026}px ${SANS}`, color: 'rgba(235,228,212,0.8)', alpha: step(2 + i * 0.25), maxW, lh: 1.35 }) + S * 0.03; });
       text(g, (info.channel || '').toUpperCase(), cx, h * 0.9, { font: `600 ${S * 0.022}px ${SANS}`, color: accent, alpha: step(2.8), spacing: `${S * 0.01}px` });
     }
   } else { // lumen
@@ -83,14 +83,14 @@ export function drawCard(g, w, h, kind, u, info, style, accent) {
     let y = h * (kind === 'open' ? (tall ? 0.36 : 0.3) : (tall ? 0.24 : 0.2));
     y = text(g, (info.channel || '').toUpperCase(), cx, y, { font: `600 ${S * 0.022}px ${SANS}`, color: accent, alpha: step(0.2), spacing: `${S * 0.012}px`, glow: S * 0.012, glowColor: accent }) + S * (kind === 'open' ? 0.1 : 0.085);
     const head = kind === 'open' ? info.title : info.message;
-    y = text(g, head, cx, y + rise(0.4), { font: `600 ${S * (kind === 'open' ? big : big * 0.72)}px ${SERIF}`, alpha: step(0.4, 0.9), glow: S * 0.018, glowColor: accent, maxW, lh: 1.12 }) + S * 0.065;
+    y = text(g, head, cx, y + rise(0.4), { font: `600 ${S * (kind === 'open' ? big : big * 0.84)}px ${SERIF}`, alpha: step(0.4, 0.9), glow: S * 0.018, glowColor: accent, maxW, lh: 1.12 }) + S * 0.065;
     line(g, cx, y, S * 0.2 * ease((u - 0.9) / 0.9), accent, a, Math.max(1, S * 0.0025));
     y += S * 0.06;
     y = text(g, kind === 'open' ? info.composer : [info.title, info.composer].filter(Boolean).join(' · '), cx, y, { font: `italic ${S * 0.04}px ${SERIF}`, color: '#e2d6bd', alpha: step(1.2), maxW }) + S * 0.06;
     if (kind === 'open') text(g, (info.subtitle || '').toUpperCase(), cx, y, { font: `500 ${S * 0.02}px ${SANS}`, alpha: step(1.6) * 0.75, spacing: `${S * 0.008}px`, maxW });
     else {
       y += S * 0.03;
-      credits.forEach((c, i) => { y = text(g, c, cx, y, { font: `${S * 0.021}px ${SANS}`, color: 'rgba(235,228,212,0.82)', alpha: step(1.8 + i * 0.25), maxW, lh: 1.35 }) + S * 0.032; });
+      credits.forEach((c, i) => { y = text(g, c, cx, y, { font: `${S * 0.026}px ${SANS}`, color: 'rgba(235,228,212,0.82)', alpha: step(1.8 + i * 0.25), maxW, lh: 1.35 }) + S * 0.032; });
     }
   }
   g.restore();
