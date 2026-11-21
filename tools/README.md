@@ -46,8 +46,9 @@ node tools/app-check.mjs --out ~/Desktop/app --piece demo --export 720 --fps 30
 # Run page scripts in turn from a JSON file: [{ "js": "...", "wait": seconds, "shot": "name.png" }]
 node tools/app-check.mjs --out ~/Desktop/app --steps steps.json
 
-# The same, once the piece is open (runs before --export): e.g. a 30-second part of Für Elise from 0:42 for a Short
-node tools/app-check.mjs --out ~/Desktop/app --piece "für elise" --shape tall --set part=part --set partLen=30 --after part.json --export 720
+# The same, once the piece is open (runs before --export): e.g. a part of Für Elise for a Short, its times written
+# into #part-start and #part-end by part.json
+node tools/app-check.mjs --out ~/Desktop/app --piece "für elise" --shape tall --set part=part --after part.json --export 720
 ```
 
 `--look paper|night`, `--view`, `--shape` and `--set key=value` start the page with those saved choices (saved as

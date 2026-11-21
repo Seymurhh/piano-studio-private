@@ -191,14 +191,11 @@
       </div>
       <div class="partbox" id="part-box" hidden>
         <div class="grid2">
-          <label class="field"><span>Starts at <small>(min:sec)</small></span><input type="text" id="part-start" value="0:00" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
-          <label class="field"><span>Length</span><select id="part-len"><option value="15">15 seconds</option><option value="20">20 seconds</option><option value="30">30 seconds</option><option value="40">40 seconds</option><option value="45">45 seconds</option><option value="50">50 seconds</option><option value="60">1 minute</option><option value="90">1½ minutes</option><option value="120">2 minutes</option><option value="180">3 minutes (longest Short)</option></select></label>
+          <label class="field"><span>Starts at <small>(min:sec)</small></span><input type="text" id="part-start" value="0:00" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="0:42"></label>
+          <label class="field"><span>Ends at <small>(min:sec)</small></span><input type="text" id="part-end" value="0:45" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="1:30"></label>
         </div>
-        <div class="grid2">
-          <button class="btn" id="part-here" type="button" disabled>Start where it is now</button>
-          <button class="btn" id="part-play" type="button" disabled>Play the part</button>
-        </div>
-        <p id="part-msg" class="fine" role="status">Open a piece, then choose where the part starts.</p>
+        <button class="btn" id="part-play" type="button" disabled>Play the part</button>
+        <p id="part-msg" class="fine" role="status">Open a piece, then write where the part starts and ends.</p>
       </div>
       <div class="grid2">
         <label class="field"><span>Size</span><select id="size"><option value="2160">4K (sharpest on YouTube, slow)</option><option value="1440">1440p (very sharp)</option><option value="1080" selected>Full HD (1080)</option><option value="720">HD (720)</option></select></label>
@@ -210,7 +207,7 @@
       <a id="download" class="btn main" hidden>Save the video</a>
       <h2>Opening and closing cards</h2>
       <p class="fine">Filled in from the piece you open; change anything before making the video. The sound's credit is always added to the closing card.</p>
-      <label class="check"><input type="checkbox" id="card-open"><span>Opening card<small>The name of the piece and its composer, for 5 seconds before the music. Off at first on paper, where the 3D title opens the video.</small></span></label>
+      <label class="check"><input type="checkbox" id="card-open"><span>Opening card<small>The name of the piece and its composer, for 5 seconds before the music. Off at first on paper, where the 3D title opens the whole piece; on at first for a part.</small></span></label>
       <label class="check"><input type="checkbox" id="card-close" checked><span>Closing card<small>A thank-you and the credits, for 7 seconds after the music, ending in black.</small></span></label>
       <label class="field"><span>Look</span><select id="card-style"></select></label>
       <label class="field"><span>Name of the piece<small class="paper-only"> (also the title on the paper)</small></span><input type="text" id="card-title" maxlength="80"></label>
@@ -237,6 +234,6 @@
   </aside>
 </main>
 <footer class="credits">Grand piano recordings: Salamander Grand Piano by Alexander Holm (CC BY 3.0). Electric pianos and harpsichord: FluidR3 GM by Frank Wen. Music symbols converted from Bravura by Steinberg Media Technologies, and lettering converted from Libre Baskerville by Pablo Impallari and Rodrigo Fuenzalida, both under the <a href="assets/glyphs/OFL.txt">SIL Open Font License 1.1</a> (<a href="assets/glyphs/CREDITS.txt">details</a>).</footer>
-<script type="module" src="assets/js/studio.js?v=39"></script>
+<script type="module" src="assets/js/studio.js?v=40"></script>
 </body>
 </html>
