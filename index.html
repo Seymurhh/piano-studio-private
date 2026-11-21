@@ -7,24 +7,24 @@
 <meta name="referrer" content="no-referrer">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' blob: data:; media-src blob:; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Piano studio</title>
-<link rel="stylesheet" href="assets/css/studio.css?v=16">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="assets/css/studio.css?v=17">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="bar">
-  <a class="brand" href="./" title="Back to the journal"><svg viewBox="0 0 32 26" aria-hidden="true"><path d="M16 3c3.200 4 3.200 11 0 16c-3.200-5-3.200-12 0-16z"/><path d="M5 8c5 1 9 5 11 11c-6 0-11-4-11-11z"/><path d="M27 8c-5 1-9 5-11 11c6 0 11-4 11-11z"/><path d="M1 16c5-.5 10 .5 15 3c-5 3-11 2-15-3z"/><path d="M31 16c-5-.5-10 .5-15 3c5 3 11 2 15-3z"/></svg><span>Piano studio</span></a>
+  <div class="brand"><svg viewBox="0 0 32 26" aria-hidden="true"><path d="M16 3c3.200 4 3.200 11 0 16c-3.200-5-3.200-12 0-16z"/><path d="M5 8c5 1 9 5 11 11c-6 0-11-4-11-11z"/><path d="M27 8c-5 1-9 5-11 11c6 0 11-4 11-11z"/><path d="M1 16c5-.5 10 .5 15 3c-5 3-11 2-15-3z"/><path d="M31 16c-5-.5-10 .5-15 3c5 3 11 2 15-3z"/></svg><span>Piano studio</span></div>
   <div class="piece">
     <h1 id="piece-title">Nothing loaded yet</h1>
     <p id="piece-info">Connect the piano and play, choose a piece, or open a MIDI file.</p>
   </div>
   <button class="pill" id="connect" type="button"><i class="dot" aria-hidden="true"></i><span id="connect-text">Connect the piano</span></button>
-  <a class="back" href="./">Journal</a>
 </header>
 
 <main id="main" class="app" tabindex="-1">
   <section class="left" aria-label="Stage">
     <div class="stagebox" id="stagebox">
-      <canvas id="stage" aria-label="3D piano: glowing notes travel to the keys that play them"></canvas>
+      <canvas id="stage" aria-label="The picture: the music in 3D, lighting up as it is played"></canvas>
       <p id="overlay" class="overlay"></p>
       <p id="now" class="now" aria-hidden="true"></p>
       <canvas id="cardview" class="cardview" hidden aria-hidden="true"></canvas>
@@ -71,15 +71,20 @@
     </section>
 
     <section class="panel" id="panel-look" role="tabpanel" aria-labelledby="tab-look" hidden>
-      <h2>Colours</h2>
-      <div class="swatches" id="themes" role="radiogroup" aria-label="Colours"></div>
       <h2>Picture</h2>
       <div class="seg" id="views" role="radiogroup" aria-label="Picture">
-        <button type="button" role="radio" data-v="piano" aria-checked="true">Piano keys</button>
+        <button type="button" role="radio" data-v="sheet" aria-checked="true">Sheet music in light</button>
+        <button type="button" role="radio" data-v="piano" aria-checked="false">Piano keys</button>
         <button type="button" role="radio" data-v="flight" aria-checked="false">Flight lines</button>
-        <button type="button" role="radio" data-v="sheet" aria-checked="false">Sheet music in light</button>
         <button type="button" role="radio" data-v="dancer" aria-checked="false">Dancer</button>
       </div>
+      <h2 class="sheet-only">Look of the sheet music</h2>
+      <div class="seg sheet-only" id="looks" role="radiogroup" aria-label="Look of the sheet music">
+        <button type="button" role="radio" data-v="paper" aria-checked="true">Soft paper</button>
+        <button type="button" role="radio" data-v="night" aria-checked="false">Night glass</button>
+      </div>
+      <p class="fine sheet-only paper-only">Printed music on soft lavender paper under one warm lamp. A small ball of light for each hand lands on every note, and each note stays lit once it has been played.</p>
+      <p class="fine sheet-only no-paper">Glowing notes on a dark glass slab under a night sky, with sparks where the balls land.</p>
       <div id="dance-box" class="sub" hidden>
         <p class="fine">The dancer moves to whatever the studio hears: press "Listen with the microphone" and play music near the computer, or press Play, or play the piano.</p>
         <h2>Way of dancing</h2>
@@ -91,6 +96,10 @@
           <button type="button" role="radio" data-v="energy" aria-checked="false">Energetic</button>
         </div>
       </div>
+      <h2 class="no-paper">Colours</h2>
+      <div class="swatches no-paper" id="themes" role="radiogroup" aria-label="Colours"></div>
+      <h2 class="paper-only">Colours of the two hands</h2>
+      <div class="swatches pairs paper-only" id="hands" role="radiogroup" aria-label="Colours of the two hands"></div>
       <h2 class="keys-only">Notes</h2>
       <div class="seg keys-only" id="notes" role="radiogroup" aria-label="Notes">
         <button type="button" role="radio" data-v="trails" aria-checked="true">Trails of light</button>
@@ -114,33 +123,35 @@
         <button type="button" role="radio" data-v="notes" aria-checked="true">Written notes</button>
         <button type="button" role="radio" data-v="lines" aria-checked="false">Flight lines</button>
       </div>
-      <h2 class="sheet-only">Camera</h2>
-      <div class="seg wrap sheet-only" id="sheetcam" role="radiogroup" aria-label="Camera">
+      <h2 class="sheet-only no-paper">Camera</h2>
+      <div class="seg wrap sheet-only no-paper" id="sheetcam" role="radiogroup" aria-label="Camera">
         <button type="button" role="radio" data-v="low" aria-checked="false">Close and low</button>
         <button type="button" role="radio" data-v="side" aria-checked="true">Higher</button>
         <button type="button" role="radio" data-v="top" aria-checked="false">From above</button>
         <button type="button" role="radio" data-v="move" aria-checked="false">Travelling</button>
       </div>
-      <h2 class="sheet-only">Sky</h2>
-      <div class="seg wrap sheet-only" id="sky" role="radiogroup" aria-label="Sky">
+      <h2 class="sheet-only no-paper">Sky</h2>
+      <div class="seg wrap sheet-only no-paper" id="sky" role="radiogroup" aria-label="Sky">
         <button type="button" role="radio" data-v="plain" aria-checked="false">Plain</button>
         <button type="button" role="radio" data-v="stars" aria-checked="true">Stars</button>
         <button type="button" role="radio" data-v="aurora" aria-checked="false">Aurora</button>
         <button type="button" role="radio" data-v="galaxy" aria-checked="false">Galaxy</button>
       </div>
-      <h2 class="sheet-only">Where a ball lands</h2>
-      <div class="seg sheet-only" id="landing" role="radiogroup" aria-label="Where a ball lands">
+      <h2 class="sheet-only no-paper">Where a ball lands</h2>
+      <div class="seg sheet-only no-paper" id="landing" role="radiogroup" aria-label="Where a ball lands">
         <button type="button" role="radio" data-v="sparks" aria-checked="true">Sparks</button>
         <button type="button" role="radio" data-v="powder" aria-checked="false">Powder</button>
         <button type="button" role="radio" data-v="both" aria-checked="false">Both</button>
       </div>
-      <label class="slider sheet-only"><span>Glow of the notes <small>(left: matte)</small></span><input type="range" id="glow" min="0" max="1" step="0.05" value="0.45"></label>
-      <label class="check sheet-only"><input type="checkbox" id="paths" checked><span>Paths of light from note to note<small>A light for each hand hops along the music and lands on every note as it is played.</small></span></label>
+      <label class="slider sheet-only no-paper"><span>Glow of the notes <small>(left: matte)</small></span><input type="range" id="glow" min="0" max="1" step="0.05" value="0.45"></label>
+      <label class="check sheet-only"><input type="checkbox" id="paths" checked><span>Balls of light from note to note<small>A light for each hand hops along the music and lands on every note as it is played.</small></span></label>
+      <label class="check sheet-only paper-only"><input type="checkbox" id="title3d" checked><span>Show the title in 3D at the start<small>Raised letters on the paper before the first notes.</small></span></label>
+      <label class="field sheet-only paper-only"><span>Title on the paper</span><input type="text" id="ptitle" maxlength="80" placeholder="Name of the piece"></label>
       <label class="check keys-only"><input type="checkbox" id="dots" checked><span>Bouncing balls on the film strip<small>A ball for each hand jumps from note to note and moves from left to right as the piece goes on, reaching the right end as it finishes.</small></span></label>
       <label class="check"><input type="checkbox" id="labels"><span>Show note names</span></label>
-      <label class="check"><input type="checkbox" id="effects" checked><span>Sparks, mist and light beams</span></label>
-      <label class="check"><input type="checkbox" id="motion" checked><span>Gentle camera movement</span></label>
-      <label class="field"><span>Title shown in the picture (optional)</span><input type="text" id="vtitle" maxlength="60"></label>
+      <label class="check no-paper"><input type="checkbox" id="effects" checked><span>Sparks, mist and light beams</span></label>
+      <label class="check"><input type="checkbox" id="motion" checked><span>Gentle camera movement<small class="paper-only">On paper: the camera slowly rises, sinks and turns a little as it glides.</small></span></label>
+      <label class="field no-paper"><span>Title shown in the picture (optional)</span><input type="text" id="vtitle" maxlength="60"></label>
     </section>
 
     <section class="panel" id="panel-video" role="tabpanel" aria-labelledby="tab-video" hidden>
@@ -158,7 +169,7 @@
       <label class="check"><input type="checkbox" id="card-open" checked><span>Opening card<small>The name of the piece and its composer, for 5 seconds before the music.</small></span></label>
       <label class="check"><input type="checkbox" id="card-close" checked><span>Closing card<small>A thank-you and the credits, for 7 seconds after the music, ending in black.</small></span></label>
       <label class="field"><span>Look</span><select id="card-style"></select></label>
-      <label class="field"><span>Name of the piece</span><input type="text" id="card-title" maxlength="80"></label>
+      <label class="field"><span>Name of the piece<small class="paper-only"> (also the title on the paper)</small></span><input type="text" id="card-title" maxlength="80"></label>
       <div class="grid2">
         <label class="field"><span>Composer</span><input type="text" id="card-composer" maxlength="60"></label>
         <label class="field"><span>Line under it (optional)</span><input type="text" id="card-subtitle" maxlength="60" placeholder="Piano cover"></label>
@@ -180,7 +191,7 @@
     </section>
   </aside>
 </main>
-<footer class="credits">Grand piano recordings: Salamander Grand Piano by Alexander Holm (CC BY 3.0). Electric pianos and harpsichord: FluidR3 GM by Frank Wen.</footer>
-<script type="module" src="assets/js/studio.js?v=25"></script>
+<footer class="credits">Grand piano recordings: Salamander Grand Piano by Alexander Holm (CC BY 3.0). Electric pianos and harpsichord: FluidR3 GM by Frank Wen. Music symbols converted from Bravura by Steinberg Media Technologies, and lettering converted from Libre Baskerville by Pablo Impallari and Rodrigo Fuenzalida, both under the <a href="assets/glyphs/OFL.txt">SIL Open Font License 1.1</a> (<a href="assets/glyphs/CREDITS.txt">details</a>).</footer>
+<script type="module" src="assets/js/studio.js?v=28"></script>
 </body>
 </html>

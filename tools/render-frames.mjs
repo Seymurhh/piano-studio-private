@@ -36,7 +36,7 @@ Picture (anything not listed here is passed to the page, which calls the stage s
   --shape wide|tall    default wide; --w / --h set the size (default 1280x720, or 720x1280 tall)
   --ratio <r>          drawing pixel ratio; default like the app's video export (2 up to 1080p, 1.5 up to 1440p, 1 above)
   --raw                save the full drawn picture instead of scaling it down to w x h
-  --set key=value      stage option, e.g. --set theme=ember --set sheetCam=low --set glow=0.7 --set look=passacaglia.
+  --set key=value      stage option, e.g. --set theme=ember --set sheetCam=low --set glow=0.7 --set look=night --set hands=gold.
                        Same as --key value. true/false/on/off and numbers are converted.
   --js <code>          JavaScript run in the page after setup, with "stage" in scope (e.g. --js "stage.setSky('plain')")
   --settle <ms>        wait this long after the first frame before drawing (for assets the stage loads in the

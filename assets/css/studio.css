@@ -16,7 +16,6 @@ button, input, select { font: inherit; color: inherit; }
 .piece { flex: 1; min-width: 0; padding-left: 18px; border-left: 1px solid var(--line); }
 .piece h1 { margin: 0; font-size: 1.02rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .piece p { margin: 0; color: var(--soft); font-size: .84rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.back { color: var(--soft); text-decoration: none; font-size: .9rem; padding: 6px 4px; } .back:hover { color: var(--ink); }
 .dot { width: 9px; height: 9px; border-radius: 50%; background: #5d5c66; flex: none; display: inline-block; }
 .pill { display: inline-flex; align-items: center; gap: 9px; padding: 8px 15px; border-radius: 999px; border: 1px solid var(--line); background: var(--raise); cursor: pointer; font-weight: 550; white-space: nowrap; }
 .pill:hover { border-color: var(--accent); }
@@ -24,7 +23,7 @@ button, input, select { font: inherit; color: inherit; }
 
 /* layout */
 .app { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 372px; gap: 20px; padding: 18px 22px 10px; max-width: 1760px; width: 100%; margin: 0 auto; outline: none; align-items: start; }
-@media (max-width: 1020px) { .app { grid-template-columns: 1fr; } .bar { flex-wrap: wrap; } .piece { order: 5; flex-basis: 100%; border: 0; padding: 0; } }
+@media (max-width: 1020px) { .app { grid-template-columns: 1fr; } .bar { flex-wrap: wrap; } .piece { order: 5; flex-basis: 100%; border: 0; padding: 0; } .pill { margin-left: auto; } }
 .left { min-width: 0; }
 .stagebox { position: relative; border-radius: 16px; overflow: hidden; background: #000; aspect-ratio: 16 / 9; border: 1px solid var(--line);
   box-shadow: 0 0 0 1px #000, 0 30px 90px -20px color-mix(in srgb, var(--accent) 22%, transparent), 0 12px 40px rgba(0, 0, 0, .7); }
@@ -103,18 +102,22 @@ select, input[type=text], textarea { background: var(--raise); border: 1px solid
 .fine { color: var(--soft); font-size: .82rem; margin: 0; }
 progress { width: 100%; height: 6px; accent-color: var(--accent); }
 video { width: 100%; border-radius: 10px; background: #000; }
-.credits { color: #5f5e69; font-size: .74rem; padding: 6px 22px 14px; text-align: center; }
+.credits { color: #5f5e69; font-size: .74rem; padding: 6px 22px 14px; text-align: center; } .credits a { color: inherit; }
 .seg.wrap { flex-wrap: wrap; } .seg.wrap button { flex: 1 1 30%; }
 .sub { display: grid; gap: 12px; }
 body.no-keys .keys-only { display: none; }
 body.no-sheet .sheet-only { display: none; }
+/* the sheet music on soft paper has its own colours and camera: only the controls that change it are shown */
+body.paper .no-paper { display: none; }
+body:not(.paper) .paper-only { display: none; }
+.swatches.pairs { grid-template-columns: repeat(4, 1fr); }
 .cardview { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 textarea { resize: vertical; font: inherit; line-height: 1.4; }
 
 /* phones */
 @media (max-width: 640px) {
   body { font-size: 14px; }
-  .bar { padding: 8px 12px; gap: 8px 10px; } .brand svg { width: 24px; height: 20px; } .pill { padding: 7px 12px; } .back { margin-left: auto; }
+  .bar { padding: 8px 12px; gap: 8px 10px; } .brand svg { width: 24px; height: 20px; } .pill { padding: 7px 12px; }
   .app { padding: 10px 0 8px; gap: 12px; }
   .stagebox { border-radius: 0; border-left: 0; border-right: 0; }
   .stagebox.tall { height: min(74vh, 780px); max-width: 100vw; }

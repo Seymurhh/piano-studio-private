@@ -1,11 +1,16 @@
 // Piano studio: play live from the piano, load or record a performance, watch it in 3D, and make a video. Everything runs in the browser.
-import { $, fetchJSON, session, b64, importKey, readVault, openBytes } from './core.js?v=5';
 import { parseMidi, fromRecording, writeMidi, demoPiece, noteName } from './midi.js?v=12';
-import { createStage } from './stage.js?v=25';
+import { createStage } from './stage.js?v=28';
 import { createListener, STYLE_NAMES } from './listen.js?v=8';
 import { drawCard, OPEN, CLOSE, STYLES } from './cards.js?v=2';
 import { INSTRUMENTS, ROOMS, makeOutput, noteOn, voice, renderPiece, loadInstrument, isLoaded } from './synth.js?v=12';
 
+const $ = (s, r = document) => r.querySelector(s);
+async function fetchJSON(path) { // null when the file is missing or not JSON
+  const r = await fetch(path, { cache: 'no-store' });
+  if (!r.ok) return null;
+  try { return await r.json(); } catch { return null; }
+}
 const LEAD = 1.5, TAIL = 2.5; // seconds of runway before the first note and after the last
 const canvas = $('#stage'), box = $('#stagebox'), stage = createStage(canvas);
 const P = { piece: null, name: '', playing: false, pos: -LEAD, rate: 1, bus: null, t0: 0, p0: 0, next: 0, busy: false };
@@ -21,7 +26,7 @@ function guessMeta(piece, name) { // from the file: "Title (Composer) - subtitle
   return { title: label || capital(String(name || '').replace(/[_-]+/g, ' ')), composer: '', subtitle: '', credits: [] };
 }
 function fillCard(meta) {
-  $('#card-title').value = meta.title || ''; $('#card-composer').value = meta.composer || '';
+  $('#card-title').value = $('#ptitle').value = meta.title || ''; $('#card-composer').value = meta.composer || '';
   $('#card-subtitle').value = meta.subtitle || ''; $('#card-credits').value = (meta.credits || []).join('\n');
 }
 const soundCredit = () => ((INSTRUMENTS.find((i) => i.id === C.instrument) || {}).pack === 'grand'
@@ -31,7 +36,10 @@ function cardInfo() {
   return { title: v('#card-title'), composer: v('#card-composer'), subtitle: v('#card-subtitle'), channel: C.channel, message: C.message,
     credits: [...v('#card-credits').split('\n').map((s) => s.trim()).filter(Boolean), soundCredit()] }; // the sound's licence asks for credit, so it is always there
 }
-const accentColor = () => stage.themes()[C.theme]?.[0] || '#3dffa0';
+// The colour that leads: on paper the right hand's, otherwise the light strip of the chosen colours. The page's accent
+// and the opening and closing cards take it.
+const paperOn = () => C.view === 'sheet' && C.look === 'paper';
+const accentColor = () => (paperOn() ? (stage.handPairs().find((p) => p.id === C.hands) || stage.handPairs()[0]).chips[0] : stage.themes()[C.theme]?.[0] || '#3dffa0');
 let previewRun = 0;
 function previewCard(kind) { // play a card over the picture, as it will appear in the video
   const cv = $('#cardview'), run = ++previewRun, t0 = performance.now(), dur = kind === 'open' ? OPEN : CLOSE, info = cardInfo(), tint = accentColor();
@@ -49,7 +57,7 @@ function previewCard(kind) { // play a card over the picture, as it will appear 
 }
 
 const ui = Object.fromEntries(['play', 'seek', 'clock', 'speed', 'midifile', 'demo', 'record', 'savemidi', 'labels', 'effects', 'motion', 'mic', 'capture', 'vtitle', 'size', 'fps',
-  'export', 'prog', 'download', 'overlay', 'connect', 'volume', 'monitor', 'now', 'ribbon', 'library', 'dots', 'paths', 'glow'].map((id) => [id, $('#' + id)]));
+  'export', 'prog', 'download', 'overlay', 'connect', 'volume', 'monitor', 'now', 'ribbon', 'library', 'dots', 'paths', 'glow', 'title3d', 'ptitle'].map((id) => [id, $('#' + id)]));
 const say = (id, text) => { $('#' + id).textContent = text; };
 const mmss = (s) => { s = Math.max(0, s); return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`; };
 const safeName = () => (P.name || 'piano').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'piano';
@@ -58,9 +66,17 @@ const fill = (el) => el.style.setProperty('--fill', `${((el.value - el.min) / (e
 
 // ---------- choices are remembered on this computer ----------
 const PHONE = matchMedia('(max-width: 640px)').matches; // a phone held upright: start with the tall picture looking along the keys, which fills the screen
-const DEFAULTS = { instrument: 'grand', room: 'hall', volume: 0.9, monitor: true, theme: 'aurora', view: 'piano', v: 3, dance: 'auto', camera: PHONE ? 'side' : 'front', shape: PHONE ? 'tall' : 'wide', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', cardOpen: true, cardClose: true, cardStyle: 'lumen', channel: 'Lumen Keys', message: 'Thank you for listening', labels: false, effects: true, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
+// New visitors start with the sheet music on soft paper (look), its hands in rose and ice (hands), the title lettered in 3D.
+const DEFAULTS = { instrument: 'grand', room: 'hall', volume: 0.9, monitor: true, theme: 'aurora', view: 'sheet', look: 'paper', hands: 'rose', title3d: true, v: 4, dance: 'auto', camera: PHONE ? 'side' : 'front', shape: PHONE ? 'tall' : 'wide', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', cardOpen: true, cardClose: true, cardStyle: 'lumen', channel: 'Lumen Keys', message: 'Thank you for listening', labels: false, effects: true, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
 const C = { ...DEFAULTS };
-try { const saved = JSON.parse(localStorage.getItem('studio') || '{}'); if (!(saved.v >= 2)) delete saved.labels; if (saved.v !== 3) delete saved.notes; Object.assign(C, saved, { v: 3 }); } catch {} // v 2: note names off unless switched on again; v 3: notes are trails of light unless changed again
+try { // v 2: note names off unless switched on again; v 3: notes are trails of light unless changed again; v 4: the
+  // picture starts as the sheet music on soft paper (choices saved by the older studio this one was copied from do not count)
+  const saved = JSON.parse(localStorage.getItem('studio') || '{}');
+  if (!(saved.v >= 2)) delete saved.labels;
+  if (!(saved.v >= 3)) delete saved.notes;
+  if (!(saved.v >= 4)) { delete saved.view; delete saved.look; delete saved.hands; }
+  Object.assign(C, saved, { v: 4 });
+} catch {}
 const remember = () => { try { localStorage.setItem('studio', JSON.stringify(C)); } catch {} };
 
 function fit() { // even sizes keep video encoders happy
@@ -79,6 +95,7 @@ function load(piece, name, meta) {
   pause();
   if (piece) fillCard(meta || guessMeta(piece, name));
   P.piece = piece; P.name = name; P.pos = -LEAD; L.last = -99;
+  stage.setTitle(piece ? title3d() : null); // lettered in 3D at the start of the paper look
   stage.setPiece(piece);
   say('piece-title', name);
   const pedals = piece ? piece.pedal.filter((p) => p.down).length : 0;
@@ -188,7 +205,8 @@ function frame() {
   const t = clock();
   if (C.view === 'dancer') hear();
   if (M.on) { listen(); return; }
-  if (!P.playing && (R.on || L.held.size || t - L.last < 5)) { // someone is playing: show their notes leaving the keys
+  const idle = !P.piece && paperOn(); // nothing loaded, on paper: the empty staves glide by, ready for whatever is played
+  if (!P.playing && (R.on || L.held.size || t - L.last < 5 || idle)) { // someone is playing: show their notes leaving the keys
     while (L.trail.length && L.trail[0].t1 != null && t - L.trail[0].t1 > 30) L.trail.shift();
     stage.render(t, true);
     if (R.on) ui.clock.textContent = `${mmss(t - R.start)} recorded`;
@@ -207,8 +225,8 @@ ui.seek.addEventListener('input', () => { const was = P.playing; pause(); P.pos 
 ui.speed.addEventListener('change', () => { const was = P.playing; pause(); P.rate = Number(ui.speed.value); if (was) play(); });
 
 // ---------- look ----------
-function accent() { // the page takes its accent colour from the light strip of the chosen colours
-  const led = stage.themes()[C.theme]?.[0] || '#3dffa0', n = parseInt(led.slice(1), 16);
+function accent() { // the page takes its accent colour from the picture's colours
+  const led = accentColor(), n = parseInt(led.slice(1), 16);
   document.documentElement.style.setProperty('--accent', led);
   const bright = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
   document.documentElement.style.setProperty('--accent-ink', bright > 0.5 ? '#08090b' : '#ffffff');
@@ -221,6 +239,27 @@ radios($('#themes'), Object.entries(stage.themes()).map(([id, colors]) => ({ id,
   for (const c of colors.slice(0, 4)) { const i = document.createElement('i'); i.style.background = c; chips.append(i); }
   b.append(chips, label);
 } })), C.theme, (id) => { C.theme = id; remember(); stage.setTheme(id); accent(); });
+// On paper: calm pairs of colours for the two hands (right hand first), changed without rebuilding the picture.
+radios($('#hands'), stage.handPairs().map((p) => ({ id: p.id, build(b) {
+  b.className = 'swatch';
+  const chips = document.createElement('span'), label = document.createElement('span');
+  chips.className = 'chips'; label.textContent = p.name;
+  for (const c of p.chips) { const i = document.createElement('i'); i.style.background = c; chips.append(i); }
+  b.append(chips, label);
+} })), C.hands, (id) => { C.hands = id; remember(); stage.setHands(id); accent(); });
+// The title lettered on the paper is the name of the piece (Video tab), which can also be changed here; typing
+// waits half a second before the picture is built again.
+function title3d() { return C.title3d ? $('#card-title').value.trim() : ''; }
+let titleTimer = 0;
+function titleChanged(now) {
+  clearTimeout(titleTimer);
+  const go = () => { if (P.piece) stage.setTitle(title3d()); };
+  if (now) go(); else titleTimer = setTimeout(go, 500);
+}
+ui.title3d.checked = C.title3d;
+ui.title3d.addEventListener('change', () => { C.title3d = ui.title3d.checked; remember(); titleChanged(true); });
+ui.ptitle.addEventListener('input', () => { $('#card-title').value = ui.ptitle.value; titleChanged(); });
+$('#card-title').addEventListener('input', () => { ui.ptitle.value = $('#card-title').value; titleChanged(); });
 setInterval(() => { if (C.view === 'dancer' && A.ear && !P.busy) A.ear.update(clock()); }, 12); // listening keeps its own steady pace, apart from the picture
 function hear() { // dancer view: tell the stage what the music is doing, and say it in words
   const F = A.ear ? A.ear.features : null;
@@ -233,10 +272,14 @@ function pictureChanged() {
   $('#dance-box').hidden = C.view !== 'dancer';
   document.body.classList.toggle('no-keys', C.view !== 'piano');
   document.body.classList.toggle('no-sheet', C.view !== 'sheet');
+  document.body.classList.toggle('paper', paperOn());
+  ui.overlay.hidden = paperOn(); // the paper letters its own title; a second, flat one would only repeat it
+  accent();
   if (C.view !== 'dancer') { stage.setMusic(null); if (!L.held.size) ui.now.textContent = ''; }
   else if (!A.ctx) say('rec-msg', 'The dancer is waiting for music: press "Listen with the microphone", or Play, or play the piano.');
 }
 radios($('#views'), [], C.view, (v) => { C.view = v; remember(); stage.setView(M.on && (v === 'piano' || v === 'sheet') ? 'flight' : v); pictureChanged(); });
+radios($('#looks'), [], C.look, (v) => { C.look = v; remember(); stage.setLook(v); pictureChanged(); });
 radios($('#dances'), [], C.dance, (v) => { C.dance = v; remember(); stage.setDance(v); });
 radios($('#cameras'), [], C.camera, (v) => { C.camera = v; remember(); stage.setCamera(v); });
 radios($('#shapes'), [], C.shape, (v) => { C.shape = v; remember(); box.classList.toggle('tall', v === 'tall'); fit(); });
@@ -261,7 +304,7 @@ for (const [k, fn] of [['labels', 'setLabels'], ['effects', 'setEffects'], ['mot
   ui[k].checked = C[k]; stage[fn](C[k]);
   ui[k].addEventListener('change', () => { C[k] = ui[k].checked; remember(); stage[fn](C[k]); });
 }
-stage.setTheme(C.theme); stage.setView(C.view); stage.setDance(C.dance); pictureChanged(); stage.setCamera(C.camera); box.classList.toggle('tall', C.shape === 'tall'); accent();
+stage.setTheme(C.theme); stage.setLook(C.look); stage.setHands(C.hands); stage.setView(C.view); stage.setDance(C.dance); pictureChanged(); stage.setCamera(C.camera); box.classList.toggle('tall', C.shape === 'tall');
 ui.vtitle.addEventListener('input', () => { ui.overlay.textContent = ui.vtitle.value; });
 const goFull = box.requestFullscreen || box.webkitRequestFullscreen; // iPhones have no full screen for a part of a page: there the picture simply covers the page
 const unfill = () => { document.body.classList.remove('fill'); setTimeout(fit, 60); };
@@ -561,9 +604,10 @@ async function makeVideo() {
     // Each frame is drawn larger than the video (twice the size up to Full HD) and scaled down, which smooths every
     // edge and keeps fine lines steady instead of flickering.
     stage.resize(w, h, short <= 1080 ? 2 : short <= 1440 ? 1.5 : 1);
+    await stage.ready(); // the paper look's lettering may still be loading
     const comp = document.createElement('canvas'); comp.width = w; comp.height = h;
     const g = comp.getContext('2d'); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
-    const title = ui.vtitle.value.trim(), intro = C.cardOpen ? OPEN : 0, outro = C.cardClose ? CLOSE : 0, end = P.piece.duration + TAIL;
+    const title = paperOn() ? '' : ui.vtitle.value.trim(), intro = C.cardOpen ? OPEN : 0, outro = C.cardClose ? CLOSE : 0, end = P.piece.duration + TAIL; // (paper: its title is lettered in 3D)
     const total = Math.ceil((intro + LEAD + P.piece.duration + TAIL + outro) * fps), info = cardInfo(), tint = accentColor();
     for (let i = 0; i < total && !failed; i++) {
       const t = i / fps - LEAD - intro; // music time: the opening card plays before the runway, the closing card after the end
@@ -617,26 +661,9 @@ async function makeVideo() {
 }
 ui.export.addEventListener('click', makeVideo);
 
-// ---------- opened from a journal entry: studio.html#m=<file id>&k=<family|parent>&n=<name> ----------
-async function fromJournal() {
-  const q = new URLSearchParams(location.hash.slice(1)), id = q.get('m');
-  if (!id || !/^[a-f0-9]{16}$/.test(id)) return;
-  const raw = session.load();
-  if (!raw) return say('rec-msg', 'Open the journal with your passphrase first, then come back to this recording.');
-  try {
-    let key;
-    if (q.get('k') === 'parent' || !raw.parent) key = b64.from(q.get('k') === 'parent' ? raw.parent : raw.family);
-    else key = b64.from((await readVault(b64.from(raw.parent), await fetchJSON('content/parent.vault'))).familyKey);
-    const r = await fetch(`media/${id}.enc`, { cache: 'no-store' });
-    const plain = await openBytes(await importKey(key), new Uint8Array(await r.arrayBuffer()));
-    load(parseMidi(plain.buffer), q.get('n') || 'From the journal');
-  } catch { say('rec-msg', 'That recording could not be opened.'); }
-}
-
 stage.setLive(L.held); stage.setTrail(L.trail);
 fit();
 requestAnimationFrame(frame);
-fromJournal();
 chooseInstrument(C.instrument, $(`#instruments [data-v="${C.instrument}"]`), false);
 // If this browser has already been allowed to use the piano, connect without being asked.
 try { navigator.permissions?.query({ name: 'midi' }).then((p) => { if (p.state === 'granted') connect(true); }).catch(() => {}); } catch {} // some browsers do not know the question at all

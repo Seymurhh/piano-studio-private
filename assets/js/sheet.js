@@ -23,7 +23,15 @@ const smooth = (u) => { u = Math.min(1, Math.max(0, u)); return u * u * (3 - 2 *
 const W = (x, y, h = INK) => new THREE.Vector3(x, h, -y); // page (x, y) to the world: the page lies flat, its top away from the viewer
 
 // ---------- reading the music ----------
-function engrave(piece) {
+// Options (all off by default, which is the night-glass look's layout, unchanged):
+//   linear  place every moment at x = start + speed * (t - t0), proportional to time in seconds, with one speed per
+//           piece: speed = max(minSpeed, minGap / g10), at most maxSpeed, where g10 is the 10th percentile of the gaps
+//           between successive onsets on a staff (so short notes never crowd). Bar lines fall at the bar times.
+//   start   function (sf) -> x of the first bar's start (room for the clefs, key and time signature)
+//   carry   accidentals carry through the bar, as in print: a sign is shown only where the note differs from what the
+//           bar has had so far on that line or space (naturals cancel earlier signs)
+//   rests   work out the rests of each staff (whole-bar rests and quarter, eighth ... rests on the beat grid)
+export function engrave(piece, opts = {}) {
   const sf = piece.key ? piece.key.sf : guessKey(piece.notes), spell = speller(sf), two = piece.tracks === 2;
   const mean = [0, 1].map((k) => { const l = piece.notes.filter((n) => n.track === k); return l.reduce((s, n) => s + n.pitch, 0) / (l.length || 1); }), upper = mean[0] >= mean[1] ? 0 : 1;
   const tempo = piece.tempoMap.length ? piece.tempoMap : [{ time: 0, bpm: 100 }];
@@ -67,47 +75,70 @@ function engrave(piece) {
     });
   }
   chords.sort((a, b) => a.t - b.t || a.staff - b.staff);
+  if (opts.carry) carryAccidentals(chords, sf, barStart);
 
   // horizontal places: one per moment something is struck, spaced by the rhythm
-  const keyW = Math.abs(sf) * 0.85, START = 5.2 + keyW + 2.4 + 2.2; // after the clefs, key signature and time signature
+  const keyW = Math.abs(sf) * 0.85, START = opts.start ? opts.start(sf) : 5.2 + keyW + 2.4 + 2.2; // after the clefs, key signature and time signature
   const times = [], accAt = [];
   for (const c of chords) {
     if (!times.length || c.t - times[times.length - 1] > 0.03) { times.push(c.t); accAt.push(false); }
     c.ti = times.length - 1;
     if (c.heads.some((h) => h.acc)) accAt[c.ti] = true;
   }
-  const X = new Float64Array(times.length);
-  let x = START, b = 0;
-  const inner = bars.filter((t) => t > times[0] + 0.03);
-  for (let i = 0; i < times.length; i++) {
-    if (i) {
-      const beats = (times[i] - times[i - 1]) / beatAt(times[i - 1]);
-      let w = Math.max(accAt[i] ? 2.6 : 1.9, SPACE * Math.pow(Math.max(beats, 0.125), 0.62));
-      if (accAt[i]) w += 0.6;
-      while (b < inner.length && inner[b] <= times[i] + 0.03) { if (inner[b] > times[i - 1] + 0.03) w += 1.7; b++; }
-      x += w;
-    }
-    X[i] = x;
-  }
   const last = times.length - 1;
-  const rateA = SPACE / beatAt(times[0]), rateB = SPACE / beatAt(times[last]);
-  const xOf = (t) => {
-    if (t <= times[0]) return X[0] - (times[0] - t) * rateA;
-    if (t >= times[last]) return X[last] + (t - times[last]) * rateB;
-    let lo = 0, hi = last;
-    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (times[m] <= t) lo = m; else hi = m - 1; }
-    return X[lo] + (X[lo + 1] - X[lo]) * (t - times[lo]) / (times[lo + 1] - times[lo]);
-  };
+  const inner = bars.filter((t) => t > times[0] + 0.03);
+  let X, xOf, speed = 0, t0 = times[0];
+  if (opts.linear) {
+    // proportional to time: one speed for the whole piece, fast enough that the closest notes keep their distance
+    const gaps = [];
+    for (const list of events) for (let i = 1; i < list.length; i++) gaps.push(list[i].t - list[i - 1].t);
+    gaps.sort((a, b) => a - b);
+    const g10 = gaps.length ? gaps[Math.floor(gaps.length * 0.1)] : 1;
+    speed = Math.min(opts.maxSpeed ?? 32, Math.max(opts.minSpeed ?? 13.5, (opts.minGap ?? 2.6) / Math.max(g10, 1e-3)));
+    t0 = bars.length ? barStart(times[0]) : times[0];
+    xOf = (t) => START + speed * (t - t0);
+    X = Float64Array.from(times, xOf);
+  } else {
+    X = new Float64Array(times.length);
+    let x = START, b = 0;
+    for (let i = 0; i < times.length; i++) {
+      if (i) {
+        const beats = (times[i] - times[i - 1]) / beatAt(times[i - 1]);
+        let w = Math.max(accAt[i] ? 2.6 : 1.9, SPACE * Math.pow(Math.max(beats, 0.125), 0.62));
+        if (accAt[i]) w += 0.6;
+        while (b < inner.length && inner[b] <= times[i] + 0.03) { if (inner[b] > times[i - 1] + 0.03) w += 1.7; b++; }
+        x += w;
+      }
+      X[i] = x;
+    }
+    const rateA = SPACE / beatAt(times[0]), rateB = SPACE / beatAt(times[last]);
+    xOf = (t) => {
+      if (t <= times[0]) return X[0] - (times[0] - t) * rateA;
+      if (t >= times[last]) return X[last] + (t - times[last]) * rateB;
+      let lo = 0, hi = last;
+      while (lo < hi) { const m = (lo + hi + 1) >> 1; if (times[m] <= t) lo = m; else hi = m - 1; }
+      return X[lo] + (X[lo + 1] - X[lo]) * (t - times[lo]) / (times[lo + 1] - times[lo]);
+    };
+  }
   for (const c of chords) c.x = X[c.ti];
   // bar lines: just before the first note of a bar, or where the bar begins inside a held note
-  const barX = [];
-  let finalX = null;
+  const barX = [], barT = [];
+  let finalX = null, finalT = null;
   for (const t of inner) {
-    if (t > times[last] + 0.03) { finalX = xOf(t) - 1; break; }
+    if (t > times[last] + 0.03) { finalX = xOf(t) - (opts.linear ? 0.6 : 1); finalT = t; break; }
     const j = times.findIndex((s) => s >= t - 0.03);
-    barX.push(Math.abs(times[j] - t) < 0.03 ? X[j] - (accAt[j] ? 2.3 : 1.5) : xOf(t));
+    if (opts.linear) { // at the bar time, a little before its first note (further when that note has a sign), clear of the note before
+      let off = accAt[j] && Math.abs(times[j] - t) < 0.03 ? 2.3 : 1.5;
+      if (j > 0) off = Math.max(0.8, Math.min(off, xOf(t) - X[j - 1] - 1.1));
+      barX.push(xOf(t) - off);
+    } else barX.push(Math.abs(times[j] - t) < 0.03 ? X[j] - (accAt[j] ? 2.3 : 1.5) : xOf(t));
+    barT.push(t);
   }
-  if (finalX == null) { const c = chords.filter((k) => k.ti === last); finalX = X[last] + Math.max(4, Math.max(...c.map((k) => k.v)) * SPACE * 0.8); }
+  if (finalX == null) {
+    const c = chords.filter((k) => k.ti === last);
+    if (opts.linear) { finalT = Math.max(...c.map((k) => k.end)); finalX = xOf(finalT) + 1.2; }
+    else finalX = X[last] + Math.max(4, Math.max(...c.map((k) => k.v)) * SPACE * 0.8);
+  }
 
   // beams: eighths and shorter that follow one another in the same voice, grouped by the beat
   // (eighths by the half bar in 2/4 and 4/4, by the dotted beat in 6/8, 9/8 and 12/8)
@@ -141,7 +172,66 @@ function engrave(piece) {
     return out;
   });
   const shown = meters.length > 1 && meters[1].time < 4 * beatAt(0) + 0.01 ? meters[1].meter : meters[0].meter; // a pickup bar does not change the printed time signature
-  return { sf, chords, groups, barX, finalX, xOf, level, start: START, keyW, meter: shown, landings, end: X[last] };
+  const rests = opts.rests ? findRests(chords, bars, t0, finalT ?? Math.max(...chords.map((c) => c.end)), beatAt, xOf) : [];
+  return { sf, chords, groups, barX, barT, finalX, finalT, xOf, level, start: START, keyW, meter: shown, landings, end: X[last], speed, t0, rests, beatAt, linear: !!opts.linear };
+}
+
+// Accidentals as printed: within a bar, a sign holds for the rest of the bar on its line or space, so it is shown only
+// where the note differs from what the bar has had there so far (a natural cancels an earlier sharp or flat).
+const LETTER_PC = [0, 2, 4, 5, 7, 9, 11];
+function carryAccidentals(chords, sf, barStart) {
+  const keyAlt = new Array(7).fill(0);
+  for (let i = 0; i < Math.abs(sf); i++) keyAlt[(sf < 0 ? [6, 2, 5, 1, 4, 0, 3] : [3, 0, 4, 1, 5, 2, 6])[i]] = Math.sign(sf);
+  const sign = (a) => (a > 1 ? '𝄪' : a < -1 ? '𝄫' : a > 0 ? '♯' : a < 0 ? '♭' : '♮');
+  for (const staff of [0, 1]) {
+    let bar = -1, seen = new Map();
+    for (const c of chords) {
+      if (c.staff !== staff) continue;
+      const b = barStart(c.t);
+      if (b !== bar) { bar = b; seen = new Map(); }
+      for (const h of c.heads) {
+        const letter = ((h.step % 7) + 7) % 7, natural = (Math.floor(h.step / 7) + 1) * 12 + LETTER_PC[letter], alt = h.pitch - natural;
+        const now = seen.has(h.step) ? seen.get(h.step) : keyAlt[letter];
+        h.acc = alt === now ? '' : sign(alt);
+        seen.set(h.step, alt);
+      }
+    }
+  }
+}
+
+// Rests: wherever nothing sounds on a staff (no voice holds a note), split at the bar lines. A bar with nothing in it
+// gets a whole-bar rest in its middle; otherwise the silence is filled from its start with the longest rest that both
+// fits and starts on its own beat grid (half rests on half bars, quarters on beats ...), down to sixteenths.
+const REST_VALUES = [4, 2, 1, 0.5, 0.25];
+function findRests(chords, bars, t0, tEnd, beatAt, xOf) {
+  const out = [], grid = bars.length ? bars.filter((b) => b < tEnd - 0.02) : [t0];
+  const barEnd = (i) => (i + 1 < grid.length ? grid[i + 1] : tEnd);
+  for (const staff of [0, 1]) {
+    const spans = chords.filter((c) => c.staff === staff).map((c) => [c.t, c.end]).sort((a, b) => a[0] - b[0]);
+    const merged = [];
+    for (const [a, b] of spans) { const m = merged[merged.length - 1]; if (m && a <= m[1] + 0.02) m[1] = Math.max(m[1], b); else merged.push([a, b]); }
+    const silent = [];
+    let cur = t0;
+    for (const [a, b] of merged) { if (a > cur) silent.push([cur, a]); cur = Math.max(cur, b); }
+    if (tEnd > cur) silent.push([cur, tEnd]);
+    for (const [a, b] of silent) {
+      for (let i = 0; i < grid.length; i++) {
+        const B0 = grid[i], B1 = barEnd(i), s0 = Math.max(a, B0), s1 = Math.min(b, B1);
+        if (s1 <= s0) continue;
+        const beat = beatAt(B0), len = (B1 - B0) / beat;
+        const p0 = Math.round(((s0 - B0) / beat) * 4) / 4, p1 = Math.round(((s1 - B0) / beat) * 4) / 4;
+        if (p1 - p0 < 0.25 - 1e-6) continue;
+        if (p0 < 1e-6 && p1 > len - 1e-6) { out.push({ staff, t: B0, v: len, whole: true, x: (xOf(B0) + xOf(B1)) / 2 - 1.5 }); continue; }
+        for (let p = p0; p < p1 - 1e-6;) {
+          const v = REST_VALUES.find((r) => r <= p1 - p + 1e-6 && Math.abs(p / r - Math.round(p / r)) < 1e-6) ?? 0.25;
+          const t = B0 + p * beat;
+          out.push({ staff, t, v, whole: false, x: xOf(t) });
+          p += v;
+        }
+      }
+    }
+  }
+  return out.sort((a, b) => a.t - b.t || a.staff - b.staff);
 }
 
 
