@@ -3,7 +3,7 @@ import { parseMidi, fromRecording, writeMidi, demoPiece, noteName } from './midi
 import { createStage } from './stage.js?v=33';
 import { createListener, STYLE_NAMES } from './listen.js?v=8';
 import { drawCard, OPEN, CLOSE, STYLES } from './cards.js?v=2';
-import { INSTRUMENTS, ROOMS, makeOutput, noteOn, voice, renderPiece, loadInstrument, isLoaded } from './synth.js?v=12';
+import { INSTRUMENTS, ROOMS, makeOutput, noteOn, voice, renderPiece, loadInstrument, isLoaded } from './synth.js?v=13';
 
 const $ = (s, r = document) => r.querySelector(s);
 async function fetchJSON(path) { // null when the file is missing or not JSON
@@ -619,7 +619,48 @@ ui.capture.addEventListener('click', async () => {
 // ---------- video export: every frame is drawn and encoded one by one, so the result is exact however slow the computer ----------
 async function pick(list, test) { for (const c of list) { try { if ((await test(c)).supported) return c; } catch {} } return null; }
 
+// Safari hands back the whole MPEG-4 ES descriptor as the AAC "description" where WebCodecs asks for the bare
+// AudioSpecificConfig (2 bytes). Written into the file as it is, players find no usable sound track: Safari videos
+// were silent. Take the bare config out of the descriptor (tag 5 inside tags 3 and 4).
+function bareAsc(desc) {
+  if (!desc) return null;
+  const b = ArrayBuffer.isView(desc) ? new Uint8Array(desc.buffer, desc.byteOffset, desc.byteLength).slice() : new Uint8Array(desc).slice();
+  if (b[0] !== 0x03) return b; // already the bare config
+  let i = 0;
+  const size = () => { let n = 0, c; do { c = b[i++]; n = (n << 7) | (c & 0x7f); } while (c & 0x80 && i < b.length); return n; };
+  while (i < b.length) {
+    const tag = b[i++], n = size();
+    if (tag === 0x05) return b.slice(i, i + n);
+    if (tag === 0x03) { const f = b[i + 2]; i += 3; if (f & 0x80) i += 2; if (f & 0x40) i += 1 + b[i]; if (f & 0x20) i += 2; }
+    else if (tag === 0x04) i += 13;
+    else i += n;
+  }
+  return null;
+}
+
+// Where the file is written: a file in the browser's own storage when it allows it, so even a long 4K video never has
+// to fit in memory; otherwise memory, as before.
+async function videoFile() {
+  try {
+    const dir = await navigator.storage?.getDirectory?.();
+    const handle = dir && await dir.getFileHandle('studio-video.mp4', { create: true });
+    if (!handle?.createWritable) return null;
+    return { handle, stream: await handle.createWritable({ keepExistingData: false }) };
+  } catch { return null; }
+}
+
+const X = { stop: false }; // the export in progress, if any
+const pauseFor = (ms) => new Promise((r) => {
+  if (!document.hidden) return setTimeout(r, ms);
+  const ch = new MessageChannel(); ch.port1.onmessage = () => r(); ch.port2.postMessage(0); // a hidden tab slows timers to once a second
+});
+function within(promise, ms, what) {
+  let timer;
+  return Promise.race([promise, new Promise((_, no) => { timer = setTimeout(() => no(new Error(`${what} stopped responding`)), ms); })]).finally(() => clearTimeout(timer));
+}
+
 async function makeVideo() {
+  if (P.busy && X.on) { X.stop = true; ui.export.disabled = true; say('exp-msg', 'Stopping…'); return; }
   if (!P.piece || P.busy) return;
   if (C.view === 'dancer') return say('exp-msg', 'The dancer reacts to sound as it happens, so it cannot be drawn frame by frame. Use "Start filming" below instead.');
   if (!('VideoEncoder' in window)) return say('exp-msg', 'This browser cannot make videos. Use Chrome or Edge on a computer.');
@@ -636,18 +677,79 @@ async function makeVideo() {
   const ac = 'AudioEncoder' in window ? await pick([{ mux: 'aac', codec: 'mp4a.40.2' }, { mux: 'opus', codec: 'opus' }],
     (c) => AudioEncoder.isConfigSupported({ codec: c.codec, sampleRate: 48000, numberOfChannels: 2, bitrate: 128000 })) : null;
 
-  P.busy = true;
-  for (const k of ['play', 'seek', 'export', 'record', 'demo', 'capture', 'mic']) ui[k].disabled = true;
+  P.busy = true; X.on = true; X.stop = false;
+  for (const k of ['play', 'seek', 'record', 'demo', 'capture', 'mic']) ui[k].disabled = true;
+  ui.export.textContent = 'Stop'; ui.export.disabled = false;
   ui.prog.hidden = false; ui.prog.value = 0; ui.download.hidden = true;
-  say('exp-msg', 'Making the video. Keep this tab open and in front.');
+  if (X.url) { URL.revokeObjectURL(X.url); X.url = null; }
+  const began = performance.now(), stopped = () => { if (X.stop) throw new Error('stopped'); };
+  let file = null, venc = null, aenc = null;
   try {
-    const { Muxer, ArrayBufferTarget } = await import('../vendor/mp4-muxer.js?v=5');
-    const muxer = new Muxer({ target: new ArrayBufferTarget(), fastStart: 'in-memory', firstTimestampBehavior: 'offset',
+    const title = paperOn() ? '' : ui.vtitle.value.trim(), intro = C[openKey()] ? OPEN : 0, outro = C.cardClose ? CLOSE : 0, end = P.piece.duration + TAIL; // (paper: its title is lettered in 3D)
+    const total = Math.ceil((intro + LEAD + P.piece.duration + TAIL + outro) * fps), info = cardInfo(), tint = accentColor();
+
+    // 1. The sound first (about a tenth of the time): if anything goes wrong it shows at once, not at the end.
+    let buf = null;
+    if (ac) {
+      say('exp-msg', 'Making the sound… Keep this tab open and in front.');
+      await loadInstrument(C.instrument);
+      let moved = performance.now();
+      const sound = renderPiece(P.piece, LEAD + intro, TAIL + outro, { instrument: C.instrument, room: C.room, volume: 1 }, 48000, (p) => {
+        moved = performance.now(); ui.prog.value = 0.12 * p; say('exp-msg', `Making the sound… ${Math.round(p * 100)}%`);
+      });
+      buf = await new Promise((yes, no) => {
+        sound.then(yes, no);
+        const watch = setInterval(() => {
+          if (X.stop) { clearInterval(watch); no(new Error('stopped')); }
+          else if (performance.now() - moved > 90000) { clearInterval(watch); no(new Error('making the sound stopped responding')); }
+        }, 500);
+        sound.finally(() => clearInterval(watch)).catch(() => {});
+      });
+    }
+
+    // 2. The picture, with the sound added alongside it, written straight to the file.
+    const { Muxer, ArrayBufferTarget, StreamTarget } = await import('../vendor/mp4-muxer.js?v=5');
+    file = await videoFile();
+    let failed = null, inflight = 0, written = Promise.resolve();
+    const target = file ? new StreamTarget({
+      chunked: true, chunkSize: 8 << 20,
+      onData: (data, position) => {
+        // Safari writes the whole memory block behind a part-view, not just the part: give it an exact copy
+        if (data.byteOffset || data.byteLength !== data.buffer.byteLength) data = data.slice();
+        inflight += data.byteLength;
+        written = file.stream.write({ type: 'write', data, position }).then(() => { inflight -= data.byteLength; }, (e) => { failed = failed || e; });
+      },
+    }) : new ArrayBufferTarget();
+    const len = buf ? buf.length : 0;
+    const muxer = new Muxer({ target, firstTimestampBehavior: 'offset',
+      fastStart: file ? { expectedVideoChunks: total, expectedAudioChunks: Math.ceil(len / 960) + 200 } : 'in-memory', // the index at the front either way
       video: { codec: vc.mux, width: w, height: h, frameRate: fps },
       ...(ac ? { audio: { codec: ac.mux, sampleRate: 48000, numberOfChannels: 2 } } : {}) });
-    let failed = null;
-    const venc = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: (e) => { failed = e; } });
+    let vout = 0;
+    venc = new VideoEncoder({ output: (chunk, meta) => { vout++; try { muxer.addVideoChunk(chunk, meta); } catch (e) { failed = failed || e; } }, error: (e) => { failed = failed || e; } });
     venc.configure({ codec: vc.codec, width: w, height: h, bitrate, framerate: fps });
+    if (ac) {
+      aenc = new AudioEncoder({
+        output: (chunk, meta) => {
+          if (meta?.decoderConfig && ac.mux === 'aac') {
+            const asc = bareAsc(meta.decoderConfig.description);
+            meta = asc && asc.length >= 2 ? { decoderConfig: { ...meta.decoderConfig, description: asc } } : undefined;
+          }
+          try { muxer.addAudioChunk(chunk, meta); } catch (e) { failed = failed || e; }
+        },
+        error: (e) => { failed = failed || e; } });
+      aenc.configure({ codec: ac.codec, sampleRate: 48000, numberOfChannels: 2, bitrate: 128000 });
+    }
+    const L = buf && buf.getChannelData(0), Rr = buf && buf.getChannelData(1);
+    let apos = 0;
+    const sendSound = (upto) => {
+      for (upto = Math.min(len, upto); apos < upto;) {
+        const n = Math.min(4800, upto - apos), data = new Float32Array(n * 2);
+        data.set(L.subarray(apos, apos + n), 0); data.set(Rr.subarray(apos, apos + n), n);
+        const ad = new AudioData({ format: 'f32-planar', sampleRate: 48000, numberOfFrames: n, numberOfChannels: 2, timestamp: Math.round((apos / 48000) * 1e6), data });
+        aenc.encode(ad); ad.close(); apos += n;
+      }
+    };
 
     // Each frame is drawn larger than the video (twice the size up to Full HD) and scaled down, which smooths every
     // edge and keeps fine lines steady instead of flickering.
@@ -655,9 +757,10 @@ async function makeVideo() {
     await stage.ready(); // the paper look's lettering may still be loading
     const comp = document.createElement('canvas'); comp.width = w; comp.height = h;
     const g = comp.getContext('2d'); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
-    const title = paperOn() ? '' : ui.vtitle.value.trim(), intro = C[openKey()] ? OPEN : 0, outro = C.cardClose ? CLOSE : 0, end = P.piece.duration + TAIL; // (paper: its title is lettered in 3D)
-    const total = Math.ceil((intro + LEAD + P.piece.duration + TAIL + outro) * fps), info = cardInfo(), tint = accentColor();
-    for (let i = 0; i < total && !failed; i++) {
+    const t1 = performance.now();
+    for (let i = 0; i < total; i++) {
+      if (failed) throw failed;
+      stopped();
       const t = i / fps - LEAD - intro; // music time: the opening card plays before the runway, the closing card after the end
       stage.render(Math.min(t, end + 2.5));
       g.drawImage(canvas, 0, 0, w, h);
@@ -672,38 +775,53 @@ async function makeVideo() {
       const vf = new VideoFrame(comp, { timestamp: Math.round((i * 1e6) / fps), duration: Math.round(1e6 / fps) });
       venc.encode(vf, { keyFrame: i % (fps * 2) === 0 });
       vf.close();
-      while (venc.encodeQueueSize > 6) await new Promise((r) => setTimeout(r, 4));
-      if (i % 10 === 0) { ui.prog.value = (i / total) * 0.9; await new Promise((r) => setTimeout(r, 0)); }
-    }
-    await venc.flush(); venc.close();
-    if (failed) throw failed;
-
-    if (ac) {
-      await loadInstrument(C.instrument);
-      const buf = await renderPiece(P.piece, LEAD + intro, TAIL + outro, { instrument: C.instrument, room: C.room, volume: 1 });
-      const aenc = new AudioEncoder({ output: (chunk, meta) => muxer.addAudioChunk(chunk, meta), error: (e) => { failed = e; } });
-      aenc.configure({ codec: ac.codec, sampleRate: 48000, numberOfChannels: 2, bitrate: 128000 });
-      const L = buf.getChannelData(0), Rr = buf.getChannelData(1), step = 4800;
-      for (let o = 0; o < buf.length; o += step) {
-        const n = Math.min(step, buf.length - o), data = new Float32Array(n * 2);
-        data.set(L.subarray(o, o + n), 0); data.set(Rr.subarray(o, o + n), n);
-        const ad = new AudioData({ format: 'f32-planar', sampleRate: 48000, numberOfFrames: n, numberOfChannels: 2, timestamp: Math.round((o / 48000) * 1e6), data });
-        aenc.encode(ad); ad.close();
+      if (aenc) sendSound(Math.round(((i + 1) * 48000) / fps));
+      // wait for the encoders and the disk to catch up, so nothing piles up in memory; say so if one stops altogether
+      for (let since = performance.now(), seen = vout; venc.encodeQueueSize > 6 || (aenc && aenc.encodeQueueSize > 20) || inflight > (48 << 20);) {
+        await pauseFor(4);
+        if (failed) throw failed;
+        stopped();
+        if (vout !== seen) { seen = vout; since = performance.now(); }
+        else if (performance.now() - since > 60000) throw new Error(inflight > (48 << 20) ? 'writing the file stopped responding' : 'the video encoder stopped responding');
       }
-      await aenc.flush(); aenc.close();
-      if (failed) throw failed;
+      if (i % 10 === 0) {
+        ui.prog.value = (ac ? 0.12 : 0) + (ac ? 0.85 : 0.97) * (i / total);
+        const left = i > fps * 3 ? ((performance.now() - t1) / i) * (total - i) / 1000 : 0;
+        const est = !left ? '' : left < 15 ? ', a few seconds left' : left < 90 ? `, about ${Math.ceil(left / 10) * 10} seconds left` : `, about ${Math.round(left / 60)} minutes left`;
+        say('exp-msg', `Drawing the video: ${mmss(i / fps)} of ${mmss(total / fps)}${est}. Keep this tab open and in front.`);
+        await pauseFor(0);
+      }
     }
+
+    // 3. Finish: the last frames and sound, the index at the front of the file, and the file itself.
+    say('exp-msg', 'Finishing the file…'); ui.prog.value = 0.975;
+    if (aenc) sendSound(len);
+    await within(venc.flush(), 120000, 'finishing the video'); venc.close(); venc = null;
+    if (aenc) { await within(aenc.flush(), 60000, 'finishing the sound'); aenc.close(); aenc = null; }
+    if (failed) throw failed;
+    buf = null;
     muxer.finalize();
+    ui.prog.value = 0.99;
+    let out, size;
+    if (file) {
+      await within(written, 120000, 'writing the file'); if (failed) throw failed;
+      await within(file.stream.close(), 120000, 'saving the file'); file.stream = null;
+      out = await file.handle.getFile(); size = out.size;
+      if (!size) throw new Error('the file came out empty');
+    } else { out = new Blob([muxer.target.buffer], { type: 'video/mp4' }); size = out.size; }
     ui.prog.value = 1;
-    const blob = new Blob([muxer.target.buffer], { type: 'video/mp4' });
-    ui.download.href = URL.createObjectURL(blob); ui.download.download = safeName() + '.mp4'; ui.download.hidden = false;
+    X.url = URL.createObjectURL(out);
+    ui.download.href = X.url; ui.download.download = safeName() + '.mp4'; ui.download.hidden = false;
     const notes = [vc.mux === 'vp9' && 'It uses VP9 video, which some players (QuickTime, iPhone Photos) may not open; Chrome on a Mac normally makes the more compatible H.264 kind.',
       !ac && 'This browser could not add sound.', ac && ac.mux === 'opus' && 'Its sound is Opus, which some players do not support.'].filter(Boolean);
-    say('exp-msg', `Video ready: ${mmss(total / fps)}, ${w}×${h}, ${(blob.size / 1048576).toFixed(1)} MB. ${notes.join(' ')}`);
+    say('exp-msg', `Video ready: ${mmss(total / fps)}, ${w}×${h}, ${(size / 1048576).toFixed(1)} MB, made in ${mmss((performance.now() - began) / 1000)}. Press "Save the video". ${notes.join(' ')}`);
   } catch (err) {
-    say('exp-msg', 'The video could not be made: ' + (err.message || err));
+    say('exp-msg', X.stop ? 'Stopped. No video was made.' : 'The video could not be made: ' + (err.message || err) + '. Please try again; a smaller size or 30 frames a second needs less of the computer.');
+    for (const e of [venc, aenc]) { try { if (e && e.state !== 'closed') e.close(); } catch {} }
+    try { await file?.stream?.abort(); } catch {}
   }
-  P.busy = false; ui.prog.hidden = true;
+  P.busy = false; X.on = false; X.stop = false; ui.prog.hidden = true;
+  ui.export.textContent = 'Make the video';
   for (const k of ['record', 'demo', 'capture', 'mic']) ui[k].disabled = false;
   enable(); fit();
 }

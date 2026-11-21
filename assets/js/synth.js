@@ -149,7 +149,8 @@ export function makeOutput(ctx, opts = {}) {
 // ---------- one note ----------
 const smooth = (u) => { u = Math.min(1, Math.max(0, u)); return u * u * (3 - 2 * u); };
 
-// Start a note at context time `when`. Returns { release(at) }: call it when the key (or the pedal) lets go.
+// Start a note at context time `when`. Returns { release(at) }: call it when the key (or the pedal) lets go. After release,
+// `end` is the time it falls silent and free() takes it out of the sound graph (used when rendering a whole piece).
 export function noteOn(ctx, out, pitch, vel, when = 0) {
   const inst = out.instrument, set = inst.pack && ready.get(inst.pack);
   when = Math.max(when, ctx.currentTime);
@@ -184,8 +185,10 @@ export function noteOn(ctx, out, pitch, vel, when = 0) {
       // The top octave and a half of a piano has no dampers: those notes ring on. Low strings take longer to stop than high ones.
       const tau = inst.release ?? (pitch >= 90 && inst.pack === 'grand' ? 0.9 : 0.16 - 0.1 * Math.min(1, Math.max(0, (pitch - 30) / 60)));
       env.gain.setTargetAtTime(0, at, tau);
-      for (const s of sources) s.stop(at + tau * 7 + 0.05);
+      this.end = at + tau * 7 + 0.05; // silent from here on
+      for (const s of sources) s.stop(this.end);
     },
+    free() { env.disconnect(); }, // take the finished note out of the sound graph
   };
 }
 
@@ -208,20 +211,43 @@ function synthNote(ctx, dest, pitch, vel, when) {
       at = Math.max(at, when + 0.03);
       env.gain.cancelScheduledValues(at);
       env.gain.setTargetAtTime(0, at, 0.07);
-      for (const o of oscs) o.stop(at + 0.6);
+      this.end = at + 0.6;
+      for (const o of oscs) o.stop(this.end);
     },
+    free() { env.disconnect(); },
   };
 }
 
 // A whole note whose length is already known (playback and video).
 export function voice(ctx, out, pitch, vel, when, length) {
-  noteOn(ctx, out, pitch, vel, when).release(Math.max(when, ctx.currentTime) + Math.max(length, 0.05));
+  const note = noteOn(ctx, out, pitch, vel, when);
+  note.release(Math.max(when, ctx.currentTime) + Math.max(length, 0.05));
+  return note;
 }
 
 // Render the whole piece to a stereo buffer (for video export). The instrument must be loaded first.
-export async function renderPiece(piece, lead, tail, opts = {}, rate = 48000) {
+// The notes are not all put in at once: a long piece has thousands, and the browser works through every one of them for
+// every sliver of sound, so a five-minute piece took hours and seemed to hang. Instead the render pauses every two
+// seconds, the notes of the next two seconds go in and the finished ones come out. The sound is the same.
+export async function renderPiece(piece, lead, tail, opts = {}, rate = 48000, onProgress) {
   const ctx = new OfflineAudioContext(2, Math.ceil((lead + piece.duration + tail) * rate), rate);
-  const out = makeOutput(ctx, opts);
-  for (const n of piece.notes) voice(ctx, out, n.pitch, n.vel, lead + n.onset, n.end - n.onset);
-  return ctx.startRendering();
+  const out = makeOutput(ctx, opts), dur = ctx.length / rate, STEP = 2;
+  const notes = [...piece.notes].sort((a, b) => a.onset - b.onset), live = [];
+  let next = 0;
+  const feed = (upto) => {
+    for (let i = live.length - 1; i >= 0; i--) if (live[i].end < ctx.currentTime) { live[i].free(); live[i] = live[live.length - 1]; live.pop(); }
+    for (; next < notes.length && lead + notes[next].onset < upto; next++) {
+      const n = notes[next];
+      live.push(voice(ctx, out, n.pitch, n.vel, lead + n.onset, n.end - n.onset));
+    }
+  };
+  if (typeof ctx.suspend !== 'function') feed(Infinity); // (very old browsers: all at once, as before)
+  else {
+    feed(STEP);
+    for (let k = STEP; k < dur; k += STEP) ctx.suspend(k).then(() => { feed(k + STEP); onProgress?.(k / dur); return ctx.resume(); });
+  }
+  const buf = await ctx.startRendering();
+  if (next < notes.length) throw new Error('the sound stopped early, after ' + next + ' of ' + notes.length + ' notes');
+  onProgress?.(1);
+  return buf;
 }
