@@ -48,6 +48,10 @@ body.fill .unfill { display: block; }
 .clock { font-variant-numeric: tabular-nums; color: var(--soft); font-size: .88rem; white-space: nowrap; min-width: 84px; }
 input[type=range] { -webkit-appearance: none; appearance: none; height: 22px; background: none; flex: 1; min-width: 80px; margin: 0; --fill: 0%; }
 input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 4px; background: linear-gradient(90deg, var(--accent) var(--fill), #2b2b35 var(--fill)); }
+/* the part chosen for a short video, shown as a lighter band on the position bar */
+#seek.part::-webkit-slider-runnable-track { background: linear-gradient(90deg, var(--accent) var(--fill), transparent var(--fill)), linear-gradient(90deg, transparent var(--a), color-mix(in srgb, var(--accent) 40%, #2b2b35) var(--a), color-mix(in srgb, var(--accent) 40%, #2b2b35) var(--b), transparent var(--b)), #2b2b35; }
+#seek.part::-moz-range-track { background: linear-gradient(90deg, transparent var(--a), color-mix(in srgb, var(--accent) 40%, #2b2b35) var(--a), color-mix(in srgb, var(--accent) 40%, #2b2b35) var(--b), transparent var(--b)), #2b2b35; }
+.partbox { display: grid; gap: 10px; } .field > span small { font-size: .78rem; opacity: .8; }
 input[type=range]::-moz-range-track { height: 4px; border-radius: 4px; background: #2b2b35; } input[type=range]::-moz-range-progress { height: 4px; border-radius: 4px; background: var(--accent); }
 input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #fff; margin-top: -5px; box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent); }
 input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: #fff; }

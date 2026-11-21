@@ -8,6 +8,7 @@
 //   node tools/app-check.mjs --out <dir> --keys                    also play a few notes on the keyboard, screenshot
 //   node tools/app-check.mjs --out <dir> --piece demo --export 720 --fps 30   make a video, save <dir>/<name>.mp4
 //   node tools/app-check.mjs --out <dir> --steps steps.json      run page scripts in turn: [{ js, wait (s), shot (png name) }]
+//   node tools/app-check.mjs --out <dir> --piece 3 --after steps.json   the same, once the piece is open (before --export)
 //   options: --piece demo | <library index> | part of a library title, --look paper|night, --view sheet|piano|...,
 //            --shape wide|tall, --set key=value (a saved setting, as the studio keeps it), --wait <s>, --gl metal|swiftshader
 import { spawn } from 'node:child_process';
@@ -115,13 +116,14 @@ async function main() {
     await evaluate(`document.querySelector('#tab-look').click()`);
     await shot('page.png');
 
-    if (o.steps) { // a list of { js, wait (s), shot (file name) }: page script run in turn, e.g. clicking the Look controls
-      for (const st of JSON.parse(fs.readFileSync(o.steps, 'utf8'))) {
+    const runSteps = async (file) => { // a list of { js, wait (s), shot (file name) }: page script run in turn, e.g. clicking the Look controls
+      for (const st of JSON.parse(fs.readFileSync(file, 'utf8'))) {
         if (st.js) { const r = await evaluate(`(async () => { ${st.js} })()`); if (r !== undefined) console.log(`step ${st.shot || ''}:`, JSON.stringify(r)); }
         if (st.wait) await sleep(st.wait * 1000);
         if (st.shot) await shot(st.shot);
       }
-    }
+    };
+    if (o.steps) await runSteps(o.steps);
 
     if (o.keys) { // play a little tune on the computer keyboard: A S D F G H J K = C D E F G A B C, W E T Y U = black keys
       const keys = ['KeyA', 'KeyD', 'KeyG', 'KeyK', 'KeyT', 'KeyH', 'KeyE', 'KeyS', 'KeyA', 'KeyJ', 'KeyK'];
@@ -144,6 +146,7 @@ async function main() {
       console.log(`piece chosen (${v}):`, await state());
       await sleep(2500); await shot('playing.png');
     }
+    if (o.after) await runSteps(o.after); // the same, once the piece is open (e.g. choosing a part of it)
 
     if (o.export) {
       await evaluate(`document.querySelector('#tab-video').click(); document.querySelector('#size').value = ${JSON.stringify(String(o.export))};

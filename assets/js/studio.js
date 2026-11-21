@@ -4,6 +4,7 @@ import { createStage } from './stage.js?v=36';
 import { createListener, STYLE_NAMES } from './listen.js?v=8';
 import { drawCard, OPEN, CLOSE, STYLES } from './cards.js?v=3';
 import { INSTRUMENTS, ROOMS, makeOutput, noteOn, voice, renderPiece, loadInstrument, isLoaded } from './synth.js?v=13';
+import { barTimes } from './score.js?v=20';
 
 const $ = (s, r = document) => r.querySelector(s);
 async function fetchJSON(path) { // null when the file is missing or not JSON
@@ -18,6 +19,12 @@ const A = { ctx: null, out: null, ear: null }; // sound: one audio context, and 
 const V = { rec: null, chunks: [], dest: null }; // live screen recording
 const R = { on: false, events: [], start: 0 }; // recording of what is played
 const L = { access: null, inputs: [], held: new Map(), trail: [], voices: new Map(), sustained: [], pedal: false, last: -99 }; // live playing
+// A part of the piece, for a short video (YouTube Shorts: 3 minutes at most; 30 to 60 seconds suits most). It starts
+// and ends on a bar line where the file gives bars (else it starts on a note), begins a moment before its first bar so
+// the first note is heard whole, and fades in from black and out to black, so it loops cleanly as Shorts do. From the
+// very start it keeps the runway and the picture's own opening; to the very end, its own ending.
+const PART = { pre: 0.3, fadeIn: 0.5, soundIn: 0.25, fadeOut: 1.5, max: 179.5, ring: 5 };
+const K = { start: 0, stopAt: null, bars: [], of: null }; // where the part was asked to start (s); the end of a part being played
 // ---------- opening and closing cards ----------
 const capital = (s) => s.replace(/\b\w/g, (c) => c.toUpperCase());
 function guessMeta(piece, name) { // from the file: "Title (Composer) - subtitle" in its track name, or else its file name
@@ -69,7 +76,7 @@ const fill = (el) => el.style.setProperty('--fill', `${((el.value - el.min) / (e
 const PHONE = matchMedia('(max-width: 640px)').matches; // a phone held upright: start with the tall picture looking along the keys, which fills the screen
 // New visitors start with the sheet music on soft paper (look) in ivory (paper), its hands in rose and ice (hands), the
 // title lettered in 3D.
-const DEFAULTS = { instrument: 'grand', room: 'hall', volume: 0.9, monitor: true, theme: 'aurora', view: 'sheet', look: 'paper', hands: 'rose', paper: 'ivory', finish: 'matte', trails: false, corner: 'off', cornerK: 0.5, sparks: 0, camMove: 'steady', shine: 0.5, ballK: 0.5, title3d: true, v: 9, dance: 'auto', camera: PHONE ? 'side' : 'front', shape: PHONE ? 'tall' : 'wide', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', cardOpen: true, cardOpenPaper: false, cardClose: true, cardStyle: 'lumen', channel: 'Lumen Keys', message: 'Thank you for listening', labels: false, effects: true, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
+const DEFAULTS = { instrument: 'grand', room: 'hall', volume: 0.9, monitor: true, theme: 'aurora', view: 'sheet', look: 'paper', hands: 'rose', paper: 'ivory', finish: 'matte', trails: false, corner: 'off', cornerK: 0.5, sparks: 0, camMove: 'steady', shine: 0.5, ballK: 0.5, title3d: true, v: 9, dance: 'auto', camera: PHONE ? 'side' : 'front', shape: PHONE ? 'tall' : 'wide', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', cardOpen: true, cardOpenPaper: false, cardClose: true, part: 'whole', partLen: 45, cardStyle: 'lumen', channel: 'Lumen Keys', message: 'Thank you for listening', labels: false, effects: true, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
 const C = { ...DEFAULTS };
 try { // v 2: note names off unless switched on again; v 3: notes are trails of light unless changed again; v 4: the
   // picture starts as the sheet music on soft paper (choices saved by the older studio this one was copied from do not
@@ -114,6 +121,7 @@ function load(piece, name, meta) {
   if (piece) { ui.seek.min = -LEAD; ui.seek.max = piece.duration + TAIL; ui.seek.value = P.pos; fill(ui.seek); }
   ui.download.hidden = true;
   enable();
+  K.start = 0; $('#part-start').value = '0:00'; $('#part-start').removeAttribute('aria-invalid'); partChanged();
 }
 
 // ---------- sound ----------
@@ -201,6 +209,7 @@ function play() {
 function pause() {
   if (P.playing) P.pos = now();
   P.playing = false; ui.play.classList.remove('playing'); ui.play.setAttribute('aria-label', 'Play');
+  if (K.stopAt != null) { K.stopAt = null; $('#part-play').textContent = 'Play the part'; } // (any pause ends playing a part)
   if (P.bus) { const g = P.bus.input; g.gain.setTargetAtTime(0, A.ctx.currentTime, 0.02); setTimeout(() => g.disconnect(), 300); P.bus = null; }
 }
 function schedule() {
@@ -225,7 +234,7 @@ function frame() {
   }
   if (P.playing) {
     schedule(); P.pos = now();
-    if (P.pos >= P.piece.duration + TAIL) pause();
+    if (P.pos >= P.piece.duration + TAIL || (K.stopAt != null && P.pos >= K.stopAt)) pause();
     ui.seek.value = P.pos; fill(ui.seek);
   }
   stage.render(P.pos);
@@ -234,6 +243,62 @@ function frame() {
 ui.play.addEventListener('click', () => (P.playing ? pause() : play()));
 ui.seek.addEventListener('input', () => { const was = P.playing; pause(); P.pos = Number(ui.seek.value); fill(ui.seek); L.last = -99; if (was) play(); });
 ui.speed.addEventListener('change', () => { const was = P.playing; pause(); P.rate = Number(ui.speed.value); if (was) play(); });
+
+// ---------- a part of the piece, for a short video (see PART) ----------
+const smooth = (x) => { x = Math.min(1, Math.max(0, x)); return x * x * (3 - 2 * x); };
+const nearest = (list, x) => list.reduce((m, v) => (Math.abs(v - x) < Math.abs(m - x) ? v : m), list[0]);
+function partRange() { // the part as it will be filmed: from t0 to b (music time), its first bar at a
+  const piece = P.piece;
+  if (!piece) return null;
+  if (K.of !== piece) { K.of = piece; K.bars = barTimes(piece); }
+  const starts = K.bars.filter((x) => x < piece.duration - 3), barred = starts.length > 2;
+  let a = Math.max(0, Math.min(K.start, piece.duration - 3));
+  if (barred) a = nearest(starts, a);
+  else { let next = Infinity; for (const n of piece.notes) if (n.onset >= a - 0.05 && n.onset < next) next = n.onset; if (next - a < 1.5) a = Math.max(0, next); }
+  const top = a < 0.4, t0 = top ? -LEAD : a - PART.pre, want = a + C.partLen;
+  if (want >= piece.duration - 1 && piece.duration + TAIL - t0 <= PART.max + 0.01) return { a, t0, b: piece.duration + TAIL, top, end: true, barred };
+  const cap = Math.min(t0 + PART.max, piece.duration), ends = barred ? K.bars.filter((x) => x > a + 4 && x <= cap) : [];
+  return { a, t0, b: ends.length ? nearest(ends, want) : Math.min(want, cap), top, end: false, barred };
+}
+function partChanged() {
+  const on = C.part === 'part', r = on ? partRange() : null;
+  $('#part-box').hidden = !on;
+  $('#part-here').disabled = $('#part-play').disabled = !P.piece || P.busy;
+  ui.seek.classList.toggle('part', !!r); // the part shows as a band on the position bar
+  if (r) {
+    const span = P.piece.duration + TAIL + LEAD, pc = (x) => `${(((x + LEAD) / span) * 100).toFixed(2)}%`;
+    ui.seek.style.setProperty('--a', pc(r.t0)); ui.seek.style.setProperty('--b', pc(r.b));
+  }
+  if (!on) return;
+  if (!r) return say('part-msg', 'Open a piece, then choose where the part starts.');
+  say('part-msg', [`${Math.round(r.b - r.t0)} seconds of video, from ${r.top ? 'the start' : mmss(r.a)} to ${r.end ? 'the end' : mmss(r.b)}${r.barred ? ', each end on a bar line' : ''}.`,
+    'It fades in and out, so it loops smoothly, and leaves out the opening and closing cards.',
+    C.shape !== 'tall' ? 'For a Short, choose Shape: Tall in the Look tab.' : ''].filter(Boolean).join(' '));
+}
+function readStart(text) { // "1:05", "65" or "1:05.5" as seconds; null when it is not a time
+  const m = String(text).trim().match(/^(?:(\d+):)?(\d+(?:[.,]\d*)?)$/);
+  return m ? Number(m[1] || 0) * 60 + Number(m[2].replace(',', '.')) : null;
+}
+radios($('#parts'), [], C.part, (v) => { C.part = v; remember(); partChanged(); });
+$('#part-len').value = String(C.partLen);
+if (!$('#part-len').value) { C.partLen = 45; $('#part-len').value = '45'; }
+$('#part-len').addEventListener('change', () => { C.partLen = Number($('#part-len').value); remember(); partChanged(); });
+$('#part-start').addEventListener('input', () => {
+  const v = readStart($('#part-start').value), el = $('#part-start');
+  if (v == null) { el.setAttribute('aria-invalid', 'true'); return say('part-msg', 'Write the start as minutes:seconds, for example 1:05.'); }
+  el.removeAttribute('aria-invalid'); K.start = v; partChanged();
+});
+$('#part-here').addEventListener('click', () => { // the part starts where the music is now (playing or paused)
+  K.start = Math.max(0, now()); $('#part-start').value = mmss(K.start); $('#part-start').removeAttribute('aria-invalid'); partChanged();
+});
+$('#part-play').addEventListener('click', () => { // hear and see the part, stopping at its end
+  if (K.stopAt != null) return pause();
+  const r = partRange();
+  if (!r) return;
+  pause(); P.pos = r.t0; L.last = -99; play();
+  if (P.playing) { K.stopAt = r.b; $('#part-play').textContent = 'Stop'; }
+});
+partChanged();
 
 // ---------- look ----------
 function accent() { // the page takes its accent colour from the picture's colours
@@ -322,7 +387,7 @@ radios($('#views'), [], C.view, (v) => { C.view = v; remember(); stage.setView(M
 radios($('#looks'), [], C.look, (v) => { C.look = v; remember(); stage.setLook(v); pictureChanged(); });
 radios($('#dances'), [], C.dance, (v) => { C.dance = v; remember(); stage.setDance(v); });
 radios($('#cameras'), [], C.camera, (v) => { C.camera = v; remember(); stage.setCamera(v); });
-radios($('#shapes'), [], C.shape, (v) => { C.shape = v; remember(); box.classList.toggle('tall', v === 'tall'); fit(); });
+radios($('#shapes'), [], C.shape, (v) => { C.shape = v; remember(); box.classList.toggle('tall', v === 'tall'); fit(); partChanged(); });
 radios($('#notes'), [], C.notes, (v) => { C.notes = v; remember(); stage.setNotes(v); });
 radios($('#strip'), [], C.strip, (v) => { C.strip = v; remember(); stage.setStrip(v); });
 radios($('#sheetcam'), [], C.sheetCam, (v) => { C.sheetCam = v; remember(); stage.setSheetCam(v); });
@@ -680,6 +745,22 @@ async function videoFile() {
   } catch { return null; }
 }
 
+// The sound of a part: its notes and those still ringing as it starts, made on their own (not the whole piece), with a
+// short fade in and a longer fade out to match the picture.
+async function partSound(piece, part, opts, onProgress) {
+  const { t0, b } = part, rate = 48000, keep = piece.notes.filter((n) => n.onset < b && n.end + PART.ring > t0);
+  let s0 = t0;
+  for (const n of keep) s0 = Math.min(s0, n.onset);
+  const buf = await renderPiece({ notes: keep.map((n) => ({ ...n, onset: n.onset - s0, end: n.end - s0 })), duration: b - s0 }, 0, 0, opts, rate, onProgress);
+  const at = Math.round((t0 - s0) * rate), n = Math.max(0, Math.min(Math.round((b - t0) * rate), buf.length - at));
+  const ch = [0, 1].map((c) => buf.getChannelData(c).slice(at, at + n)), fi = Math.min(n, Math.round(PART.soundIn * rate)), fo = Math.min(n, Math.round(PART.fadeOut * rate));
+  for (const d of ch) {
+    for (let i = 0; i < fi; i++) d[i] *= smooth(i / fi);
+    for (let i = 0; i < fo; i++) d[n - 1 - i] *= smooth(i / fo);
+  }
+  return { length: n, getChannelData: (c) => ch[c] };
+}
+
 const X = { stop: false }; // the export in progress, if any
 const pauseFor = (ms) => new Promise((r) => {
   if (!document.hidden) return setTimeout(r, ms);
@@ -708,7 +789,7 @@ async function makeVideo() {
   const ac = 'AudioEncoder' in window ? await pick([{ mux: 'aac', codec: 'mp4a.40.2' }, { mux: 'opus', codec: 'opus' }],
     (c) => AudioEncoder.isConfigSupported({ codec: c.codec, sampleRate: 48000, numberOfChannels: 2, bitrate: 128000 })) : null;
 
-  P.busy = true; X.on = true; X.stop = false;
+  P.busy = true; X.on = true; X.stop = false; partChanged();
   for (const k of ['play', 'seek', 'record', 'demo', 'capture', 'mic']) ui[k].disabled = true;
   ui.export.textContent = 'Stop'; ui.export.disabled = false;
   ui.prog.hidden = false; ui.prog.value = 0; ui.download.hidden = true;
@@ -716,8 +797,10 @@ async function makeVideo() {
   const began = performance.now(), stopped = () => { if (X.stop) throw new Error('stopped'); };
   let file = null, venc = null, aenc = null;
   try {
-    const title = paperOn() ? '' : ui.vtitle.value.trim(), intro = C[openKey()] ? OPEN : 0, outro = C.cardClose ? CLOSE : 0, end = P.piece.duration + TAIL; // (paper: its title is lettered in 3D)
-    const total = Math.ceil((intro + LEAD + P.piece.duration + TAIL + outro) * fps), info = cardInfo(), tint = accentColor();
+    const part = C.part === 'part' ? partRange() : null; // only a part, for a short video: no cards, and a fade at each end
+    const title = paperOn() ? '' : ui.vtitle.value.trim(), intro = !part && C[openKey()] ? OPEN : 0, outro = !part && C.cardClose ? CLOSE : 0, end = P.piece.duration + TAIL; // (paper: its title is lettered in 3D)
+    const from = part ? part.t0 : -LEAD - intro, span = part ? part.b - part.t0 : intro + LEAD + P.piece.duration + TAIL + outro; // music time of the first frame, and the length
+    const total = Math.ceil(span * fps), info = cardInfo(), tint = accentColor();
 
     // 1. The sound first (about a tenth of the time): if anything goes wrong it shows at once, not at the end.
     let buf = null;
@@ -725,9 +808,10 @@ async function makeVideo() {
       say('exp-msg', 'Making the sound… Keep this tab open and in front.');
       await loadInstrument(C.instrument);
       let moved = performance.now();
-      const sound = renderPiece(P.piece, LEAD + intro, TAIL + outro, { instrument: C.instrument, room: C.room, volume: 1 }, 48000, (p) => {
+      const opts = { instrument: C.instrument, room: C.room, volume: 1 }, step = (p) => {
         moved = performance.now(); ui.prog.value = 0.12 * p; say('exp-msg', `Making the sound… ${Math.round(p * 100)}%`);
-      });
+      };
+      const sound = part ? partSound(P.piece, part, opts, step) : renderPiece(P.piece, LEAD + intro, TAIL + outro, opts, 48000, step);
       buf = await new Promise((yes, no) => {
         sound.then(yes, no);
         const watch = setInterval(() => {
@@ -792,7 +876,7 @@ async function makeVideo() {
     for (let i = 0; i < total; i++) {
       if (failed) throw failed;
       stopped();
-      const t = i / fps - LEAD - intro; // music time: the opening card plays before the runway, the closing card after the end
+      const t = from + i / fps; // music time: the opening card plays before the runway, the closing card after the end
       // (paper: the opening card sits on black, then the picture fades in from black at the start of the runway, so
       // the moving page and its 3D title never show through the card)
       if (intro && t < -LEAD && paperOn()) { g.fillStyle = '#000'; g.fillRect(0, 0, w, h); }
@@ -805,6 +889,10 @@ async function makeVideo() {
       g.shadowBlur = 0;
       if (intro && t < -LEAD) drawCard(g, w, h, 'open', i / fps, info, C.cardStyle, tint);
       if (outro && t > end) drawCard(g, w, h, 'close', t - end, info, C.cardStyle, tint);
+      if (part) { // a part fades in from black and out to black (except where the paper look does so itself, at the very start and end)
+        const u = i / fps, k = Math.max(part.top && paperOn() ? 0 : 1 - smooth(u / PART.fadeIn), part.end && paperOn() ? 0 : smooth((u - span + PART.fadeOut) / PART.fadeOut));
+        if (k > 0.001) { g.globalAlpha = k; g.fillStyle = '#000'; g.fillRect(0, 0, w, h); g.globalAlpha = 1; }
+      }
       const vf = new VideoFrame(comp, { timestamp: Math.round((i * 1e6) / fps), duration: Math.round(1e6 / fps) });
       venc.encode(vf, { keyFrame: i % (fps * 2) === 0 });
       vf.close();
@@ -844,7 +932,8 @@ async function makeVideo() {
     } else { out = new Blob([muxer.target.buffer], { type: 'video/mp4' }); size = out.size; }
     ui.prog.value = 1;
     X.url = URL.createObjectURL(out);
-    ui.download.href = X.url; ui.download.download = safeName() + '.mp4'; ui.download.hidden = false;
+    ui.download.href = X.url; ui.download.hidden = false;
+    ui.download.download = safeName() + (part ? `-short-${Math.floor(part.a / 60)}m${String(Math.floor(part.a % 60)).padStart(2, '0')}s` : '') + '.mp4';
     const notes = [vc.mux === 'vp9' && 'It uses VP9 video, which some players (QuickTime, iPhone Photos) may not open; Chrome on a Mac normally makes the more compatible H.264 kind.',
       !ac && 'This browser could not add sound.', ac && ac.mux === 'opus' && 'Its sound is Opus, which some players do not support.'].filter(Boolean);
     say('exp-msg', `Video ready: ${mmss(total / fps)}, ${w}×${h}, ${(size / 1048576).toFixed(1)} MB, made in ${mmss((performance.now() - began) / 1000)}. Press "Save the video". ${notes.join(' ')}`);
@@ -856,7 +945,7 @@ async function makeVideo() {
   P.busy = false; X.on = false; X.stop = false; ui.prog.hidden = true;
   ui.export.textContent = 'Make the video';
   for (const k of ['record', 'demo', 'capture', 'mic']) ui[k].disabled = false;
-  enable(); fit();
+  enable(); fit(); partChanged();
 }
 ui.export.addEventListener('click', makeVideo);
 

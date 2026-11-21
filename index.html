@@ -8,7 +8,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' blob: data:; media-src blob:; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Piano studio</title>
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="assets/css/studio.css?v=22">
+<link rel="stylesheet" href="assets/css/studio.css?v=23">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -185,6 +185,21 @@
 
     <section class="panel" id="panel-video" role="tabpanel" aria-labelledby="tab-video" hidden>
       <h2>Make a video of the piece</h2>
+      <div class="seg" id="parts" role="radiogroup" aria-label="What the video shows">
+        <button type="button" role="radio" data-v="whole" aria-checked="true">The whole piece</button>
+        <button type="button" role="radio" data-v="part" aria-checked="false">A part (for Shorts)</button>
+      </div>
+      <div class="partbox" id="part-box" hidden>
+        <div class="grid2">
+          <label class="field"><span>Starts at <small>(min:sec)</small></span><input type="text" id="part-start" value="0:00" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+          <label class="field"><span>Length</span><select id="part-len"><option value="15">15 seconds</option><option value="20">20 seconds</option><option value="30">30 seconds</option><option value="40">40 seconds</option><option value="45">45 seconds</option><option value="50">50 seconds</option><option value="60">1 minute</option><option value="90">1½ minutes</option><option value="120">2 minutes</option><option value="180">3 minutes (longest Short)</option></select></label>
+        </div>
+        <div class="grid2">
+          <button class="btn" id="part-here" type="button" disabled>Start where it is now</button>
+          <button class="btn" id="part-play" type="button" disabled>Play the part</button>
+        </div>
+        <p id="part-msg" class="fine" role="status">Open a piece, then choose where the part starts.</p>
+      </div>
       <div class="grid2">
         <label class="field"><span>Size</span><select id="size"><option value="2160">4K (sharpest on YouTube, slow)</option><option value="1440">1440p (very sharp)</option><option value="1080" selected>Full HD (1080)</option><option value="720">HD (720)</option></select></label>
         <label class="field"><span>Smoothness</span><select id="fps"><option value="30">30 frames a second</option><option value="60">60 frames a second</option></select></label>
@@ -221,6 +236,6 @@
   </aside>
 </main>
 <footer class="credits">Grand piano recordings: Salamander Grand Piano by Alexander Holm (CC BY 3.0). Electric pianos and harpsichord: FluidR3 GM by Frank Wen. Music symbols converted from Bravura by Steinberg Media Technologies, and lettering converted from Libre Baskerville by Pablo Impallari and Rodrigo Fuenzalida, both under the <a href="assets/glyphs/OFL.txt">SIL Open Font License 1.1</a> (<a href="assets/glyphs/CREDITS.txt">details</a>).</footer>
-<script type="module" src="assets/js/studio.js?v=37"></script>
+<script type="module" src="assets/js/studio.js?v=38"></script>
 </body>
 </html>
