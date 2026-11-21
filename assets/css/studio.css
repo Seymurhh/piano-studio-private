@@ -111,6 +111,11 @@ body.no-sheet .sheet-only { display: none; }
 body.paper .no-paper { display: none; }
 body:not(.paper) .paper-only { display: none; }
 .swatches.pairs { grid-template-columns: repeat(4, 1fr); }
+/* paper colours: each button shows a small sheet of that paper, lit from below like the picture */
+.swatch i.sheet { width: 34px; height: 24px; border-radius: 3px; display: block; box-shadow: inset 0 0 0 1px rgba(0,0,0,.25), 0 1px 3px rgba(0,0,0,.5); }
+/* finishes: each button shows a small notehead of that material */
+.swatches.finishes { grid-template-columns: repeat(4, 1fr); }
+.swatch i.note { width: 26px; height: 18px; border-radius: 50%; display: block; transform: rotate(-22deg); margin: 3px 0; box-shadow: 0 0 0 1px rgba(255,255,255,.14), 0 1px 3px rgba(0,0,0,.5); }
 .cardview { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 textarea { resize: vertical; font: inherit; line-height: 1.4; }
 

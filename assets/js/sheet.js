@@ -9,7 +9,7 @@
 // each), dots, ledger lines, accidentals in the key, and bar lines from the time signature. Rests and ties are not
 // drawn: a tied note shows as one longer note. Spacing follows the rhythm, wider for long notes, as in print.
 import * as THREE from '../vendor/three.min.js?v=7';
-import { barTimes, guessKey, speller, SIG } from './score.js?v=19';
+import { barTimes, guessKey, isMinor, speller, spellNotes, SIG } from './score.js?v=20';
 
 const TB = 11;                                 // page height of the treble staff's bottom line (the bass staff's is 0)
 const MID = [TB + 2, 2];                       // the middle line of each staff
@@ -26,13 +26,16 @@ const W = (x, y, h = INK) => new THREE.Vector3(x, h, -y); // page (x, y) to the 
 // Options (all off by default, which is the night-glass look's layout, unchanged):
 //   linear  place every moment at x = start + speed * (t - t0), proportional to time in seconds, with one speed per
 //           piece: speed = max(minSpeed, minGap / g10), at most maxSpeed, where g10 is the 10th percentile of the gaps
-//           between successive onsets on a staff (so short notes never crowd). Bar lines fall at the bar times.
+//           between successive onsets on a staff (so short notes never crowd), leaving out grace notes, rolled chords
+//           and short ornaments. Bar lines fall at the bar times.
 //   start   function (sf) -> x of the first bar's start (room for the clefs, key and time signature)
 //   carry   accidentals carry through the bar, as in print: a sign is shown only where the note differs from what the
 //           bar has had so far on that line or space (naturals cancel earlier signs)
 //   rests   work out the rests of each staff (whole-bar rests and quarter, eighth ... rests on the beat grid)
+//   detached  a short note played detached (sounding at least 0.45 of the time to the next note on its staff, when that
+//           is a beat or less) is written at its full length, as in print, not as a shorter note and a rest
 export function engrave(piece, opts = {}) {
-  const sf = piece.key ? piece.key.sf : guessKey(piece.notes), spell = speller(sf), two = piece.tracks === 2;
+  const sf = piece.key ? piece.key.sf : guessKey(piece.notes), two = piece.tracks === 2;
   const mean = [0, 1].map((k) => { const l = piece.notes.filter((n) => n.track === k); return l.reduce((s, n) => s + n.pitch, 0) / (l.length || 1); }), upper = mean[0] >= mean[1] ? 0 : 1;
   const tempo = piece.tempoMap.length ? piece.tempoMap : [{ time: 0, bpm: 100 }];
   const beatAt = (t) => { let bpm = tempo[0].bpm; for (const m of tempo) if (m.time <= t + 0.01) bpm = m.bpm; return 60 / bpm; };
@@ -40,7 +43,14 @@ export function engrave(piece, opts = {}) {
   const meters = piece.meterMap && piece.meterMap.length ? piece.meterMap : [{ time: 0, meter: piece.meter || [4, 4] }];
   const meterAt = (t) => { let m = meters[0].meter; for (const k of meters) if (k.time <= t + 0.01) m = k.meter; return m; };
   const barStart = (t) => { let b = 0; for (const x of bars) { if (x <= t + 0.01) b = x; else break; } return b; };
+  const beatsBetween = (a, b) => { // beats from time a to time b, through any tempo changes between them
+    let i = 0, n = 0, t = a;
+    while (i + 1 < tempo.length && tempo[i + 1].time <= a + 1e-6) i++;
+    while (t < b - 1e-9) { const next = i + 1 < tempo.length ? tempo[i + 1].time : Infinity, e = Math.min(b, next); n += (e - t) * tempo[i].bpm / 60; t = e; i++; if (i >= tempo.length) i = tempo.length - 1; }
+    return n;
+  };
   const staffOf = (n) => (two ? (n.track === upper ? 0 : 1) : n.pitch < 60 ? 1 : 0);
+  const spelled = spellNotes(piece.notes, sf, isMinor(piece, sf), staffOf, !!opts.doubles); // pitch spelling from the context
 
   // notes struck together on one staff
   const events = [[], []];
@@ -57,7 +67,7 @@ export function engrave(piece, opts = {}) {
       const beat = beatAt(e.t), gap = list[i + 1] ? (list[i + 1].t - e.t) / beat : Infinity, groups = new Map();
       for (const n of e.notes) {
         const d = n.dur / beat;
-        let v = d >= 0.7 * gap && d <= 1.45 * gap ? gap : d; // held until the next note: it lasts until then; much longer: another voice
+        let v = d >= (opts.detached && gap <= 1.01 ? 0.45 : 0.7) * gap && d <= 1.45 * gap ? gap : d; // held until the next note: it lasts until then; much longer: another voice
         v = VALUES.reduce((a, b) => (Math.abs(Math.log(b / v)) < Math.abs(Math.log(a / v)) ? b : a));
         if (!groups.has(v)) groups.set(v, []);
         groups.get(v).push(n);
@@ -68,8 +78,8 @@ export function engrave(piece, opts = {}) {
         let voice = 0;
         if (gs.length > 1) voice = k === 0 ? 1 : 2;
         else if (held.length) voice = g.top <= Math.min(...held.map((h) => h.low)) ? 2 : g.low >= Math.max(...held.map((h) => h.top)) ? 1 : 0;
-        const heads = g.ns.map((n) => { const s = spell(n.pitch); return { pitch: n.pitch, step: s.step, acc: s.acc, y: pageY(s.step, staff) }; }).sort((a, b) => a.y - b.y);
-        return { t: e.t, staff, v: g.v, voice, heads, beat, end: e.t + g.v * beat, vel: Math.max(...g.ns.map((n) => n.vel)), top: g.top, low: g.low, pos: (e.t - barStart(e.t)) / beat, meter: meterAt(e.t) };
+        const heads = g.ns.map((n) => { const s = spelled.get(n); return { pitch: n.pitch, step: s.step, acc: s.acc, y: pageY(s.step, staff) }; }).sort((a, b) => a.y - b.y);
+        return { t: e.t, staff, v: g.v, voice, heads, beat, end: e.t + g.v * beat, vel: Math.max(...g.ns.map((n) => n.vel)), top: g.top, low: g.low, pos: beatsBetween(barStart(e.t), e.t), bar: barStart(e.t), meter: meterAt(e.t) };
       });
       chords.push(...made); held.push(...made);
     });
@@ -90,8 +100,20 @@ export function engrave(piece, opts = {}) {
   let X, xOf, speed = 0, t0 = times[0];
   if (opts.linear) {
     // proportional to time: one speed for the whole piece, fast enough that the closest notes keep their distance
+    // (grace notes, rolled chords and short ornaments do not count: gaps under 80 ms, and runs of at most three gaps
+    // under 0.12 s that are each less than 0.4 of the gaps on both sides, such as a lone grace note before a long note)
     const gaps = [];
-    for (const list of events) for (let i = 1; i < list.length; i++) gaps.push(list[i].t - list[i - 1].t);
+    for (const list of events) {
+      const g = [];
+      for (let i = 1; i < list.length; i++) g.push(list[i].t - list[i - 1].t);
+      const quick = g.map((x) => x < 0.08);
+      for (let i = 1; i < g.length; i++) for (let L = 1; L <= 3 && i + L < g.length; L++) {
+        let orn = true;
+        for (let k = i; k < i + L; k++) if (!(g[k] < 0.12 && g[k] < 0.4 * g[i - 1] && g[k] < 0.4 * g[i + L])) orn = false;
+        if (orn) for (let k = i; k < i + L; k++) quick[k] = true;
+      }
+      g.forEach((x, i) => { if (!quick[i]) gaps.push(x); });
+    }
     gaps.sort((a, b) => a - b);
     const g10 = gaps.length ? gaps[Math.floor(gaps.length * 0.1)] : 1;
     speed = Math.min(opts.maxSpeed ?? 32, Math.max(opts.minSpeed ?? 13.5, (opts.minGap ?? 2.6) / Math.max(g10, 1e-3)));
@@ -152,7 +174,7 @@ export function engrave(piece, opts = {}) {
       const short = c.v < 1;
       if (cur && short) {
         const p = cur[cur.length - 1], win = windowOf(cur[0]);
-        if (Math.abs(p.end - c.t) < 0.04 && Math.floor(c.pos / win + 1e-6) === Math.floor(cur[0].pos / win + 1e-6) && c.pos >= cur[0].pos) { cur.push(c); continue; }
+        if (Math.abs(p.end - c.t) < 0.04 && c.bar === cur[0].bar && Math.floor(c.pos / win + 1e-6) === Math.floor(cur[0].pos / win + 1e-6) && c.pos >= cur[0].pos) { cur.push(c); continue; } // (never across a bar line)
       }
       if (cur) groups.push(cur);
       cur = short ? [c] : null;

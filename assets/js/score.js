@@ -25,9 +25,15 @@ export function barTimes(piece) {
   let t = 0, i = 0, j = 0;
   while (t < piece.duration + 1 && bars.length < 4000) {
     bars.push(t);
-    while (j + 1 < meters.length && meters[j + 1].time <= t + 1e-6) j++;
-    const per = meters[j].meter[0] * 4 / meters[j].meter[1];
-    for (let k = 0; k < Math.round(per * 4); k++) { while (i + 1 < tempo.length && tempo[i + 1].time <= t + 1e-6) i++; t += 15 / tempo[i].bpm; }
+    while (j + 1 < meters.length && meters[j + 1].time <= t + 0.02) j++; // (a change of time signature falls on a bar start)
+    let q = meters[j].meter[0] * 4 / meters[j].meter[1]; // quarter beats in this bar, counted through any tempo changes exactly
+    while (q > 1e-9) {
+      while (i + 1 < tempo.length && tempo[i + 1].time <= t + 1e-6) i++;
+      const next = i + 1 < tempo.length ? tempo[i + 1].time : Infinity, room = (next - t) * tempo[i].bpm / 60;
+      if (room >= q) { t += q * 60 / tempo[i].bpm; q = 0; } else { q -= room; t = next; }
+    }
+    const change = j + 1 < meters.length ? meters[j + 1].time : Infinity; // a new time signature starts a new bar, even part-way through this one
+    if (change > bars[bars.length - 1] + 0.02 && change < t - 0.02) t = change;
   }
   return bars;
 }
@@ -59,15 +65,137 @@ export function speller(sf) {
   };
 }
 
+// Is a piece in a minor key? The file says so, or its bass begins and ends on the minor tonic (some files call a minor
+// piece major: the Moonlight Sonata's first movement is marked E major). When the file gives no key: the bass ends (or
+// else begins) on the minor tonic rather than the major one; failing that, the minor key's leading tone is commoner
+// than the note below it.
+export function isMinor(piece, sf) {
+  const notes = piece.notes, major = ((sf * 7) % 12 + 12) % 12, minor = (major + 9) % 12;
+  if (piece.key && piece.key.minor) return true;
+  let first = Infinity, last = -Infinity;
+  for (const n of notes) { first = Math.min(first, n.onset); last = Math.max(last, n.onset); }
+  const bass = [last, first].map((t) => { let low = 999; for (const n of notes) if (Math.abs(n.onset - t) < 0.05) low = Math.min(low, n.pitch); return low % 12; });
+  if (piece.key) return bass[0] === minor && bass[1] === minor;
+  for (const pc of bass) { if (pc === minor) return true; if (pc === major) return false; }
+  const count = new Array(12).fill(0);
+  for (const n of notes) count[n.pitch % 12]++;
+  return count[(minor + 11) % 12] > count[(minor + 10) % 12];
+}
+
+// How each note of a piece is written, from its context (returns a Map from note to { step, acc }, acc as speller()
+// gives it). Notes of the key keep their spelling, and in a minor key so do the raised 6th and 7th (in C sharp minor
+// the leading tone is B sharp). Each other note has two ways to be written (a black key: the sharp of the letter below
+// or the flat of the letter above; a white key: its natural, or the sharp of the letter below), and the one with more
+// reasons for it wins:
+//   - the line it is in (read along each staff): a chromatic neighbour takes the letter next to its main note, so a
+//     lower neighbour is a sharp (E D# E, or F double-sharp between two G sharps when doubles are allowed) and an
+//     upper one a flat (C Db C); a note that moves on by a semitone is a sharp going up (C# D) and a flat going down
+//     (Db C), so rising chromatic lines use sharps and falling ones flats
+//   - the harmony: plain intervals (seconds, thirds, fourths, fifths ...) with the other notes sounding at that moment
+//     (D F# A, not D Gb A) and with the notes struck within 0.45 s (the rest of a broken chord), counting less where
+//     either note is quick (under 0.2 s); a note doubled in octaves is written the same in every octave
+//   - and, when nothing else decides, the key signature's direction (C major: C# Eb F# G# Bb). A white key stays a
+//     natural unless it is a lower neighbour.
+// staffOf(note) = 0 or 1. doubles: double sharps may be written (only the sheet look draws them).
+export function spellNotes(notes, sf, minor, staffOf, doubles = false) {
+  const alter = new Array(7).fill(0);
+  for (let i = 0; i < Math.abs(sf); i++) alter[(sf < 0 ? FLATS : SHARPS)[i]] = Math.sign(sf);
+  const sign = (a) => (a > 1 ? '𝄪' : a < -1 ? '𝄫' : a > 0 ? '♯' : a < 0 ? '♭' : '♮');
+  const pcOf = (p) => ((p % 12) + 12) % 12;
+  const altFor = (p, l) => { const d = pcOf(p - LETTER_PC[l]); return d > 6 ? d - 12 : d; }; // the alteration that writes p on letter l
+  const make = (p, l) => { const a = altFor(p, l); return { step: (Math.floor((p - a) / 12) - 1) * 7 + l, acc: a === alter[l] ? '' : sign(a), l, a }; };
+  const keyL = new Array(12).fill(-1); // pitch class -> letter, for the notes whose spelling never changes
+  LETTER_PC.forEach((v, l) => { keyL[pcOf(v + alter[l])] = l; });
+  if (minor) { // the raised 6th and 7th
+    const tonic = ((4 * sf) % 7 + 7 + 5) % 7;
+    for (const d of [5, 6]) { const l = (tonic + d) % 7, a = alter[l] + 1; if (a <= (doubles ? 2 : 1) && keyL[pcOf(LETTER_PC[l] + a)] < 0) keyL[pcOf(LETTER_PC[l] + a)] = l; }
+  }
+  const W = { neighbour: 2.5, onward: 1.5, key: 0.25, natural: 0.6 }; // weights of the reasons; each plain or bad interval counts 1
+  const out = new Map(), open = [];
+  // each staff's moments (notes struck together), in time order
+  const groups = [[], []];
+  const sorted = [...notes].sort((a, b) => a.onset - b.onset || a.pitch - b.pitch);
+  for (const n of sorted) {
+    const list = groups[staffOf(n)], g = list[list.length - 1];
+    if (g && n.onset - g.t < 0.03) g.ns.push(n); else list.push({ t: n.onset, ns: [n] });
+  }
+  const near = (list, gi, dir, p) => { // the nearest pitch the line moves to (dir 1) or came from (dir -1), skipping repeats
+    for (let k = 1; k <= 3; k++) {
+      const g = list[gi + dir * k];
+      if (!g) return null;
+      let best = null;
+      for (const m of g.ns) if (best === null || Math.abs(m.pitch - p) < Math.abs(best - p)) best = m.pitch;
+      if (best !== p) return best;
+    }
+    return null;
+  };
+  const letterNear = (q, up) => (keyL[pcOf(q)] >= 0 ? keyL[pcOf(q)] : LETTER_PC.indexOf(pcOf(up ? q - 1 : q + 1))); // how a neighbour is written
+  for (const list of groups) list.forEach((g, gi) => {
+    for (const n of g.ns) {
+      const p = n.pitch, pc = pcOf(p);
+      if (keyL[pc] >= 0) { out.set(n, make(p, keyL[pc])); continue; }
+      const white = LETTER_PC.includes(pc);
+      const c = white ? [make(p, LETTER_PC.indexOf(pc)), make(p, (LETTER_PC.indexOf(pc) + 6) % 7)] : [make(p, LETTER_PC.indexOf(pcOf(p - 1))), make(p, LETTER_PC.indexOf(pcOf(p + 1)))];
+      // c[0]: the natural (white key) or the sharp; c[1]: the sharp of the letter below (white key) or the flat
+      const vote = [0, 0], nx = near(list, gi, 1, p), pv = near(list, gi, -1, p);
+      const toward = (q, w) => { const l = (letterNear(q, q > p) + (q > p ? 6 : 1)) % 7, k = c.findIndex((s) => s.l === l); if (k >= 0) vote[k] += w; };
+      if (nx !== null && Math.abs(nx - p) === 1) toward(nx, nx === pv ? W.neighbour : W.onward);
+      if (white) { vote[0] += W.natural; if (nx === pv && nx === p + 1) vote[1] += 0; else vote[1] = -9; } // a white key is respelt only as a lower neighbour
+      else vote[sf > 0 || (sf === 0 && pc !== 3 && pc !== 10) ? 0 : 1] += W.key;
+      if (Math.abs(c[1].a) > (doubles ? 2 : 1)) vote[1] = -9;
+      const item = { n, c, vote, pick: vote[1] > vote[0] ? 1 : 0 };
+      out.set(n, c[item.pick]); open.push(item);
+    }
+  });
+  if (!open.length) return out;
+  // the harmony: notes sounding together (struck at the same moment on either staff, or still held), by pitch class
+  const PLAIN = [[0], [1, 2], [3, 4], [5], [7], [8, 9], [10, 11]], NEAR = 0.45;
+  const iv = (s, p, q, sq) => { const d = ((sq.l - s.l) % 7 + 7) % 7, i = pcOf(q - p); return PLAIN[d].includes(i) ? 1 : i === 6 && (d === 3 || d === 4) ? 0 : i === 0 && d === 0 ? 0 : -1; };
+  const moments = [];
+  for (const it of open.sort((a, b) => a.n.onset - b.n.onset)) {
+    const m = moments[moments.length - 1];
+    const key = pcOf(it.n.pitch);
+    if (m && it.n.onset - m.t < 0.03) { if (!m.pcs.has(key)) m.pcs.set(key, []); m.pcs.get(key).push(it); }
+    else moments.push({ t: it.n.onset, pcs: new Map([[key, [it]]]) });
+  }
+  for (let pass = 0; pass < 2; pass++) {
+    let j = 0;
+    for (const m of moments) {
+      while (j < sorted.length && sorted[j].onset < m.t - 4) j++;
+      const others = []; // sounding at this moment, or struck within NEAR s of it (the rest of a broken chord)
+      for (let i = j; i < sorted.length && sorted[i].onset < m.t + NEAR; i++) {
+        const o = sorted[i];
+        if (Math.abs(o.onset - m.t) < NEAR || o.onset + o.dur >= m.t + 0.05) others.push(o);
+      }
+      for (const [pc, items] of m.pcs) {
+        const total = [0, 1].map((k) => Math.max(...items.map((it) => it.vote[k])));
+        const seen = new Set();
+        for (const o of others) {
+          if (pcOf(o.pitch) === pc) continue;
+          const so = out.get(o), id = pcOf(o.pitch) * 16 + so.l;
+          if (seen.has(id)) continue;
+          seen.add(id);
+          const p = items[0].n.pitch, w = Math.min(1, o.dur / 0.2) * Math.min(1, Math.max(...items.map((it) => it.n.dur)) / 0.2); // quick notes in passing count less
+          for (const k of [0, 1]) { const s = items[0].c[k]; total[k] += w * (o.pitch >= p ? iv(s, p, o.pitch, so) : iv(so, o.pitch, p, s)); }
+        }
+        const pick = total[1] > total[0] ? 1 : 0;
+        for (const it of items) out.set(it.n, it.c[pick]);
+      }
+    }
+  }
+  return out;
+}
+
 // Turn a piece into things to draw: chords (notes struck together on one staff) and bar lines.
 function prepare(piece) {
-  const sf = piece.key ? piece.key.sf : guessKey(piece.notes), spell = speller(sf), two = piece.tracks === 2;
+  const sf = piece.key ? piece.key.sf : guessKey(piece.notes), two = piece.tracks === 2;
   const mean = [0, 1].map((k) => { const l = piece.notes.filter((n) => n.track === k); return l.reduce((s, n) => s + n.pitch, 0) / (l.length || 1); }), upper = mean[0] >= mean[1] ? 0 : 1; // with two tracks, the higher one goes on the treble staff
+  const spelled = spellNotes(piece.notes, sf, isMinor(piece, sf), (n) => (two ? (n.track === upper ? 0 : 1) : n.pitch < 60 ? 1 : 0));
   const tempo = piece.tempoMap.length ? piece.tempoMap : null, beatAt = (t) => { let bpm = tempo ? tempo[0].bpm : 100; for (const m of tempo || []) if (m.time <= t + 0.01) bpm = m.bpm; return 60 / bpm; };
   const marks = [];
   for (const n of piece.notes) {
     const staff = two ? (n.track === upper ? 0 : 1) : n.pitch < 60 ? 1 : 0, last = marks[marks.length - 1], beats = n.dur / beatAt(n.onset);
-    const head = { ...spell(n.pitch), pitch: n.pitch };
+    const sp = spelled.get(n), head = { step: sp.step, acc: sp.acc, pitch: n.pitch };
     if (last && last.staff === staff && Math.abs(last.t - n.onset) < 0.03 && !last.grace) { last.heads.push(head); last.dur = Math.max(last.dur, n.dur); last.beats = Math.max(last.beats, beats); }
     else marks.push({ t: n.onset, dur: n.dur, beats, staff, heads: [head], vel: n.vel, grace: beats < 0.22, color: two ? n.track : n.pitch < 60 ? 1 : 0 });
   }

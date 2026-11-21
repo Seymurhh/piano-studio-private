@@ -1,12 +1,12 @@
 // The 3D scene: a lacquered piano with jewel-coloured notes travelling toward the keys they play.
 // Everything is a pure function of the music time t, so a video export draws exactly what playback shows.
 import * as THREE from '../vendor/three.min.js?v=7';
-import { isBlack, noteName } from './midi.js?v=12';
+import { isBlack, noteName } from './midi.js?v=13';
 import { buildFlight, voicesFromPiece } from './flight.js?v=14';
 import { buildDancer } from './dancer.js?v=9';
-import { buildScore } from './score.js?v=19';
-import { buildSheet } from './sheet.js?v=7';
-import { buildPaper, HAND_PAIRS } from './paper.js?v=3';
+import { buildScore } from './score.js?v=20';
+import { buildSheet } from './sheet.js?v=8';
+import { buildPaper, HAND_PAIRS, PAPERS, PAPER_DEFAULT, FINISHES, FINISH_DEFAULT, CORNER_STYLES } from './paper.js?v=7';
 import { loadGlyphs } from './glyphs.js?v=1';
 
 const THEMES = {
@@ -141,7 +141,7 @@ export function createStage(canvas) {
   const clip = [new THREE.Plane(new THREE.Vector3(0, 0, -1), 0)]; // hide the part of a note that has passed the keys
   const dot = canvasTex(64, 64, (g) => { const r = g.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, '#fff'); r.addColorStop(0.35, 'rgba(255,255,255,.55)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); });
   const beamTex = canvasTex(32, 128, (g, w, h) => { const r = g.createLinearGradient(0, h, 0, 0); r.addColorStop(0, 'rgba(255,255,255,.95)'); r.addColorStop(0.25, 'rgba(255,255,255,.35)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, w, h); });
-  const S = { look: 'paper', title: null, glyphs: null, hands: 'rose', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheet: null, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', score: null, theme: 'aurora', camera: 'front', trail: null, pool: [], labels: true, effects: true, motion: true, piece: null, view: 'piano', voices: [], mic: null, flight: null, scene: null, keys: [], items: [], beams: [], live: new Map(), far: 60, cam: null };
+  const S = { look: 'paper', title: null, glyphs: null, hands: 'rose', paperTone: PAPER_DEFAULT, finish: FINISH_DEFAULT, trails: false, corner: 'off', sparks: 0, notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheet: null, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', score: null, theme: 'aurora', camera: 'front', trail: null, pool: [], labels: true, effects: true, motion: true, piece: null, view: 'piano', voices: [], mic: null, flight: null, scene: null, keys: [], items: [], beams: [], live: new Map(), far: 60, cam: null };
   const labelMats = new Map(), ray = new THREE.Raycaster(), point = new THREE.Vector2(), bufSize = new THREE.Vector2();
   const paperLook = () => S.view === 'sheet' && S.look === 'paper';
   // The paper look's 3D lettering needs the glyph outlines, which load in the background. Until they arrive the paper
@@ -172,7 +172,7 @@ export function createStage(canvas) {
     }
     dof.enabled = S.view === 'sheet' && !paperLook();
     if (paperLook()) {
-      S.paper = buildPaper(THEMES[S.theme], { renderer }, S.piece, { title: S.title ?? (S.piece && S.piece.label) ?? '', glyphs: S.glyphs, hands: S.hands });
+      S.paper = buildPaper(THEMES[S.theme], { renderer }, S.piece, { title: S.title ?? (S.piece && S.piece.label) ?? '', glyphs: S.glyphs, hands: S.hands, paper: S.paperTone, finish: S.finish });
       [bloom.strength, bloom.radius, bloom.threshold] = S.paper.bloom.pass; // tight, and only for what is brighter than white (the glows)
       bloom.compositeMaterial.uniforms.bloomFactors.value = S.paper.bloom.mips;
       renderer.toneMappingExposure = 1;
@@ -358,7 +358,7 @@ export function createStage(canvas) {
     if (S.view === 'dancer') { S.dancer.render(camera, S.music, { effects: S.effects, motion: S.motion, style: S.dance }); composer.render(); return; }
     if (paperLook()) {
       renderer.getDrawingBufferSize(bufSize);
-      S.paper.render(t, camera, { live: live ? S.trail || [] : null, res: bufSize, pr: renderer.getPixelRatio(), paths: S.paths, glow: S.glow, effects: S.effects, motion: S.motion });
+      S.paper.render(t, camera, { live: live ? S.trail || [] : null, res: bufSize, pr: renderer.getPixelRatio(), paths: S.paths, trails: S.trails, corner: S.corner, sparks: S.sparks, glow: S.glow, effects: S.effects, motion: S.motion });
       composer.render();
       return;
     }
@@ -529,14 +529,16 @@ export function createStage(canvas) {
 
   return {
     render,
-    resize(w, h, ratio = Math.min(devicePixelRatio || 1, 2)) {
+    // Live view: draw at the screen's pixel ratio (at most 2), but keep the drawing to about 5.2 million pixels (a
+    // 1512x850 window at ratio 2) so a large window on a high-density screen stays at 60 fps. Exports pass their own ratio.
+    resize(w, h, ratio = Math.max(1, Math.min(devicePixelRatio || 1, 2, Math.sqrt(5.2e6 / Math.max(1, w * h))))) {
       renderer.setPixelRatio(ratio); renderer.setSize(w, h, false);
       composer.setPixelRatio(ratio); composer.setSize(w, h);
       camera.aspect = w / h; camera.updateProjectionMatrix(); S.scene = null;
     },
     setPiece(piece) { S.piece = piece; S.voices = piece ? voicesFromPiece(piece) : []; S.scene = null; },
     setView(v) { S.view = ['flight', 'dancer', 'sheet'].includes(v) ? v : 'piano'; S.scene = null; },
-    // The sheet view's look: 'paper' (soft lavender paper, blue-black ink, a gliding camera; the default) or 'night'
+    // The sheet view's look: 'paper' (real paper in one of a few calm colours, a gliding camera; the default) or 'night'
     // (the dark glass slab under the stars).
     setLook(v) { const look = v === 'night' ? 'night' : 'paper'; if (look !== S.look) { S.look = look; S.scene = null; } },
     // The title lettered in 3D at the start of the paper look (null: the piece's own name from its file).
@@ -544,6 +546,19 @@ export function createStage(canvas) {
     // The paper look's colours for the two hands: the id of one of the pairs handPairs() lists (no rebuild needed).
     setHands(id) { S.hands = HAND_PAIRS.some((p) => p.id === id) ? id : 'rose'; if (S.paper) S.paper.setHands(S.hands); },
     handPairs: () => HAND_PAIRS.map(({ id, name, chips }) => ({ id, name, chips })),
+    // The paper look's paper colour: the id of one of the colours papers() lists (no rebuild needed).
+    setPaper(id) { S.paperTone = PAPERS.some((p) => p.id === id) ? id : PAPER_DEFAULT; if (S.paper) S.paper.setPaper(S.paperTone); },
+    papers: () => PAPERS.map(({ id, name, desc, swatch }) => ({ id, name, desc, swatch })),
+    // What the paper look's notation is made of: the id of one of the finishes finishes() lists (the scene is built again).
+    setFinish(id) { const v = FINISHES.some((f) => f.id === id) ? id : FINISH_DEFAULT; if (v !== S.finish) { S.finish = v; if (paperLook()) S.scene = null; } },
+    finishes: () => FINISHES.map(({ id, name, desc, chip }) => ({ id, name, desc, chip })),
+    // The paper look's light trails behind the balls (on or off).
+    setTrails(on) { S.trails = !!on; },
+    // The paper look's corner light: the id of one of the styles corners() lists ('off' by default).
+    setCorner(id) { S.corner = CORNER_STYLES.some((c) => c.id === id) ? id : 'off'; },
+    corners: () => CORNER_STYLES.map(({ id, name, desc }) => ({ id, name, desc })),
+    // The paper look's powder sparks: how many, 0 (none) to 1 (the most).
+    setSparks(v) { S.sparks = Math.max(0, Math.min(1, Number(v) || 0)); },
     // Resolves once everything the current picture needs has loaded and its scene is built (the frame bench and the
     // video export wait for it before drawing).
     async ready() { await glyphsLoaded; if (!S.scene) build(); },

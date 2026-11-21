@@ -8,7 +8,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' blob: data:; media-src blob:; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Piano studio</title>
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="assets/css/studio.css?v=17">
+<link rel="stylesheet" href="assets/css/studio.css?v=20">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -83,7 +83,7 @@
         <button type="button" role="radio" data-v="paper" aria-checked="true">Soft paper</button>
         <button type="button" role="radio" data-v="night" aria-checked="false">Night glass</button>
       </div>
-      <p class="fine sheet-only paper-only">Printed music on soft lavender paper under one warm lamp. A small ball of light for each hand lands on every note, and each note stays lit once it has been played.</p>
+      <p class="fine sheet-only paper-only">Printed music on real paper under one warm lamp, in soft shadow. A small ball of light for each hand lands on every note, and each note stays lit once it has been played.</p>
       <p class="fine sheet-only no-paper">Glowing notes on a dark glass slab under a night sky, with sparks where the balls land.</p>
       <div id="dance-box" class="sub" hidden>
         <p class="fine">The dancer moves to whatever the studio hears: press "Listen with the microphone" and play music near the computer, or press Play, or play the piano.</p>
@@ -100,6 +100,12 @@
       <div class="swatches no-paper" id="themes" role="radiogroup" aria-label="Colours"></div>
       <h2 class="paper-only">Colours of the two hands</h2>
       <div class="swatches pairs paper-only" id="hands" role="radiogroup" aria-label="Colours of the two hands"></div>
+      <h2 class="paper-only">Paper colour</h2>
+      <div class="swatches papers paper-only" id="papers" role="radiogroup" aria-label="Paper colour"></div>
+      <p class="fine paper-only" id="paper-desc"></p>
+      <h2 class="paper-only">Notes made of</h2>
+      <div class="swatches finishes paper-only" id="finishes" role="radiogroup" aria-label="Notes made of"></div>
+      <p class="fine paper-only" id="finish-desc"></p>
       <h2 class="keys-only">Notes</h2>
       <div class="seg keys-only" id="notes" role="radiogroup" aria-label="Notes">
         <button type="button" role="radio" data-v="trails" aria-checked="true">Trails of light</button>
@@ -145,6 +151,17 @@
       </div>
       <label class="slider sheet-only no-paper"><span>Glow of the notes <small>(left: matte)</small></span><input type="range" id="glow" min="0" max="1" step="0.05" value="0.45"></label>
       <label class="check sheet-only"><input type="checkbox" id="paths" checked><span>Balls of light from note to note<small>A light for each hand hops along the music and lands on every note as it is played.</small></span></label>
+      <label class="check sheet-only paper-only"><input type="checkbox" id="trails"><span>Light trails<small>Each ball leaves a soft, thin line of light along its path, fading behind it.</small></span></label>
+      <h2 class="sheet-only paper-only">Corner light</h2>
+      <div class="seg sheet-only paper-only" id="corner" role="radiogroup" aria-label="Corner light">
+        <button type="button" role="radio" data-v="off" aria-checked="true">Off</button>
+        <button type="button" role="radio" data-v="glow" aria-checked="false">Glow</button>
+        <button type="button" role="radio" data-v="ripples" aria-checked="false">Ripples</button>
+        <button type="button" role="radio" data-v="electric" aria-checked="false">Electric</button>
+      </div>
+      <p class="fine sheet-only paper-only" id="corner-desc"></p>
+      <label class="slider sheet-only paper-only"><span>Powder sparks <small>(left: none)</small></span><input type="range" id="sparks" min="0" max="1" step="0.05" value="0"></label>
+      <p class="fine sheet-only paper-only">A small puff of glowing powder rises where each ball lands, then settles on the paper and fades.</p>
       <label class="check sheet-only paper-only"><input type="checkbox" id="title3d" checked><span>Show the title in 3D at the start<small>Raised letters on the paper before the first notes.</small></span></label>
       <label class="field sheet-only paper-only"><span>Title on the paper</span><input type="text" id="ptitle" maxlength="80" placeholder="Name of the piece"></label>
       <label class="check keys-only"><input type="checkbox" id="dots" checked><span>Bouncing balls on the film strip<small>A ball for each hand jumps from note to note and moves from left to right as the piece goes on, reaching the right end as it finishes.</small></span></label>
@@ -166,7 +183,7 @@
       <a id="download" class="btn main" hidden>Save the video</a>
       <h2>Opening and closing cards</h2>
       <p class="fine">Filled in from the piece you open; change anything before making the video. The sound's credit is always added to the closing card.</p>
-      <label class="check"><input type="checkbox" id="card-open" checked><span>Opening card<small>The name of the piece and its composer, for 5 seconds before the music.</small></span></label>
+      <label class="check"><input type="checkbox" id="card-open"><span>Opening card<small>The name of the piece and its composer, for 5 seconds before the music. Off at first on paper, where the 3D title opens the video.</small></span></label>
       <label class="check"><input type="checkbox" id="card-close" checked><span>Closing card<small>A thank-you and the credits, for 7 seconds after the music, ending in black.</small></span></label>
       <label class="field"><span>Look</span><select id="card-style"></select></label>
       <label class="field"><span>Name of the piece<small class="paper-only"> (also the title on the paper)</small></span><input type="text" id="card-title" maxlength="80"></label>
@@ -192,6 +209,6 @@
   </aside>
 </main>
 <footer class="credits">Grand piano recordings: Salamander Grand Piano by Alexander Holm (CC BY 3.0). Electric pianos and harpsichord: FluidR3 GM by Frank Wen. Music symbols converted from Bravura by Steinberg Media Technologies, and lettering converted from Libre Baskerville by Pablo Impallari and Rodrigo Fuenzalida, both under the <a href="assets/glyphs/OFL.txt">SIL Open Font License 1.1</a> (<a href="assets/glyphs/CREDITS.txt">details</a>).</footer>
-<script type="module" src="assets/js/studio.js?v=28"></script>
+<script type="module" src="assets/js/studio.js?v=32"></script>
 </body>
 </html>

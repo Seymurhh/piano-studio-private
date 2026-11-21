@@ -83,7 +83,7 @@ export function parseMidi(buffer) {
   for (const e of ev) {
     time += ((e.tick - lastTick) * tempo) / division / 1e6;
     lastTick = e.tick;
-    if (e.tempo) { tempo = e.tempo; piece.tempoMap.push({ time, bpm: Math.round(6e7 / tempo) }); }
+    if (e.tempo) { tempo = e.tempo; piece.tempoMap.push({ time, bpm: 6e7 / tempo }); } // exact (not rounded), so bar lines worked out from it stay on the beat through tempo changes
     else if (e.meter) { const last = piece.meterMap[piece.meterMap.length - 1]; if (last && Math.abs(last.time - time) < 1e-6) last.meter = e.meter; else piece.meterMap.push({ time, meter: e.meter }); }
     else if (e.pedal != null) piece.pedal.push({ time, down: e.pedal });
     else if (e.on != null) {

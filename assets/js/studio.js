@@ -1,6 +1,6 @@
 // Piano studio: play live from the piano, load or record a performance, watch it in 3D, and make a video. Everything runs in the browser.
-import { parseMidi, fromRecording, writeMidi, demoPiece, noteName } from './midi.js?v=12';
-import { createStage } from './stage.js?v=28';
+import { parseMidi, fromRecording, writeMidi, demoPiece, noteName } from './midi.js?v=13';
+import { createStage } from './stage.js?v=32';
 import { createListener, STYLE_NAMES } from './listen.js?v=8';
 import { drawCard, OPEN, CLOSE, STYLES } from './cards.js?v=2';
 import { INSTRUMENTS, ROOMS, makeOutput, noteOn, voice, renderPiece, loadInstrument, isLoaded } from './synth.js?v=12';
@@ -39,6 +39,7 @@ function cardInfo() {
 // The colour that leads: on paper the right hand's, otherwise the light strip of the chosen colours. The page's accent
 // and the opening and closing cards take it.
 const paperOn = () => C.view === 'sheet' && C.look === 'paper';
+const openKey = () => (paperOn() ? 'cardOpenPaper' : 'cardOpen'); // the paper look has its own opening-card choice (off by default: its 3D title opens the video)
 const accentColor = () => (paperOn() ? (stage.handPairs().find((p) => p.id === C.hands) || stage.handPairs()[0]).chips[0] : stage.themes()[C.theme]?.[0] || '#3dffa0');
 let previewRun = 0;
 function previewCard(kind) { // play a card over the picture, as it will appear in the video
@@ -57,7 +58,7 @@ function previewCard(kind) { // play a card over the picture, as it will appear 
 }
 
 const ui = Object.fromEntries(['play', 'seek', 'clock', 'speed', 'midifile', 'demo', 'record', 'savemidi', 'labels', 'effects', 'motion', 'mic', 'capture', 'vtitle', 'size', 'fps',
-  'export', 'prog', 'download', 'overlay', 'connect', 'volume', 'monitor', 'now', 'ribbon', 'library', 'dots', 'paths', 'glow', 'title3d', 'ptitle'].map((id) => [id, $('#' + id)]));
+  'export', 'prog', 'download', 'overlay', 'connect', 'volume', 'monitor', 'now', 'ribbon', 'library', 'dots', 'paths', 'trails', 'sparks', 'glow', 'title3d', 'ptitle'].map((id) => [id, $('#' + id)]));
 const say = (id, text) => { $('#' + id).textContent = text; };
 const mmss = (s) => { s = Math.max(0, s); return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`; };
 const safeName = () => (P.name || 'piano').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'piano';
@@ -66,16 +67,20 @@ const fill = (el) => el.style.setProperty('--fill', `${((el.value - el.min) / (e
 
 // ---------- choices are remembered on this computer ----------
 const PHONE = matchMedia('(max-width: 640px)').matches; // a phone held upright: start with the tall picture looking along the keys, which fills the screen
-// New visitors start with the sheet music on soft paper (look), its hands in rose and ice (hands), the title lettered in 3D.
-const DEFAULTS = { instrument: 'grand', room: 'hall', volume: 0.9, monitor: true, theme: 'aurora', view: 'sheet', look: 'paper', hands: 'rose', title3d: true, v: 4, dance: 'auto', camera: PHONE ? 'side' : 'front', shape: PHONE ? 'tall' : 'wide', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', cardOpen: true, cardClose: true, cardStyle: 'lumen', channel: 'Lumen Keys', message: 'Thank you for listening', labels: false, effects: true, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
+// New visitors start with the sheet music on soft paper (look) in ivory (paper), its hands in rose and ice (hands), the
+// title lettered in 3D.
+const DEFAULTS = { instrument: 'grand', room: 'hall', volume: 0.9, monitor: true, theme: 'aurora', view: 'sheet', look: 'paper', hands: 'rose', paper: 'ivory', finish: 'matte', trails: false, corner: 'off', sparks: 0, title3d: true, v: 6, dance: 'auto', camera: PHONE ? 'side' : 'front', shape: PHONE ? 'tall' : 'wide', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', cardOpen: true, cardOpenPaper: false, cardClose: true, cardStyle: 'lumen', channel: 'Lumen Keys', message: 'Thank you for listening', labels: false, effects: true, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
 const C = { ...DEFAULTS };
 try { // v 2: note names off unless switched on again; v 3: notes are trails of light unless changed again; v 4: the
-  // picture starts as the sheet music on soft paper (choices saved by the older studio this one was copied from do not count)
+  // picture starts as the sheet music on soft paper (choices saved by the older studio this one was copied from do not
+  // count); v 5: the paper has a colour (ivory unless chosen; every other choice is kept); v 6: the paper look keeps
+  // its own opening-card choice, off unless switched on (its 3D title opens the video), while the other looks keep theirs
   const saved = JSON.parse(localStorage.getItem('studio') || '{}');
   if (!(saved.v >= 2)) delete saved.labels;
   if (!(saved.v >= 3)) delete saved.notes;
   if (!(saved.v >= 4)) { delete saved.view; delete saved.look; delete saved.hands; }
-  Object.assign(C, saved, { v: 4 });
+  if (!(saved.v >= 6)) delete saved.cardOpenPaper;
+  Object.assign(C, saved, { v: 6 });
 } catch {}
 const remember = () => { try { localStorage.setItem('studio', JSON.stringify(C)); } catch {} };
 
@@ -247,6 +252,29 @@ radios($('#hands'), stage.handPairs().map((p) => ({ id: p.id, build(b) {
   for (const c of p.chips) { const i = document.createElement('i'); i.style.background = c; chips.append(i); }
   b.append(chips, label);
 } })), C.hands, (id) => { C.hands = id; remember(); stage.setHands(id); accent(); });
+// On paper: the colour of the paper (and its ink), each shown as a small lit sheet; the line below describes the one chosen.
+const PAPERS = stage.papers(), paperDesc = () => { $('#paper-desc').textContent = (PAPERS.find((p) => p.id === C.paper) || PAPERS[0]).desc; };
+if (!PAPERS.some((p) => p.id === C.paper)) C.paper = PAPERS[0].id;
+radios($('#papers'), PAPERS.map((p) => ({ id: p.id, build(b) {
+  b.className = 'swatch';
+  const sheet = document.createElement('i'), label = document.createElement('span');
+  sheet.className = 'sheet'; sheet.style.background = `radial-gradient(120% 95% at 45% 100%, ${p.swatch[0]} 35%, ${p.swatch[1]})`;
+  label.textContent = p.name;
+  b.append(sheet, label);
+} })), C.paper, (id) => { C.paper = id; remember(); stage.setPaper(id); paperDesc(); });
+paperDesc();
+// On paper: what the notes are made of (matte ink, polished metal, smoked glass, satin gold), each shown as a small
+// notehead of it; the line below describes the one chosen. Changing it builds the picture again.
+const FINISHES = stage.finishes(), finishDesc = () => { $('#finish-desc').textContent = (FINISHES.find((f) => f.id === C.finish) || FINISHES[0]).desc; };
+if (!FINISHES.some((f) => f.id === C.finish)) C.finish = FINISHES[0].id;
+radios($('#finishes'), FINISHES.map((f) => ({ id: f.id, build(b) {
+  b.className = 'swatch';
+  const chip = document.createElement('i'), label = document.createElement('span');
+  chip.className = 'note'; chip.style.background = f.chip;
+  label.textContent = f.name;
+  b.append(chip, label);
+} })), C.finish, (id) => { C.finish = id; remember(); stage.setFinish(id); finishDesc(); });
+finishDesc();
 // The title lettered on the paper is the name of the piece (Video tab), which can also be changed here; typing
 // waits half a second before the picture is built again.
 function title3d() { return C.title3d ? $('#card-title').value.trim() : ''; }
@@ -274,6 +302,7 @@ function pictureChanged() {
   document.body.classList.toggle('no-sheet', C.view !== 'sheet');
   document.body.classList.toggle('paper', paperOn());
   ui.overlay.hidden = paperOn(); // the paper letters its own title; a second, flat one would only repeat it
+  $('#card-open').checked = C[openKey()];
   accent();
   if (C.view !== 'dancer') { stage.setMusic(null); if (!L.held.size) ui.now.textContent = ''; }
   else if (!A.ctx) say('rec-msg', 'The dancer is waiting for music: press "Listen with the microphone", or Play, or play the piano.');
@@ -287,7 +316,8 @@ radios($('#notes'), [], C.notes, (v) => { C.notes = v; remember(); stage.setNote
 radios($('#strip'), [], C.strip, (v) => { C.strip = v; remember(); stage.setStrip(v); });
 radios($('#sheetcam'), [], C.sheetCam, (v) => { C.sheetCam = v; remember(); stage.setSheetCam(v); });
 radios($('#sky'), [], C.sky, (v) => { C.sky = v; remember(); stage.setSky(v); });
-for (const [id, key] of [['#card-open', 'cardOpen'], ['#card-close', 'cardClose']]) { $(id).checked = C[key]; $(id).addEventListener('change', () => { C[key] = $(id).checked; remember(); }); }
+$('#card-open').checked = C[openKey()]; $('#card-open').addEventListener('change', () => { C[openKey()] = $('#card-open').checked; remember(); });
+$('#card-close').checked = C.cardClose; $('#card-close').addEventListener('change', () => { C.cardClose = $('#card-close').checked; remember(); });
 for (const [id, key] of [['#card-channel', 'channel'], ['#card-message', 'message']]) { $(id).value = C[key]; $(id).addEventListener('input', () => { C[key] = $(id).value; remember(); }); }
 $('#card-style').innerHTML = Object.entries(STYLES).map(([k, n]) => `<option value="${k}">${n}</option>`).join('');
 $('#card-style').value = C.cardStyle; $('#card-style').addEventListener('change', () => { C.cardStyle = $('#card-style').value; remember(); });
@@ -295,16 +325,25 @@ $('#preview-open').addEventListener('click', () => previewCard('open'));
 $('#preview-close').addEventListener('click', () => previewCard('close'));
 radios($('#landing'), [], C.landing, (v) => { C.landing = v; remember(); stage.setLanding(v); });
 stage.setLanding(C.landing);
+// On paper, both off unless chosen: the corner light (each ball's touches light the open paper in its corner) and the
+// powder sparks (how many: the slider; left = none). The line under the corner light describes the style chosen.
+const CORNERS = stage.corners(), cornerDesc = () => { $('#corner-desc').textContent = (CORNERS.find((c) => c.id === C.corner) || CORNERS[0]).desc; };
+if (!CORNERS.some((c) => c.id === C.corner)) C.corner = 'off';
+radios($('#corner'), [], C.corner, (v) => { C.corner = v; remember(); stage.setCorner(v); cornerDesc(); });
+stage.setCorner(C.corner); cornerDesc();
+C.sparks = Math.max(0, Math.min(1, Number(C.sparks) || 0));
+ui.sparks.value = C.sparks; fill(ui.sparks); stage.setSparks(C.sparks);
+ui.sparks.addEventListener('input', () => { C.sparks = Number(ui.sparks.value); remember(); stage.setSparks(C.sparks); fill(ui.sparks); });
 stage.setSheetCam(C.sheetCam); stage.setSky(C.sky); stage.setGlow(C.glow);
 ui.glow.value = C.glow; fill(ui.glow);
 ui.glow.addEventListener('input', () => { C.glow = Number(ui.glow.value); remember(); stage.setGlow(C.glow); fill(ui.glow); });
 stage.setStrip(C.strip);
 stage.setNotes(C.notes);
-for (const [k, fn] of [['labels', 'setLabels'], ['effects', 'setEffects'], ['motion', 'setMotion'], ['ribbon', 'setRibbon'], ['dots', 'setDots'], ['paths', 'setPaths']]) {
+for (const [k, fn] of [['labels', 'setLabels'], ['effects', 'setEffects'], ['motion', 'setMotion'], ['ribbon', 'setRibbon'], ['dots', 'setDots'], ['paths', 'setPaths'], ['trails', 'setTrails']]) {
   ui[k].checked = C[k]; stage[fn](C[k]);
   ui[k].addEventListener('change', () => { C[k] = ui[k].checked; remember(); stage[fn](C[k]); });
 }
-stage.setTheme(C.theme); stage.setLook(C.look); stage.setHands(C.hands); stage.setView(C.view); stage.setDance(C.dance); pictureChanged(); stage.setCamera(C.camera); box.classList.toggle('tall', C.shape === 'tall');
+stage.setTheme(C.theme); stage.setLook(C.look); stage.setHands(C.hands); stage.setPaper(C.paper); stage.setFinish(C.finish); stage.setView(C.view); stage.setDance(C.dance); pictureChanged(); stage.setCamera(C.camera); box.classList.toggle('tall', C.shape === 'tall');
 ui.vtitle.addEventListener('input', () => { ui.overlay.textContent = ui.vtitle.value; });
 const goFull = box.requestFullscreen || box.webkitRequestFullscreen; // iPhones have no full screen for a part of a page: there the picture simply covers the page
 const unfill = () => { document.body.classList.remove('fill'); setTimeout(fit, 60); };
@@ -607,7 +646,7 @@ async function makeVideo() {
     await stage.ready(); // the paper look's lettering may still be loading
     const comp = document.createElement('canvas'); comp.width = w; comp.height = h;
     const g = comp.getContext('2d'); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
-    const title = paperOn() ? '' : ui.vtitle.value.trim(), intro = C.cardOpen ? OPEN : 0, outro = C.cardClose ? CLOSE : 0, end = P.piece.duration + TAIL; // (paper: its title is lettered in 3D)
+    const title = paperOn() ? '' : ui.vtitle.value.trim(), intro = C[openKey()] ? OPEN : 0, outro = C.cardClose ? CLOSE : 0, end = P.piece.duration + TAIL; // (paper: its title is lettered in 3D)
     const total = Math.ceil((intro + LEAD + P.piece.duration + TAIL + outro) * fps), info = cardInfo(), tint = accentColor();
     for (let i = 0; i < total && !failed; i++) {
       const t = i / fps - LEAD - intro; // music time: the opening card plays before the runway, the closing card after the end
