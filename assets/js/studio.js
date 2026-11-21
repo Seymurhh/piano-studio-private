@@ -1,6 +1,6 @@
 // Piano studio: play live from the piano, load or record a performance, watch it in 3D, and make a video. Everything runs in the browser.
 import { parseMidi, fromRecording, writeMidi, demoPiece, noteName } from './midi.js?v=13';
-import { createStage } from './stage.js?v=36';
+import { createStage } from './stage.js?v=37';
 import { createListener, STYLE_NAMES } from './listen.js?v=8';
 import { drawCard, OPEN, CLOSE, STYLES } from './cards.js?v=3';
 import { INSTRUMENTS, ROOMS, makeOutput, noteOn, voice, renderPiece, loadInstrument, isLoaded } from './synth.js?v=13';
@@ -76,7 +76,7 @@ const fill = (el) => el.style.setProperty('--fill', `${((el.value - el.min) / (e
 const PHONE = matchMedia('(max-width: 640px)').matches; // a phone held upright: start with the tall picture looking along the keys, which fills the screen
 // New visitors start with the sheet music on soft paper (look) in ivory (paper), its hands in rose and ice (hands), the
 // title lettered in 3D.
-const DEFAULTS = { instrument: 'grand', room: 'hall', volume: 0.9, monitor: true, theme: 'aurora', view: 'sheet', look: 'paper', hands: 'rose', paper: 'ivory', finish: 'matte', trails: false, corner: 'off', cornerK: 0.5, sparks: 0, camMove: 'steady', shine: 0.5, ballK: 0.5, title3d: true, v: 9, dance: 'auto', camera: PHONE ? 'side' : 'front', shape: PHONE ? 'tall' : 'wide', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', cardOpen: true, cardOpenPaper: false, cardClose: true, part: 'whole', partLen: 45, cardStyle: 'lumen', channel: 'Lumen Keys', message: 'Thank you for listening', labels: false, effects: true, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
+const DEFAULTS = { instrument: 'grand', room: 'hall', volume: 0.9, monitor: true, theme: 'aurora', view: 'sheet', look: 'paper', hands: 'rose', paper: 'ivory', finish: 'matte', trails: false, corner: 'off', cornerK: 0.5, sparks: 0, camMove: 'steady', shine: 0.5, ballK: 0.5, title3d: true, v: 9, dance: 'auto', camera: PHONE ? 'side' : 'front', shape: PHONE ? 'tall' : 'wide', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', cardOpen: true, cardOpenPaper: false, cardClose: true, markOn: true, part: 'whole', partLen: 45, cardStyle: 'lumen', channel: 'Lumen Keys', message: 'Thank you for listening', labels: false, effects: true, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
 const C = { ...DEFAULTS };
 try { // v 2: note names off unless switched on again; v 3: notes are trails of light unless changed again; v 4: the
   // picture starts as the sheet music on soft paper (choices saved by the older studio this one was copied from do not
@@ -113,7 +113,7 @@ function load(piece, name, meta) {
   pause();
   if (piece) fillCard(meta || guessMeta(piece, name));
   P.piece = piece; P.name = name; P.pos = -LEAD; L.last = -99;
-  stage.setComposer(piece ? composer3d() : ''); stage.setTitle(piece ? title3d() : null); // lettered in 3D at the start of the paper look
+  stage.setMark(piece ? mark3d() : ''); stage.setComposer(piece ? composer3d() : ''); stage.setTitle(piece ? title3d() : null); // lettered in 3D at the start of the paper look
   stage.setPiece(piece);
   say('piece-title', name);
   const pedals = piece ? piece.pedal.filter((p) => p.down).length : 0;
@@ -353,10 +353,11 @@ finishDesc();
 // waits half a second before the picture is built again.
 function title3d() { return C.title3d ? $('#card-title').value.trim() : ''; }
 function composer3d() { return C.title3d ? $('#card-composer').value.trim() : ''; } // printed under the title's right end
+function mark3d() { return C.markOn ? String(C.channel || '').trim() : ''; } // the channel's name, every 30 s (MARK in paper.js; markAlpha elsewhere)
 let titleTimer = 0;
 function titleChanged(now) {
   clearTimeout(titleTimer);
-  const go = () => { if (P.piece) { stage.setComposer(composer3d()); stage.setTitle(title3d()); } };
+  const go = () => { if (P.piece) { stage.setMark(mark3d()); stage.setComposer(composer3d()); stage.setTitle(title3d()); } };
   if (now) go(); else titleTimer = setTimeout(go, 500);
 }
 ui.title3d.checked = C.title3d;
@@ -394,7 +395,9 @@ radios($('#sheetcam'), [], C.sheetCam, (v) => { C.sheetCam = v; remember(); stag
 radios($('#sky'), [], C.sky, (v) => { C.sky = v; remember(); stage.setSky(v); });
 $('#card-open').checked = C[openKey()]; $('#card-open').addEventListener('change', () => { C[openKey()] = $('#card-open').checked; remember(); });
 $('#card-close').checked = C.cardClose; $('#card-close').addEventListener('change', () => { C.cardClose = $('#card-close').checked; remember(); });
-for (const [id, key] of [['#card-channel', 'channel'], ['#card-message', 'message']]) { $(id).value = C[key]; $(id).addEventListener('input', () => { C[key] = $(id).value; remember(); }); }
+for (const [id, key] of [['#card-channel', 'channel'], ['#card-message', 'message']]) { $(id).value = C[key]; $(id).addEventListener('input', () => { C[key] = $(id).value; remember(); if (key === 'channel') titleChanged(); }); }
+$('#mark-on').checked = C.markOn;
+$('#mark-on').addEventListener('change', () => { C.markOn = $('#mark-on').checked; remember(); titleChanged(true); });
 $('#card-style').innerHTML = Object.entries(STYLES).map(([k, n]) => `<option value="${k}">${n}</option>`).join('');
 $('#card-style').value = C.cardStyle; $('#card-style').addEventListener('change', () => { C.cardStyle = $('#card-style').value; remember(); });
 $('#preview-open').addEventListener('click', () => previewCard('open'));
@@ -761,6 +764,15 @@ async function partSound(piece, part, opts, onProgress) {
   return { length: n, getChannelData: (c) => ch[c] };
 }
 
+// The channel's name in the looks other than paper: shown for MARK2D.show s from every 30 s of music (as on paper, none
+// in the last 8 s), fading in and out.
+const MARK2D = { every: 30, show: 4, fade: 0.7, ending: 8 };
+function markAlpha(t, duration) {
+  const at = Math.floor(t / MARK2D.every) * MARK2D.every, u = t - at;
+  if (at < MARK2D.every || at >= duration - MARK2D.ending || u > MARK2D.show) return 0;
+  return smooth(u / MARK2D.fade) * smooth((MARK2D.show - u) / MARK2D.fade);
+}
+
 const X = { stop: false }; // the export in progress, if any
 const pauseFor = (ms) => new Promise((r) => {
   if (!document.hidden) return setTimeout(r, ms);
@@ -800,7 +812,7 @@ async function makeVideo() {
     const part = C.part === 'part' ? partRange() : null; // only a part, for a short video: no cards, and a fade at each end
     const title = paperOn() ? '' : ui.vtitle.value.trim(), intro = !part && C[openKey()] ? OPEN : 0, outro = !part && C.cardClose ? CLOSE : 0, end = P.piece.duration + TAIL; // (paper: its title is lettered in 3D)
     const from = part ? part.t0 : -LEAD - intro, span = part ? part.b - part.t0 : intro + LEAD + P.piece.duration + TAIL + outro; // music time of the first frame, and the length
-    const total = Math.ceil(span * fps), info = cardInfo(), tint = accentColor();
+    const total = Math.ceil(span * fps), info = cardInfo(), tint = accentColor(), mark2d = paperOn() ? '' : mark3d();
 
     // 1. The sound first (about a tenth of the time): if anything goes wrong it shows at once, not at the end.
     let buf = null;
@@ -887,6 +899,12 @@ async function makeVideo() {
         g.fillText(title, w * 0.035, h * 0.04);
       }
       g.shadowBlur = 0;
+      const ma = mark2d && markAlpha(t, P.piece.duration);
+      if (ma > 0) { // the channel's name, fading in at the top every 30 s (on paper it is part of the page instead)
+        g.save(); g.globalAlpha = 0.82 * ma; g.font = `500 ${Math.round(Math.min(w, h) * 0.036)}px Georgia, serif`; g.textAlign = 'center'; g.textBaseline = 'top';
+        if ('letterSpacing' in g) g.letterSpacing = `${Math.round(Math.min(w, h) * 0.004)}px`;
+        g.fillStyle = '#ffffff'; g.shadowColor = 'rgba(0,0,0,.75)'; g.shadowBlur = h * 0.01; g.fillText(mark2d, w / 2, h * (h > w ? 0.075 : 0.05)); g.restore();
+      }
       if (intro && t < -LEAD) drawCard(g, w, h, 'open', i / fps, info, C.cardStyle, tint);
       if (outro && t > end) drawCard(g, w, h, 'close', t - end, info, C.cardStyle, tint);
       if (part) { // a part fades in from black and out to black (except where the paper look does so itself, at the very start and end)

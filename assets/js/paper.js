@@ -369,7 +369,11 @@ const OPENING = { at: 1.5, margin: 1, before: 4, after: 5, start: -1.5, fadeIn: 
 const INK = { depth: 0.03, bevelThickness: 0.04, bevelSize: 0.03, bevelSegments: 2, curveSegments: 6 }; // 0.11 high, flush-looking
 const RAISED = { depth: 0.09, bevelThickness: 0.03, bevelSize: 0.022, bevelSegments: 2, curveSegments: 8, lift: 0.35, pin: 0.055 };
 const COMPOSER = { size: 3.1, above: 3.4 }; // the composer's name: printed in ink, its baseline `above` ss over the top staff line, under the title's right end
-const TITLE = { cap: 12, maxW: 110, minScale: 0.45, rowScale: 0.7, depth: 0.46, bevelThickness: 0.07, bevelSize: 0.07, bevelSegments: 3, curveSegments: 10, lift: 0.8, pin: 0.14, gap: 8.5, x: 6 };
+const TITLE = { cap: 12, maxW: 110, minScale: 0.45, rowScale: 0.7, depth: 0.95, bevelThickness: 0.07, bevelSize: 0.07, bevelSegments: 3, curveSegments: 10, gap: 8.5, x: 6 }; // solid letters standing on the paper, depth high
+// The channel's name, raised like the title but smaller (cap high), above the top staff every `every` s of music from
+// the first `every` s on (none in the last `ending` s): its baseline `gap` ss over the top staff line, or `clear` ss
+// over any higher notes there. Part of the page, so every stretch of a video carries it and it cannot be cropped away.
+const MARK = { cap: 4, gap: 4.5, clear: 1.5, depth: 0.4, bevel: 0.6, spacing: 0.05, every: 30, ending: 8 };
 // The semi-gloss paper mirrors the raised title and its pins softly: a dim copy below the paper, added to the paper's
 // colour and fading quickly with depth (k = strength, fall = ss over which it dims to 1/e, cap = the brightest it may
 // be, linear: a soft reflection never sparkles, even where a chrome facet catches the key light for a moment).
@@ -1611,9 +1615,11 @@ export function buildPaper(T, tools, piece, opts = {}) {
       const m = new THREE.Mesh(noDome(flat(new THREE.ShapeGeometry(tm, 8))), ink);
       m.position.set(1.0, LINE.lift + 0.002, -(TOP[0] + 2.4)); printed.add(m);
     }
-    // the title, raised on pins above the start of the music, and the composer printed under its right end, as in a score
+    // the title, standing on the paper above the start of the music, and the composer printed under its right end, as
+    // in a score; then the channel's name along the page
     addTitle(String(opts.title || '').trim());
     addComposer(String(opts.composer || '').trim());
+    addMarks(String(opts.mark || '').trim());
   }
   function addComposer(text) {
     if (!text || titleBox.isEmpty()) return;
@@ -1633,15 +1639,32 @@ export function buildPaper(T, tools, piece, opts = {}) {
     }
     const size = em * Math.max(scale, 0.3), cap = TITLE.cap * Math.max(scale, 0.3);
     rows.forEach((row, i) => {
-      const shapes = textShapes(row, { size, letterSpacing: 0.01 });
-      const geo = domeOf(flat(extrude(shapes, TP)));
-      const base = TOP[0] + TITLE.gap + (rows.length - 1 - i) * cap * 1.5, x = TITLE.x;
-      geo.computeBoundingBox(); titleBox.union(geo.boundingBox.clone().translate(new THREE.Vector3(x, TITLE.lift, -base)));
-      const m = cast(new THREE.Mesh(geo, raised)); m.position.set(x, TITLE.lift, -base); printed.add(m);
-      const r = new THREE.Mesh(geo, mirrored); r.position.set(x, -TITLE.lift, -base); r.scale.y = -1; r.renderOrder = -0.5; printed.add(r);
-      const pk = kind('pin:title', null, pinMat, 0);
-      for (const [px, py] of pinSpots(shapes, { step: 0.35 * cap / TITLE.cap * 1.4, margin: TITLE.pin + 0.25, per: 14 * (cap / TITLE.cap) ** 2, max: 4 })) put(pk, x + px, base + py, TITLE.pin, TITLE.pin);
+      const geo = domeOf(flat(extrude(textShapes(row, { size, letterSpacing: 0.01 }), TP)));
+      titleBox.union(standing(geo, TITLE.x, TOP[0] + TITLE.gap + (rows.length - 1 - i) * cap * 1.5, TP.bevelThickness));
     });
+  }
+  function addMarks(text) { // the channel's name (MARK)
+    if (!text || !S) return;
+    const shapes = textShapes(text, { size: MARK.cap / (glyphs.text.capHeight || 0.77), letterSpacing: MARK.spacing }), w = shapes.width;
+    const P = { ...TP, depth: MARK.depth, bevelThickness: TP.bevelThickness * MARK.bevel, bevelSize: TP.bevelSize * MARK.bevel, bevelOffset: (TP.bevelOffset || 0) * MARK.bevel };
+    const geo = domeOf(flat(extrude(shapes, P)));
+    for (let t = MARK.every; t < piece.duration - MARK.ending; t += MARK.every) {
+      const x = S.xOf(t);
+      if (x + w > S.finalX - 2) break;
+      let top = TOP[0];
+      for (const k of kinds.values()) for (const it of k.list) if (it[0] > x - 1.5 && it[0] < x + w + 1.5) top = Math.max(top, it[1] + 1);
+      for (const [a, ya, b, yb] of lines) if (Math.max(a, b) > x - 1 && Math.min(a, b) < x + w + 1) top = Math.max(top, ya, yb);
+      standing(geo, x, Math.max(TOP[0] + MARK.gap, top + MARK.clear), P.bevelThickness);
+    }
+  }
+  // Raised lettering (the title, the channel's name) stands on the paper: solid from the paper up, its bottom bevel
+  // (sink) just under the surface so the letters meet the paper cleanly, with their reflection in its sheen. Returns
+  // their extent in the world.
+  function standing(geo, x, base, sink = 0) {
+    const m = cast(new THREE.Mesh(geo, raised)); m.position.set(x, -sink, -base); printed.add(m);
+    const r = new THREE.Mesh(geo, mirrored); r.position.set(x, sink, -base); r.scale.y = -1; r.renderOrder = -0.5; printed.add(r);
+    if (!geo.boundingBox) geo.computeBoundingBox();
+    return geo.boundingBox.clone().translate(new THREE.Vector3(x, -sink, -base));
   }
 
   // Everything collected above becomes instanced meshes, one per kind of symbol per piece of the music.
@@ -1649,7 +1672,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
   for (const [name, k] of kinds) {
     const byChunk = new Map();
     for (const it of k.list) { const c = Math.floor(it[0] / CHUNK); if (!byChunk.has(c)) byChunk.set(c, []); byChunk.get(c).push(it); }
-    const isPin = name.startsWith('pin:'), lift = name === 'pin:title' ? TITLE.lift : RAISED.lift;
+    const isPin = name.startsWith('pin:'), lift = RAISED.lift;
     for (const items of byChunk.values()) {
       let geo = isPin ? pinGeo : k.geo;
       if (k.colors) { // noteheads: the shape is shared, and each piece of the music adds when and in which hand each head lights
@@ -1669,11 +1692,6 @@ export function buildPaper(T, tools, piece, opts = {}) {
       });
       m.computeBoundingSphere();
       printed.add(cast(m));
-      if (name === 'pin:title') { // and their reflections
-        const r = new THREE.InstancedMesh(pinGeo, mirrored[1], items.length);
-        items.forEach(([x, y, sx, sy], i) => { M.compose(V.set(x, 0, -y), Q.identity(), SC.set(sx, -(lift + 0.02), sy)); r.setMatrixAt(i, M); });
-        r.computeBoundingSphere(); r.renderOrder = -0.5; printed.add(r);
-      }
     }
   }
   { // thin lines and beams, merged per piece of the music; long lines (the staff lines) are cut at the piece boundaries
