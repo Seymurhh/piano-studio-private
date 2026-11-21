@@ -85,16 +85,20 @@ const GLOW = { k: [0.55, 0.45], w: [0.08, 0.28], rimLum: 0.4, rimSat: 0.8, haloL
 // The light the glows throw on the paper: a soft pool of the hand's colour around every lit note and under each ball,
 // as from a small lamp `h` ss above the paper (brightness k / (1 + (r / h)^2)^1.5 at r ss from it: half at 0.77 h,
 // 10% at 1.9 h), added to the paper's own light and tinted by it. note: the lit notes' pools (k, h; R: half the size
-// of the square each is drawn in); ball: the balls' (k, and h = its height + h0); max: many pools together never give
-// more than this (a soft limit). texels: the light map (in page coordinates, over the shadow mask's window).
-const POOL = { note: { k: 0.3, h: 1.0, R: 5 }, ball: { k: 0.55, h0: 0.55 }, trail: { k: 0.05, w: 0.9 }, max: 0.5, texels: [512, 256] };
+// of the square each is drawn in); ball: the balls' (k, and h = its height + h0: small, so the pool gathers at the
+// touch point as the ball comes down and fades fast as it rises; pale: its colour, and its reflection's, are taken this
+// far toward white, as a white-hot ball gives a pale tint of its colour, never a blue-grey or lilac cast on warm paper);
+// max: many pools together never give more than this (a soft limit). texels: the light map (in page coordinates, over
+// the shadow mask's window).
+const POOL = { note: { k: 0.3, h: 1.0, R: 5 }, ball: { k: 0.3, h0: 0.3, pale: 0.45 }, trail: { k: 0.05, w: 0.9 }, max: 0.5, texels: [512, 256] };
 // The glows as lights on whatever shines: the two balls and, for each hand, the `notes` newest lit notes (the notes it
 // last landed on; each fades out as the ball lands on later ones: weight 1 - smoothstep(fade[0], fade[1], k + u), k = how
 // many landings ago, u = how far along its next hop the ball is), all small round lamps of radius r (ss), the notes'
-// `lift` ss above the paper. Their light falls off as k / (d^2 + r^2) (ball, note: k); glossy and metal surfaces
+// `lift` ss above the paper; the balls shine in their pale light (as their pools do: POOL.ball.pale), so the ink and
+// lines near a ball catch a near-white glint, never a blue or violet one. Their light falls off as k / (d^2 + r^2) (ball, note: k); glossy and metal surfaces
 // mirror them (a highlight widened by the lamp's size) and the thin lines catch them as short streaks (as polished
 // wires do: `streak` = the sharpness of the streak, per finish in FINISH).
-const GLINT = { notes: 3, fade: [0.5, 3], lift: 0.35, r: { ball: 0.25, note: 0.45 }, k: { ball: 4, note: 2.5 } };
+const GLINT = { notes: 3, fade: [0.5, 3], lift: 0.35, r: { ball: 0.25, note: 0.45 }, k: { ball: 3, note: 2.5 } };
 const GLOWS = 2 + 2 * GLINT.notes;               // how many lights that makes
 // The light trails (optional): behind each ball, a thin line of light along the exact path it flew (the same hops),
 // fading out over T s. Rebuilt every frame from the path itself (so it is a pure function of the time): `n` samples
@@ -105,9 +109,18 @@ const GLOWS = 2 + 2 * GLINT.notes;               // how many lights that makes
 const TRAIL = { T: 0.85, n: 72, max: 96, w: 0.1, minPx: 1.5, lum: 0.55, dim: 0.45, fade: 1.6 };
 // Corner light (optional, off by default). The staves run diagonally, so the top left and bottom right of the picture
 // are open paper. Each touch of the right hand's ball lights the top-left paper, each touch of the left hand's the
-// bottom-right, in the hand's colour (its ball's, `pale` toward white), as light on the paper itself: added to the
-// glows' pools in the paper shader, so it has perspective and shares their soft limit, and scaled by the square root
-// of the paper's own light there (so it is as gentle on the dimmer far paper as on the near). It is placed from points
+// bottom-right, in the hand's colour, as light on the paper itself (in the paper shader, so it has perspective),
+// scaled by the square root of the paper's own light there (so it is as gentle on the dimmer far paper as on the
+// near). Its colour (the light's) is the ball's taken toward white, at least `pale` of the way and as far as it takes
+// for its colourfulness, in itself and against the paper (brightest channel - dimmest, of its colour and of its colour
+// over the paper's), to be at most `sat` times its brightness (luminance), so any hand colour on any paper reads as a
+// pale coloured light that brightens the paper, never as a tinted stain (ice-cyan is paler on golden parchment than
+// on grey). On the paper it shows
+// that colour itself on every paper colour (it is divided by the paper's colour, which the paper shader multiplies
+// back, and kept as bright as on a neutral paper as light); the electric filaments are the hand's light seen
+// directly (paled only as far as it needs in itself, as against a white paper). It
+// adds light under its own soft limit (`max`) and, where it is strong, holds back a little of the lamp's light
+// (`dim` of it at most), so it shows a hint of its colour on bright paper without ever darkening it. It is placed from points
 // of the picture (`at`, -1..1 across and up) where their rays meet the paper, so it stays in its corner of the frame
 // as the camera glides (in either picture shape), and sized by S = that point's distance x tan(fov / 2) (half the
 // picture's height there). It fades to nothing toward the music: band = the page heights (ss) where it starts and
@@ -115,7 +128,7 @@ const TRAIL = { T: 0.85, n: 72, max: 96, w: 0.1, minPx: 1.5, lum: 0.55, dim: 0.4
 // lies over the notes. Touches less than `gap` s after the last one that set it off are merged into it (so never more
 // than 3 a second; played live: the first chord in each `slot` s, which also allows at most 3 in any second), and
 // overlapping swells take the larger, so a fast passage gives a gentle pulse, never a flicker. k: per hand (the far
-// top-left paper gets a little more). Peaks add about 15-28 levels of luma (out of 255).
+// top-left paper gets a little more).
 //   glow: a soft pool centred `at`, stretched along the staves (`stretch`), radius R S, swelling in `up` s and fading
 //     (time constant `down` s, about 0.8 s in all) as it widens a little (`grow`).
 //   ripples: a ring of light from `at` (just inside the corner) at each touch: radius S (r0 + R (1 - e^(-age / T))),
@@ -124,16 +137,33 @@ const TRAIL = { T: 0.85, n: 72, max: 96, w: 0.1, minPx: 1.5, lum: 0.55, dim: 0.4
 //   electric: a thin filament reaching in from a point of the frame edge round the corner (`edge`: the picture points
 //     of that edge, chosen by the note's seed) toward the note just touched; `n` steps and `branches` side branches of
 //     `bn` steps, `len` of the picture's height long on screen (at most 3 S; S from the corner itself, CORNER.at) and
-//     stopping `stop` ss short of the music; it grows from the edge in `grow` s, wanders (`wiggle`) and crawls a little (`crawl`, smooth in time), and
-//     dies away (time constant `decay`, gone by `life`). Its core is w ss wide (at least minPx drawing pixels), its
-//     soft halo `halo` ss (at least haloPx), both wider where the paper is further off than S = sRef ss (so they look
-//     about as wide in either corner); lum, haloLum: their brightness; k: its soft glow on the paper.
+//     stopping `stop` ss short of the music; it grows from the edge in `grow` s, wanders (`wiggle`) and crawls a
+//     little (`crawl`, smooth in time), and dies away (time constant `decay`, gone by `life`). Its core is w ss wide
+//     (at least minPx drawing pixels), the hand's colour `white` of the way to white; its soft halo `halo` ss (at
+//     least haloPx), both wider where the paper is further off than S = sRef ss (so they look about as wide in either
+//     corner); lum, haloLum: their brightness, dim, haloDim: how much each dims the paper under it; k: its soft light
+//     on the paper around it, which flickers softly (two smooth waves of flickHz per second, seeded: flick[0] of the
+//     filament's brightness, flick[1] of its light on the paper; far too little to count as a flash).
+// Strength (the "Corner light strength" slider, K from 0 to 1, 0.5 by default): every style's brightness is scaled by
+// light[0] + (light[1] - light[0]) K and its size and reach by reach[0] + (reach[1] - reach[0]) K (both 1 at 0.5).
+// Shade: with the corner light on, the lamp's light falls off into the two open corners, so the corner light stands
+// out against them. It holds back part of the paper's own light (and of the light on anything raised there), never
+// the glows, the balls or the corner light, which are lights of their own. depth: how much of the lamp's light it
+// holds back at the corner itself (linear light), per corner (top left, bottom right), at K 0 and at K 1. It falls off
+// as (1 - x)^p, x = the distance from the corner of the picture over R (in the picture's shorter side, R[0] along the
+// staves as they run across the picture and R[1] across them; [top left], [bottom right]), so it ends with no edge;
+// band: the page heights (ss) where it starts and where it may be full, per corner, so it never lies over the music;
+// warm: what is left of the light keeps the paper's hue, a little deeper and warmer (blue held back a little more:
+// power 1 - warm for red, 1 + 1.5 warm for blue); dither: a fixed noise of about this many levels (of 255) where it
+// is, against banding in the gradient.
 const CORNER = {
-  ids: ['off', 'glow', 'ripples', 'electric'], pale: 0.08, gap: 0.34, slot: 0.5, at: [[-1.1, 1.1], [1.1, -1.1]], band: [[18, 24], [-2.5, -8]], k: [1.4, 1],
-  glow: { at: [[-0.72, 0.62], [0.72, -0.72]], k: 0.26, R: 0.7, stretch: 1.6, up: 0.12, down: 0.27, grow: 0.25, life: 1.0 },
-  ripples: { at: [[-0.92, 0.88], [0.92, -0.92]], n: 4, k: 0.36, r0: 0.05, R: 1.6, T: 0.6, w0: 0.05, w1: 0.24, decay: 0.5, life: 1.4, echo: [0.62, 0.4], glow: 0.25 },
-  electric: { n: 12, branches: 3, bn: 6, len: 0.3, stop: 5, grow: 0.08, decay: 0.12, life: 0.45, wiggle: 0.55, crawl: 0.12, w: 0.07, sRef: 10, minPx: 1.2, halo: 0.6, haloPx: 6,
-    lum: 0.4, dim: 0.4, haloLum: 0.22, k: 0.09, edge: [[[-1.04, 0.2], [-1.04, 1.04], [-0.75, 1.04]], [[1.04, -0.2], [1.04, -1.04], [0.3, -1.04]]] },
+  ids: ['off', 'glow', 'ripples', 'electric'], pale: 0.08, sat: 1.3, max: 0.6, dim: 0.3, gap: 0.34, slot: 0.5, at: [[-1.1, 1.1], [1.1, -1.1]], band: [[18, 24], [-2.5, -8]], k: [1.4, 1],
+  strength: { light: [0.4, 1.6], reach: [0.82, 1.18] },
+  shade: { depth: [[0.62, 0.9], [0.55, 0.84]], R: [[1.9, 1.0], [1.7, 1.0]], p: 2.6, band: [[17.5, 30], [-3, -12]], warm: 0.08, dither: 1 },
+  glow: { at: [[-0.72, 0.62], [0.72, -0.72]], k: 0.26, R: 0.7, stretch: 1.6, up: 0.18, down: 0.27, grow: 0.25, life: 1.0 },
+  ripples: { at: [[-0.92, 0.88], [0.92, -0.92]], n: 4, k: 0.6, r0: 0.05, R: 1.6, T: 0.6, w0: 0.05, w1: 0.24, decay: 0.5, life: 1.4, echo: [0.62, 0.4], glow: 0.25 },
+  electric: { n: 12, branches: 3, bn: 6, len: 0.33, stop: 5, grow: 0.08, decay: 0.12, life: 0.45, wiggle: 0.55, crawl: 0.12, w: 0.07, sRef: 10, minPx: 1.2, halo: 0.7, haloPx: 7,
+    lum: 0.6, white: 0.15, dim: 0.45, haloDim: 0.28, haloLum: 0.27, k: 0.35, flick: [0.12, 0.3], flickHz: [7, 11], edge: [[[-1.04, 0.2], [-1.04, 1.04], [-0.75, 1.04]], [[1.04, -0.2], [1.04, -1.04], [0.3, -1.04]]] },
 };
 // The corner light's styles as the Look tab offers them (one line each, plain words).
 export const CORNER_STYLES = [
@@ -164,7 +194,7 @@ const BALL = { r: 0.17, z0: 0.3, k: 1.25, p: 0.7, hMax: 4.5, inH: 6.5, inT: 1.6,
 // vector; broad, so a ball 1 ss up leaves a soft streak ~2-3 ss long), k = how bright it is (the ball is a light: its
 // reflection peaks ~+40% over the paper at 1 ss up), narrow = how much narrower it is sideways (a vertical streak);
 // (the light a ball throws on the paper is POOL.ball; its glints on the ink and lines, GLINT).
-const REFL = { gloss: 0.25, k: 4.6, narrow: 0.7 };
+const REFL = { gloss: 0.25, k: 3.6, narrow: 0.7 };
 // The light pool travels with the camera: brightness falls off exponentially with slant distance D from the camera,
 // V = vNear * exp(-(D - Dnear) / (LAM * h)), where Dnear is the distance to the bottom-centre of the picture and h the
 // camera height. lam 2.6 keeps near:far at about 1.7x in luma (a gentle falloff: the far paper is dimmer, never dark),
@@ -295,6 +325,27 @@ const LINE ={ staff: 0.1, stem: 0.11, ledger: 0.13, bar: 0.14, system: 0.16, lif
 const HEAD_W = 1.18, STEM_DX = 0.53, STEM_DY = 0.168; // Bravura notehead width; stem centre and start relative to the head centre
 
 // ---- shaders ----
+// The corner shade (CORNER.shade), shared by the paper and the 3D pieces: how much of the lamp's light is held back at
+// a point of the picture (uv: 0..1 from the bottom left) whose place on the page is py (ss up the page). uCS = (on,
+// depth at the top-left corner, depth at the bottom-right corner, dither); uCSA = (the picture's width and height in
+// its shorter side, the direction the staves run in the picture, in the same units).
+const CS = CORNER.shade, glf = (v) => v.toFixed(4);
+const srgbLin = (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)); // one sRGB channel as linear light
+const SHADE_GLSL = `
+#ifdef CORNER_SHADE
+uniform vec4 uCS, uCSA;
+float cornerShade(vec2 uv, float py) {
+  vec2 q = (uv - 0.5) * uCSA.xy, hc = 0.5 * uCSA.xy, a = uCSA.zw, n = vec2(-a.y, a.x);
+  vec2 d0 = q - vec2(-hc.x, hc.y), d1 = q - vec2(hc.x, -hc.y);
+  float x0 = min(length(vec2(dot(d0, a) / ${glf(CS.R[0][0])}, dot(d0, n) / ${glf(CS.R[0][1])})), 1.0);
+  float x1 = min(length(vec2(dot(d1, a) / ${glf(CS.R[1][0])}, dot(d1, n) / ${glf(CS.R[1][1])})), 1.0);
+  float m0 = clamp((py - ${glf(CS.band[0][0])}) / ${glf(CS.band[0][1] - CS.band[0][0])}, 0.0, 1.0), m1 = clamp((py - ${glf(CS.band[1][0])}) / ${glf(CS.band[1][1] - CS.band[1][0])}, 0.0, 1.0);
+  m0 *= m0 * (3.0 - 2.0 * m0); m1 *= m1 * (3.0 - 2.0 * m1);
+  return uCS.y * pow(1.0 - x0, ${glf(CS.p)}) * m0 + uCS.z * pow(1.0 - x1, ${glf(CS.p)}) * m1;
+}
+vec3 shadeLeft(float s) { return pow(vec3(max(1.0 - s, 1e-4)), vec3(${glf(1 - CS.warm)}, 1.0, ${glf(1 + 1.5 * CS.warm)})); }
+#endif
+`;
 const PAPER_VERT = `
 uniform vec2 uOrigin;
 varying vec3 vW; varying vec4 vClip; varying vec2 vP;
@@ -313,8 +364,8 @@ uniform sampler2D uTex, uMask, uMaskSoft, uLight; uniform vec2 uTile; uniform ve
 // The balls: uBall = (x, height, z, radius; 0 = none), uBallColor = the colour their reflection takes, uPoolColor =
 // the colour of the light they throw; uRefl = (brightness, gloss in radians, -, sideways narrowing).
 uniform vec4 uBall[2], uRefl; uniform vec3 uBallColor[2], uPoolColor[2];
-uniform float uAccOn; uniform vec4 uAccA[2], uAccP[4], uRing[16]; uniform vec2 uBand[2]; uniform vec3 uAccC[2];
-varying vec3 vW; varying vec4 vClip; varying vec2 vP;
+uniform float uAccOn; uniform vec2 uAccK; uniform vec4 uAccA[2], uAccP[4], uRing[16]; uniform vec2 uBand[2]; uniform vec3 uAccC[2];
+varying vec3 vW; varying vec4 vClip; varying vec2 vP;${SHADE_GLSL}
 vec3 toLinear(vec3 c) { return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)); }
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); } // fixed dither against banding
 void main() {
@@ -349,6 +400,11 @@ void main() {
   float E = (uShade.x + (1.0 - uShade.x) * (1.0 - occ) * dif) * (1.0 - ao);
   float tone = (1.0 + uLook.x * (g.r - 0.5) * 2.0) * (1.0 + uLook.y * (slow - 0.5) * 2.0);
   col *= E * tone;
+  // The corner shade (with the corner light on): the lamp's light falling off into the open corners (CORNER.shade).
+#ifdef CORNER_SHADE
+  float csh = cornerShade(uv, -vW.z);
+  col *= shadeLeft(csh);
+#endif
   // The glows' light: the pools of the lit notes and light trails (above), and of each ball, as from a small lamp at
   // its height (plus uPool.y); all of them together held under uPool.z (softly), tinted by the paper, which takes it in.
   for (int i = 0; i < 2; i++) {
@@ -360,6 +416,7 @@ void main() {
   // Corner light (CORNER): for each hand, soft pools (uAccP: x, z, radius, brightness; two per hand) and rings (uRing:
   // radius, width, brightness; eight per hand, centred on the corner's place uAccA: x, z, stretch along the staves),
   // fading out toward the music (uBand: per hand, the page height where it starts and where it is full).
+  vec3 acc = vec3(0.0);
   if (uAccOn > 0.5) {
     float py = -vW.z;
     for (int h = 0; h < 2; h++) {
@@ -370,11 +427,15 @@ void main() {
       float r = length(d), e = 0.0;
       for (int i = 0; i < 8; i++) { vec4 g = uRing[h * 8 + i]; if (g.z > 0.0) { float q = (r - g.x) / g.y; e += g.z * exp(-q * q); } }
       for (int i = 0; i < 2; i++) { vec4 p = uAccP[h * 2 + i]; if (p.w > 0.0) { vec2 q = vW.xz - p.xy; q.x /= uAccA[h].z; e += p.w / pow(1.0 + dot(q, q) / (p.z * p.z), 1.5); } }
-      pool += uAccC[h] * e * m * sqrt(clamp(v / uCap, 0.25, 1.0)); // (as gentle on the dimmer far paper as on the near)
+      acc += uAccC[h] * e * m * sqrt(clamp(v / uCap, 0.25, 1.0)); // (as gentle on the dimmer far paper as on the near)
     }
   }
   float pm = max(max(pool.r, pool.g), pool.b);
   if (pm > 1e-5) col += toLinear(uTintNear) * tone * pool * (uPool.z * (1.0 - exp(-pm / uPool.z)) / pm);
+  // the corner light: added under its own soft limit (uAccK.x), holding back a little of the lamp's light where it is
+  // strong (uAccK.y), so it shows a hint of its colour on bright paper (its colour is divided by the paper's: see CORNER)
+  float am = max(max(acc.r, acc.g), acc.b);
+  if (am > 1e-5) { float ka = 1.0 - exp(-am / uAccK.x); col = col * (1.0 - uAccK.y * ka) + toLinear(uTintNear) * tone * acc * (uAccK.x * ka / am); }
   // Semi-gloss: each ball shows as a soft streak of its colour on the paper, below it and toward the camera. The
   // reflection is a blurred mirror image: a lobe around the mirrored view ray, narrower sideways by the cosine of the
   // incidence angle (which is what stretches it into a streak), widened by the ball's own size as seen from here.
@@ -391,6 +452,12 @@ void main() {
     float refl = a2 / sqrt(ve * vs) * exp(-0.5 * (de * de / ve + ds * ds / vs));
     col += uBallColor[i] * uRefl.x * refl;
   }
+#ifdef CORNER_SHADE
+  if (csh > 0.0) { // a fixed noise of about uCS.w levels (triangular, as the picture is stored), so the shade never bands
+    float tp = ign(gl_FragCoord.xy) + ign(gl_FragCoord.yx + vec2(5.37, 17.71)) - 1.0, l = max(dot(col, vec3(0.2126, 0.7152, 0.0722)), 1e-3);
+    col *= 1.0 + tp * uCS.w * 2.2 / (255.0 * pow(l, 0.4545)) * smoothstep(0.0, 0.05, csh);
+  }
+#endif
   gl_FragColor = vec4(col * uFade, 1.0);
 }`;
 // The shadow mask: each raised piece (and each ball) drawn from straight above after sliding every point of it along
@@ -515,6 +582,20 @@ void main() {
 // lamp); kd and ks weigh its light and its highlight, and kh adds a broad sheen of its colour (the faint haze around
 // a polished metal's highlight), so the walls and rims that face a lit note or a ball take on its colour.
 const GL_DECL = `uniform vec4 uGL[${GLOWS}]; uniform vec3 uGLC[${GLOWS}];\n`;
+// The corner shade on the 3D pieces: the share of the lamp's light (direct and from the room) that reaches them where
+// they are in the picture (gl_FragCoord x uCSR, its size's inverse) and on the page (their place in view space through
+// uCSV, the camera's world matrix), right after three.js's own lights.
+const SHADE_DECL = '#ifdef CORNER_SHADE\nuniform vec2 uCSR; uniform mat4 uCSV;\n#endif' + SHADE_GLSL;
+const SHADE_HOOK = `
+#ifdef CORNER_SHADE
+ {
+   vec3 ks = shadeLeft(cornerShade(gl_FragCoord.xy * uCSR, -(uCSV * vec4(-vViewPosition, 1.0)).z));
+   reflectedLight.directDiffuse *= ks; reflectedLight.directSpecular *= ks; reflectedLight.indirectDiffuse *= ks; reflectedLight.indirectSpecular *= ks;
+#ifdef USE_CLEARCOAT
+   clearcoatSpecularDirect *= ks; clearcoatSpecularIndirect *= ks;
+#endif
+ }
+#endif`;
 const glowCode = (kd, ks, kh = 0) => `
  { // the glows: their light on it and their highlights in its shine
 #ifdef USE_CLEARCOAT
@@ -599,25 +680,50 @@ void main() {
 const TRAIL_POOL_FRAG = `
 uniform vec3 uColor; uniform float uK, uPow; varying float vAcross, vAge, vH;
 void main() { gl_FragColor = vec4(uColor * uK * pow(max(1.0 - vAge, 0.0), uPow) * exp(-3.0 * vAcross * vAcross) / (1.0 + 0.4 * vH * vH), 1.0); }`;
-// An electric filament of the corner light (CORNER.electric): a ribbon through its points (position, on the paper;
-// aTan: the direction along it; aSide: which edge; aA: its brightness there; aW: its width there, a share of uW ss),
-// facing the camera and never under uMinPx drawing pixels (thinner, it fades instead), laid over the paper as the
-// trails are (its colour added, what is behind dimmed by uDim). Drawn twice: the thin core and a soft halo around it.
+// An electric filament of the corner light (CORNER.electric), drawn segment by segment: each segment (aA to aB, on the
+// paper; position is aA) a quad round it in the picture, which lights the pixels nearer to it than to the segments before and after
+// it on its piece (aP to aA, aB to aN; none at the piece's ends, where aP = aA or aN = aB), by their distance from it.
+// So the filament's light is a true function of the distance from the whole line: round joins and ends, nothing
+// folds or creases at a sharp bend, and nothing is counted twice. aAl: its brightness at aA and aB; aWd: its width
+// there (a share of uW ss), never under uMinPx drawing pixels (thinner, it fades instead); aE: 1 on the first segment
+// of each piece, where (uEnd 1: the halo) it fades in from aA, so a branch's halo starts softly inside the
+// filament's own; aCorner: which corner of the quad. Laid over the paper as the trails are (its colour added, what is
+// behind dimmed by uDim); drawn twice: the thin core and a soft halo. Its places are worked out in drawing pixels from
+// the middle of the picture, and passed as such (w = 1), so they are interpolated straight across the picture; each
+// corner takes the depth of the paper under it (a little above it: uInvPV undoes the camera), so the paper never cuts
+// into the halo, while anything raised (the 3D title) still hides it.
 const ARC_VERT = `
-attribute vec3 aTan; attribute float aSide, aA, aW; uniform vec2 uRes; uniform float uW, uMinPx;
-varying float vAcross, vA;
+attribute vec2 aCorner, aAl, aWd; attribute vec3 aP, aB, aN; attribute float aE; uniform vec2 uRes; uniform float uW, uMinPx, uEnd; uniform mat4 uInvPV;
+flat varying vec4 vAB, vPN, vK; flat varying vec2 vHas; varying vec2 vS;
+vec2 onScreen(vec4 c) { return c.xy / c.w * uRes * 0.5; }
+float paperDepth(vec2 s, mat4 pv) {
+  vec2 q = s / (uRes * 0.5); vec4 a = uInvPV * vec4(q, -1.0, 1.0), b = uInvPV * vec4(q, 1.0, 1.0); a /= a.w; b /= b.w;
+  vec4 c = pv * vec4(mix(a.xyz, b.xyz, clamp((a.y - 0.05) / max(a.y - b.y, 1e-6), 0.0, 1.0)), 1.0);
+  return clamp(c.z / c.w, -1.0, 1.0);
+}
 void main() {
   mat4 pv = projectionMatrix * viewMatrix;
-  vec4 w = vec4(position, 1.0), c0 = pv * w, c1 = pv * (w + vec4(aTan * 0.05, 0.0));
-  vec2 s0 = c0.xy / c0.w * uRes * 0.5, s1 = c1.xy / c1.w * uRes * 0.5, along = normalize(s1 - s0 + vec2(1e-6, 0.0));
-  float px = uW * aW * 0.5 * uRes.y * projectionMatrix[1][1] / max(c0.w, 1e-3), core = max(px, uMinPx) * 0.5, hw = 2.5 * core + 1.0;
-  vA = aA * px / max(px, uMinPx); vAcross = aSide * hw / core;
-  c0.xy += vec2(-along.y, along.x) * aSide * hw / (uRes * 0.5) * c0.w;
-  gl_Position = c0;
+  vec4 ca = pv * vec4(position, 1.0), cb = pv * vec4(aB, 1.0);
+  vec2 sa = onScreen(ca), sb = onScreen(cb), sp = onScreen(pv * vec4(aP, 1.0)), sn = onScreen(pv * vec4(aN, 1.0));
+  float k = 0.5 * uW * uRes.y * projectionMatrix[1][1], pa = k * aWd.x / max(ca.w, 1e-3), pb = k * aWd.y / max(cb.w, 1e-3);
+  float ra = max(pa, uMinPx) * 0.5, rb = max(pb, uMinPx) * 0.5, hw = 2.5 * max(ra, rb) + 1.0;
+  vec2 d = sb - sa; float l = length(d); vec2 t = l > 1e-3 ? d / l : vec2(1.0, 0.0), n = vec2(-t.y, t.x);
+  vS = (aCorner.x < 0.5 ? sa - t * hw : sb + t * hw) + n * aCorner.y * hw;
+  vAB = vec4(sa, sb); vPN = vec4(sp, sn); vHas = vec2(step(1e-3, distance(sp, sa)), step(1e-3, distance(sn, sb)));
+  vK = vec4(ra, rb, aAl.x * pa / max(pa, uMinPx) * (1.0 - uEnd * aE), aAl.y * pb / max(pb, uMinPx));
+  gl_Position = vec4(vS / (uRes * 0.5), paperDepth(vS, pv), 1.0);
 }`;
 const ARC_FRAG = `
-uniform vec3 uColor; uniform float uFade, uDim; varying float vAcross, vA;
-void main() { float a = exp(-1.6 * vAcross * vAcross) * vA * uFade; gl_FragColor = vec4(uColor * a, uDim * a); }`;
+uniform vec3 uColor; uniform float uFade, uDim;
+flat varying vec4 vAB, vPN, vK; flat varying vec2 vHas; varying vec2 vS;
+float segD(vec2 p, vec2 a, vec2 b, out float u) { vec2 ab = b - a; u = clamp(dot(p - a, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0); return length(p - a - ab * u); }
+void main() {
+  float u, v, d = segD(vS, vAB.xy, vAB.zw, u);
+  if (vHas.x > 0.5 && segD(vS, vPN.xy, vAB.xy, v) < d) discard;   // (nearer the segment before: it lights this pixel)
+  if (vHas.y > 0.5 && segD(vS, vAB.zw, vPN.zw, v) <= d) discard;  // (or the one after)
+  float q = d / mix(vK.x, vK.y, u), a = exp(-1.6 * q * q) * mix(vK.z, vK.w, u) * uFade;
+  gl_FragColor = vec4(uColor * a, uDim * a);
+}`;
 // Powder sparks (SPARK): one instance per particle, aI = (puff slot, particle number). Puff slot s: uPuff[s] = (x, z of
 // the touch, time since it, seed), uPuffK[s] = (brightness, how many particles it has, hand). A particle's path is a
 // closed formula of that time (see SPARK), from numbers drawn from the seed and its own number by an integer hash.
@@ -1022,6 +1128,8 @@ export function buildPaper(T, tools, piece, opts = {}) {
   // The glows as lights (see GL_DECL; places in view space, set each frame) and the lit noteheads: the ink head, drawn in
   // the hand's white-hot core colour from the moment it is played (aLitT = that time, aHand = 0 right, 1 left; set per
   // instance), so no work is needed per frame but setting the time.
+  // The corner shade's uniforms (see SHADE_GLSL), shared by the paper and the 3D pieces.
+  const csU = { uCS: { value: new THREE.Vector4() }, uCSA: { value: new THREE.Vector4(16 / 9, 1, 1, 0) }, uCSR: { value: new THREE.Vector2(1 / 1280, 1 / 720) }, uCSV: { value: new THREE.Matrix4() } };
   const glU = { uGL: { value: Array.from({ length: GLOWS }, () => new THREE.Vector4()) }, uGLC: { value: Array.from({ length: GLOWS }, () => new THREE.Vector3()) } };
   const glowU = { uTime: { value: -1e9 }, uFade: { value: 1 }, uCore: { value: looks.map((l) => l.core) } };
   // What each material adds to three.js's own shading: glints = the lamps' own highlights held to a fraction (so they
@@ -1032,13 +1140,16 @@ export function buildPaper(T, tools, piece, opts = {}) {
   // tops and beams stay dark smoked glass however low the camera looks along them; only the rims and walls catch light.
   const FRES = `vec3 nn = normalize(normal); float nv = clamp(dot(nn, normalize(vViewPosition)), 0.0, 1.0), f5 = pow(1.0 - nv, 5.0);
           float up = dot(nn, normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz)), fm = 0.04 + 0.96 * f5 * clamp(1.0 - up, 0.0, 1.0);`;
+  const shadeMats = []; // (all that the corner shade compiles into: see shadeOn)
   const hook = (m, key, { glints = null, lit = false } = {}) => {
+    shadeMats.push(m);
     const T = m.userData.T, max = m.userData.max ?? FX.max ?? FINISH.matte.max;
     m.onBeforeCompile = (sh) => {
-      Object.assign(sh.uniforms, glU);
+      Object.assign(sh.uniforms, glU, csU);
       let end = '#include <lights_fragment_end>';
       if (glints != null) end += `\n reflectedLight.directSpecular *= ${glints.toFixed(3)};\n#ifdef USE_CLEARCOAT\n clearcoatSpecularDirect *= ${glints.toFixed(3)};\n#endif`;
       if (T != null) end += `\n { ${FRES}\n   float k = fm / (0.04 + 0.96 * f5); reflectedLight.indirectSpecular *= k;\n#ifdef USE_CLEARCOAT\n   clearcoatSpecularIndirect *= k;\n#endif\n }`;
+      end += SHADE_HOOK; // (the corner shade dims the lamp's light on it, not the glows' light added next)
       end += glowCode(FX.glow[0], FX.glow[1], FX.haze || 0);
       if (lit) {
         Object.assign(sh.uniforms, glowU);
@@ -1049,7 +1160,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
           float Tk = mix(${Math.min(0.5, 2.2 * T).toFixed(3)}, ${T.toFixed(3)}, smoothstep(0.8, 0.99, up));
           gl_FragColor.a = 1.0 - Tk * (1.0 - fm); }`;
       const cap = `\n { float mx = max(max(gl_FragColor.r, gl_FragColor.g), gl_FragColor.b); gl_FragColor.rgb *= 1.0 / pow(1.0 + pow(mx / ${max.toFixed(3)}, 6.0), 1.0 / 6.0); }`;
-      sh.fragmentShader = GL_DECL + (lit ? 'uniform vec3 uCore[2]; uniform float uFade; varying float vLit; varying float vHand;\n' : '') +
+      sh.fragmentShader = GL_DECL + SHADE_DECL + (lit ? 'uniform vec3 uCore[2]; uniform float uFade; varying float vLit; varying float vHand;\n' : '') +
         sh.fragmentShader.replace('#include <lights_fragment_end>', end).replace('#include <dithering_fragment>', glass + cap +
           (lit ? '\n if (vLit > 0.5) gl_FragColor.rgb = (vHand < 0.5 ? uCore[0] : uCore[1]) * uFade;' + (T != null ? '\n if (vLit > 0.5) gl_FragColor.a = 1.0;' : '') : '') + '\n#include <dithering_fragment>');
     };
@@ -1085,8 +1196,13 @@ export function buildPaper(T, tools, piece, opts = {}) {
     uRefl: { value: new THREE.Vector4(REFL.k, REFL.gloss, 0, REFL.narrow) },
     uLight: { value: null }, uPool: { value: new THREE.Vector3(POOL.ball.k, POOL.ball.h0, POOL.max) }, uPoolColor: { value: [new THREE.Vector3(), new THREE.Vector3()] },
     uAccOn: { value: 0 }, uAccA: { value: [new THREE.Vector4(), new THREE.Vector4()] }, uAccP: { value: Array.from({ length: 4 }, () => new THREE.Vector4()) },
-    uRing: { value: Array.from({ length: 16 }, () => new THREE.Vector4()) }, uBand: { value: CORNER.band.map(([a, b]) => new THREE.Vector2(a, b)) }, uAccC: { value: [new THREE.Vector3(), new THREE.Vector3()] } };
+    uRing: { value: Array.from({ length: 16 }, () => new THREE.Vector4()) }, uBand: { value: CORNER.band.map(([a, b]) => new THREE.Vector2(a, b)) }, uAccC: { value: [new THREE.Vector3(), new THREE.Vector3()] }, uAccK: { value: new THREE.Vector2(CORNER.max, CORNER.dim) }, ...csU };
   const paperMat = new THREE.ShaderMaterial({ uniforms: paperU, vertexShader: PAPER_VERT, fragmentShader: PAPER_FRAG, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 });
+  shadeMats.push(paperMat);
+  // The corner shade is compiled in only while the corner light is on (CORNER_SHADE), so with it off every shader is
+  // exactly as it was. Switching it on or off recompiles these few programs once (no rebuild).
+  let shadeIn = false;
+  const shadeOn = (v) => { if (v === shadeIn) return; shadeIn = v; for (const m of shadeMats) { if (v) m.defines.CORNER_SHADE = ''; else delete m.defines.CORNER_SHADE; m.needsUpdate = true; } };
   // the thin lines: printed ink, or the finish's own colour; the glows' streaks along them (places in world space)
   const lineU = { uRes: { value: new THREE.Vector2(1280, 720) }, uMinPx: { value: 1.2 }, uColor: { value: new THREE.Color(paperTone.ink) }, uCam: paperU.uCam,
     uFar0: { value: 70 }, uFar1: { value: 130 }, uFarFade: { value: 0.35 }, uOpacity: { value: 1 }, uMax: { value: F ? F.wall.max : FX.max },
@@ -1833,30 +1949,33 @@ export function buildPaper(T, tools, piece, opts = {}) {
   const sparkPool = new THREE.Mesh(sparkGeo, new THREE.ShaderMaterial({ uniforms: sparkPU, vertexShader: SPARK_POOL_VERT, fragmentShader: SPARK_POOL_FRAG, depthTest: false, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
   sparkPool.frustumCulled = false; sparkPool.visible = false; poolScene.add(sparkPool);
 
-  // The corner light's electric filaments: per hand one ribbon geometry holding ARCS filaments of ARC_PTS points each
-  // (the main one, then its branches; the joins between them are left out of the index), drawn twice (core and halo).
-  const EL = CORNER.electric, arcIdx = [], ARC_DYN = ['position', 'aTan', 'aA', 'aW'];
-  for (let a = 0; a < ARCS; a++) {
-    let o = a * ARC_PTS;
-    for (let b = 0; b <= EL.branches; b++) { const len = b ? EL.bn : EL.n; for (let i = 0; i < len; i++, o++) arcIdx.push(2 * o, 2 * o + 1, 2 * o + 2, 2 * o + 1, 2 * o + 3, 2 * o + 2); o++; }
-  }
+  // The corner light's electric filaments: per hand one geometry holding ARCS filaments of ARC_PTS points each (the main
+  // one, then its branches), as the ARC_SEGS segments between them (four corners each), drawn twice (core and halo).
+  const EL = CORNER.electric, ARC_DYN = ['position', 'aP', 'aB', 'aN', 'aAl', 'aWd'];
+  // whether point i of a filament (0 .. ARC_PTS - 1) is the first or the last of its piece; the point each segment starts at
+  const arcFirst = (i) => i === 0 || (i > EL.n && (i - EL.n - 1) % (EL.bn + 1) === 0), arcLast = (i) => i === EL.n || (i > EL.n && (i - EL.n) % (EL.bn + 1) === 0);
+  const segAt = Int32Array.from({ length: ARC_PTS }, (_, i) => i).filter((i) => !arcLast(i)), ARC_SEGS = segAt.length;
+  const arcIdx = [], arcInvPV = { value: new THREE.Matrix4() }; // (the camera undone: world from the picture, for the filaments' depth)
+  for (let q = 0; q < ARCS * ARC_SEGS; q++) arcIdx.push(4 * q, 4 * q + 1, 4 * q + 2, 4 * q + 1, 4 * q + 3, 4 * q + 2);
   const arcs = looks.map(() => {
-    const g = new THREE.BufferGeometry(), N = ARCS * ARC_PTS * 2, dyn = (k) => new THREE.BufferAttribute(new Float32Array(N * k), k).setUsage(THREE.DynamicDrawUsage);
-    g.setAttribute('position', dyn(3)); g.setAttribute('aTan', dyn(3)); g.setAttribute('aA', dyn(1)); g.setAttribute('aW', dyn(1));
-    g.setAttribute('aSide', new THREE.BufferAttribute(Float32Array.from({ length: N }, (_, i) => (i & 1 ? 1 : -1)), 1));
+    const g = new THREE.BufferGeometry(), N = ARCS * ARC_SEGS * 4, dyn = (k) => new THREE.BufferAttribute(new Float32Array(N * k), k).setUsage(THREE.DynamicDrawUsage);
+    for (const [k, n] of [['position', 3], ['aP', 3], ['aB', 3], ['aN', 3], ['aAl', 2], ['aWd', 2]]) g.setAttribute(k, dyn(n));
+    g.setAttribute('aCorner', new THREE.BufferAttribute(Float32Array.from({ length: N * 2 }, (_, i) => (i & 1 ? ((i >> 1) & 1 ? 1 : -1) : (i >> 2) & 1)), 2));
+    g.setAttribute('aE', new THREE.BufferAttribute(Float32Array.from({ length: N }, (_, i) => (arcFirst(segAt[(i >> 2) % ARC_SEGS]) ? 1 : 0)), 1));
     g.setIndex(arcIdx);
-    const mk = (w, minPx, dim, order) => {
-      const u = { uRes: lineU.uRes, uW: { value: w }, uMinPx: { value: minPx }, uColor: { value: new THREE.Vector3() }, uFade: { value: 1 }, uDim: { value: dim } };
+    const mk = (w, minPx, dim, order, end) => {
+      const u = { uRes: lineU.uRes, uW: { value: w }, uMinPx: { value: minPx }, uColor: { value: new THREE.Vector3() }, uFade: { value: 1 }, uDim: { value: dim }, uEnd: { value: end }, uInvPV: arcInvPV };
       const m = new THREE.Mesh(g, new THREE.ShaderMaterial({ uniforms: u, vertexShader: ARC_VERT, fragmentShader: ARC_FRAG, transparent: true, depthWrite: false, side: THREE.DoubleSide,
         blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor }));
       m.frustumCulled = false; m.visible = false; m.renderOrder = order; scene.add(m);
       return m;
     };
-    return { geo: g, halo: mk(EL.halo, EL.haloPx, EL.dim * 0.4, 8), core: mk(EL.w, EL.minPx, EL.dim, 8.5) };
+    return { geo: g, halo: mk(EL.halo, EL.haloPx, EL.haloDim, 8, 1), core: mk(EL.w, EL.minPx, EL.dim, 8.5, 0) };
   });
   // Where the ray through a point of the picture (nx, ny: -1..1) meets the paper: into cp (world x, z); returns its
   // distance from the camera.
   const rayV = new THREE.Vector3(), cp = { x: 0, z: 0 }, AX = new Float32Array(ARC_PTS), AZ = new Float32Array(ARC_PTS), AG = new Float32Array(EL.n + 1);
+  const QX = new Float32Array(ARC_PTS), QZ = new Float32Array(ARC_PTS), QA = new Float32Array(ARC_PTS), QW = new Float32Array(ARC_PTS); // (one filament's points)
   function onPaper(camera, nx, ny) {
     rayV.set(nx, ny, 0.5).unproject(camera).sub(camera.position);
     const s = camera.position.y / Math.max(-rayV.y, 1e-4);
@@ -1868,9 +1987,12 @@ export function buildPaper(T, tools, piece, opts = {}) {
   // toward the note it was set off by, stopping short of the music (EL.stop); a jagged walk whose heading wanders (and
   // crawls a little with time), with a few branches; it grows from the edge, thins and dims toward its tip. Returns
   // its brightness (0: nothing drawn) and leaves its middle in cp, for its glow on the paper.
-  function fillArc(h, a, tau, seed, nx, ny, S, camera) {
-    const g = arcs[h].geo, P = g.attributes.position.array, T = g.attributes.aTan.array, A = g.attributes.aA.array, W = g.attributes.aW.array, o = a * ARC_PTS;
-    const env = tau < 0 || tau > EL.life ? 0 : sstep(0, 0.03, tau) * Math.exp(-tau / EL.decay) * (1 - sstep(EL.life - 0.1, EL.life, tau));
+  function fillArc(h, a, tau, seed, nx, ny, S, camera, kr) {
+    const g = arcs[h].geo.attributes;
+    const env0 = tau < 0 || tau > EL.life ? 0 : sstep(0, 0.03, tau) * Math.exp(-tau / EL.decay) * (1 - sstep(EL.life - 0.1, EL.life, tau));
+    // a soft flicker, smooth in time (two slow waves, seeded): a little in the filament, more in its light on the paper
+    const fl = 0.6 * Math.sin(6.283 * (EL.flickHz[0] * tau + hash01(seed, 5))) + 0.4 * Math.sin(6.283 * (EL.flickHz[1] * tau + hash01(seed, 6)));
+    const env = env0 * (1 + EL.flick[0] * fl);
     // the start: along the frame edge (two straight pieces round the corner), a little outside the picture
     const ed = EL.edge[h], l1 = Math.hypot(ed[1][0] - ed[0][0], ed[1][1] - ed[0][1]), l2 = Math.hypot(ed[2][0] - ed[1][0], ed[2][1] - ed[1][1]);
     let v = hash01(seed, 1) * (l1 + l2), ex, ey;
@@ -1881,7 +2003,8 @@ export function buildPaper(T, tools, piece, opts = {}) {
     // as long as `len` of the picture's height on screen (whichever way it points), but stopping short of the music
     rayV.set(x0, 0, z0).project(camera); const sx = rayV.x, sy = rayV.y;
     rayV.set(x0 + dx * S, 0, z0 + dz * S).project(camera);
-    let L = Math.min(3 * S, (EL.len * S) / Math.max(0.5 * Math.hypot((rayV.x - sx) * camera.aspect, rayV.y - sy), 0.05));
+    // (in the tall picture a little shorter: its height is so much larger than its width)
+    let L = Math.min(3 * S * kr, (EL.len * kr * Math.sqrt(Math.min(1, camera.aspect)) * S) / Math.max(0.5 * Math.hypot((rayV.x - sx) * camera.aspect, rayV.y - sy), 0.05));
     const stop = h === 0 ? TOP[0] + EL.stop : BOTTOM[1] - EL.stop, dpy = -dz;
     if (h === 0 && dpy < 0) L = Math.min(L, (py0 - stop) / -dpy); else if (h === 1 && dpy > 0) L = Math.min(L, (stop - py0) / dpy);
     const on = env > 0.002 && L > 1;
@@ -1901,31 +2024,52 @@ export function buildPaper(T, tools, piece, opts = {}) {
           if (!b) AG[i] = hh;
         } else if (!b) AG[0] = ang;
         if (!b) { AX[i] = x; AZ[i] = z; }
-        const f = f0 + i * df, j = o + k;
+        const f = f0 + i * df;
         const al = on ? env * kb * (1 - 0.45 * Math.pow(Math.min(f, 1), 1.5)) * (i === len ? 0.25 : 1) * (1 - sstep(grow - 0.12, grow, f)) * bandOf(h, -z) : 0;
-        P[6 * j] = P[6 * j + 3] = x; P[6 * j + 1] = P[6 * j + 4] = 0.02; P[6 * j + 2] = P[6 * j + 5] = z;
-        A[2 * j] = A[2 * j + 1] = al; W[2 * j] = W[2 * j + 1] = (1 - 0.55 * Math.min(f, 1)) * (b ? 0.7 : 1) * ws;
+        QX[k] = x; QZ[k] = z; QA[k] = al; QW[k] = (1 - 0.55 * Math.min(f, 1)) * (b ? 0.7 : 1) * ws;
         if (!b && i === EL.n >> 1) { cx = x; cz = z; }
       }
     }
-    for (let i = 0; i < ARC_PTS; i++) { // the direction along it (one-sided at the ends of each piece)
-      const j = o + i, br = i <= EL.n ? 0 : 1 + Math.floor((i - EL.n - 1) / (EL.bn + 1)), first = br ? i === EL.n + 1 + (br - 1) * (EL.bn + 1) : i === 0, last = br ? i === EL.n + br * (EL.bn + 1) : i === EL.n;
-      const p = first ? j : j - 1, q = last ? j : j + 1;
-      let tx = P[6 * q] - P[6 * p], tz = P[6 * q + 2] - P[6 * p + 2]; const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
-      T[6 * j] = T[6 * j + 3] = tx; T[6 * j + 1] = T[6 * j + 4] = 0; T[6 * j + 2] = T[6 * j + 5] = tz;
+    // its segments, each with the points before and after it on its piece (itself at the piece's ends), at all four corners
+    const PA = g.position.array, PP = g.aP.array, PB = g.aB.array, PN = g.aN.array, AL = g.aAl.array, WD = g.aWd.array;
+    for (let s = 0; s < ARC_SEGS; s++) {
+      const i = segAt[s], p = arcFirst(i) ? i : i - 1, q = arcLast(i + 1) ? i + 1 : i + 2;
+      for (let c = 0, v = 4 * (a * ARC_SEGS + s); c < 4; c++, v++) {
+        PA[3 * v] = QX[i]; PA[3 * v + 1] = 0.02; PA[3 * v + 2] = QZ[i]; PB[3 * v] = QX[i + 1]; PB[3 * v + 1] = 0.02; PB[3 * v + 2] = QZ[i + 1];
+        PP[3 * v] = QX[p]; PP[3 * v + 1] = 0.02; PP[3 * v + 2] = QZ[p]; PN[3 * v] = QX[q]; PN[3 * v + 1] = 0.02; PN[3 * v + 2] = QZ[q];
+        AL[2 * v] = QA[i]; AL[2 * v + 1] = QA[i + 1]; WD[2 * v] = QW[i]; WD[2 * v + 1] = QW[i + 1];
+      }
     }
     cp.x = cx; cp.z = cz;
-    return on ? env : 0;
+    return on ? env0 * (1 + EL.flick[1] * fl) : 0;
   }
   // The corner light at time t (style: an index into CORNER.ids, 0 = off): its uniforms and filaments.
-  const cornerOff = () => { paperU.uAccOn.value = 0; for (const a of arcs) a.halo.visible = a.core.visible = false; };
-  function corner(style, camera, pr, fade) {
+  // K: its strength, 0..1 (CORNER.strength: kb scales the brightness of each style, kr its size and reach).
+  const cornerOff = () => { paperU.uAccOn.value = 0; shadeOn(false); for (const a of arcs) a.halo.visible = a.core.visible = false; };
+  const sdA = new THREE.Vector3(), sdB = new THREE.Vector3(), accCol = [new THREE.Vector3(), new THREE.Vector3()], arcCol = [new THREE.Vector3(), new THREE.Vector3()];
+  function corner(style, camera, pr, fade, K) {
     const id = CORNER.ids[style], th = Math.tan((camera.fov * DEG) / 2), AP = paperU.uAccP.value, RG = paperU.uRing.value;
-    paperU.uAccOn.value = 1;
+    const ST = CORNER.strength, kb = ST.light[0] + (ST.light[1] - ST.light[0]) * K, kr = ST.reach[0] + (ST.reach[1] - ST.reach[0]) * K;
+    paperU.uAccOn.value = 1; shadeOn(true);
+    // the shade in the two corners: its depth for this strength, the picture in its shorter side and the direction the
+    // staves run across it (from the page under the middle of the picture, one staff space along x)
+    const D = CORNER.shade.depth, saX = Math.max(camera.aspect, 1), saY = Math.max(1 / camera.aspect, 1);
+    onPaper(camera, 0, 0);
+    sdA.set(cp.x, 0, cp.z).project(camera); sdB.set(cp.x + 1, 0, cp.z).project(camera);
+    let sx = (sdB.x - sdA.x) * saX, sy = (sdB.y - sdA.y) * saY; const sl = Math.hypot(sx, sy) || 1; sx /= sl; sy /= sl;
+    csU.uCS.value.set(1, D[0][0] + (D[0][1] - D[0][0]) * K, D[1][0] + (D[1][1] - D[1][0]) * K, CORNER.shade.dither);
+    csU.uCSA.value.set(saX, saY, sx, sy); csU.uCSV.value.copy(camera.matrixWorld);
+    csU.uCSR.value.set(1 / lineU.uRes.value.x, 1 / lineU.uRes.value.y);
+    arcInvPV.value.multiplyMatrices(camera.matrixWorld, camera.projectionMatrixInverse);
     for (let h = 0; h < 2; h++) {
       const tr = TR[h], d = onPaper(camera, CORNER.at[h][0], CORNER.at[h][1]), S = d * th, ax = cp.x, az = cp.z, kh = CORNER.k[h];
       paperU.uAccA.value[h].set(ax, az, id === 'glow' ? CORNER.glow.stretch : 1, S);
-      { const v = looks[h].ballHalo, m = Math.max(v.x, v.y, v.z, 1e-6); paperU.uAccC.value[h].set(v.x / m, v.y / m, v.z / m).lerp(WHITE, CORNER.pale); }
+      { // the hand's light (see lightOf), and that light as it falls on the paper: divided by the paper's colour
+        // (which the paper shader multiplies back, so the light's own colour is what is seen), as bright as it would be
+        // on a neutral paper of the same lightness
+        const al = paperU.uTintNear.value, r = srgbLin(al.x), g = srgbLin(al.y), b = srgbLin(al.z), y = 0.2126 * r + 0.7152 * g + 0.0722 * b, c = lightOf(accCol[h], looks[h].ballHalo, r, g, b);
+        paperU.uAccC.value[h].set((c.x * y) / r, (c.y * y) / g, (c.z * y) / b);
+      }
       AP[2 * h].w = AP[2 * h + 1].w = 0;
       for (let i = 0; i < 8; i++) RG[8 * h + i].z = 0;
       const ar = arcs[h];
@@ -1934,31 +2078,33 @@ export function buildPaper(T, tools, piece, opts = {}) {
         const G = CORNER.glow, dg = onPaper(camera, G.at[h][0], G.at[h][1]), Sg = dg * th;
         let E = 0;
         for (let i = 0; i < tr.n; i++) { const s = tr.tau[i]; E = Math.max(E, sstep(0, G.up, s) * Math.exp(-Math.max(0, s - G.up) / G.down) * (1 - sstep(G.life - 0.25, G.life, s))); }
-        if (E > 0) AP[2 * h].set(cp.x, cp.z, Sg * G.R * (1 - G.grow * 0.5 + G.grow * E), G.k * kh * E);
+        if (E > 0) AP[2 * h].set(cp.x, cp.z, Sg * G.R * kr * (1 - G.grow * 0.5 + G.grow * E), G.k * kh * kb * E);
       } else if (id === 'ripples') {
         const R = CORNER.ripples, dr = onPaper(camera, R.at[h][0], R.at[h][1]), Sr = dr * th, rx = cp.x, rz = cp.z;
         paperU.uAccA.value[h].set(rx, rz, 1, Sr);
         let E = 0;
         for (let i = 0; i < tr.n; i++) {
-          const s = tr.tau[i], g = 1 - Math.exp(-s / R.T), a = R.k * kh * sstep(0, 0.1, s) * Math.exp(-s / R.decay) * (1 - sstep(R.life - 0.35, R.life, s));
+          const s = tr.tau[i], g = 1 - Math.exp(-s / R.T), a = R.k * kh * kb * sstep(0, 0.1, s) * Math.exp(-s / R.decay) * (1 - sstep(R.life - 0.35, R.life, s));
           if (a <= 0) continue;
-          const rho = Sr * (R.r0 + R.R * g), w = Sr * (R.w0 + R.w1 * g);
+          const rho = Sr * kr * (R.r0 + R.R * g), w = Sr * kr * (R.w0 + R.w1 * g);
           RG[8 * h + i].set(rho, w, a, 0); RG[8 * h + 4 + i].set(rho * R.echo[0], w * 0.8, a * R.echo[1], 0);
           E = Math.max(E, sstep(0, 0.1, s) * Math.exp(-s / (2 * R.decay)));
         }
-        if (E > 0) AP[2 * h].set(rx, rz, Sr * 0.6, R.k * kh * R.glow * E);
+        if (E > 0) AP[2 * h].set(rx, rz, Sr * 0.6 * kr, R.k * kh * kb * R.glow * E);
       } else if (id === 'electric') {
         let a = 0;
         for (let i = 0; i < tr.n && a < ARCS; i++) {
           if (tr.tau[i] > EL.life) continue;
-          const e = fillArc(h, a, tr.tau[i], tr.seed[i], tr.x[i], -tr.y[i], S, camera);
-          if (e > 0) AP[2 * h + a].set(cp.x, cp.z, 2 + 0.25 * EL.len * S, EL.k * kh * e);
+          const e = fillArc(h, a, tr.tau[i], tr.seed[i], tr.x[i], -tr.y[i], S, camera, kr);
+          if (e > 0) AP[2 * h + a].set(cp.x, cp.z, (2 + 0.25 * EL.len * S) * kr, EL.k * kh * kb * e);
           a++;
         }
-        for (; a < ARCS; a++) fillArc(h, a, -1, 0, 0, 0, S, camera); // (nothing: all its points dark)
-        const v = ballTint[h], lum = 0.2126 * v.x + 0.7152 * v.y + 0.0722 * v.z;
-        ar.core.material.uniforms.uColor.value.copy(v).lerp(WHITE, 0.3).multiplyScalar(EL.lum / lum);
-        ar.halo.material.uniforms.uColor.value.copy(v).multiplyScalar(EL.haloLum / lum);
+        for (; a < ARCS; a++) fillArc(h, a, -1, 0, 0, 0, S, camera, kr); // (nothing: all its points dark)
+        // (the filament is the hand's light seen directly, not on the paper: its colour paled only as far as it needs in
+        // itself, against white, and not corrected for the paper)
+        const v = lightOf(arcCol[h], looks[h].ballHalo, 1, 1, 1), cc = ar.core.material.uniforms.uColor.value, hc = ar.halo.material.uniforms.uColor.value;
+        cc.copy(v).lerp(WHITE, EL.white); hc.copy(v);
+        cc.multiplyScalar(EL.lum * kb / (0.2126 * cc.x + 0.7152 * cc.y + 0.0722 * cc.z)); hc.multiplyScalar(EL.haloLum * kb / (0.2126 * hc.x + 0.7152 * hc.y + 0.0722 * hc.z)); ar.halo.material.uniforms.uW.value = EL.halo * kr;
         ar.core.material.uniforms.uMinPx.value = EL.minPx * pr; ar.halo.material.uniforms.uMinPx.value = EL.haloPx * pr;
         ar.core.material.uniforms.uFade.value = ar.halo.material.uniforms.uFade.value = fade;
         for (const k of ARC_DYN) ar.geo.attributes[k].needsUpdate = true;
@@ -1980,6 +2126,24 @@ export function buildPaper(T, tools, piece, opts = {}) {
   const tint = [new THREE.Vector3(), new THREE.Vector3()], ballTint = [new THREE.Vector3(), new THREE.Vector3()], WHITE = new THREE.Vector3(1, 1, 1);
   const full = (out, v) => { const m = Math.max(v.x, v.y, v.z, 1e-6); return out.set(v.x / m, v.y / m, v.z / m).lerp(WHITE, 0.2); };
   const tintOfHand = (h) => { full(ballTint[h], looks[h].ballHalo); return full(tint[h], looks[h].halo); };
+  // A hand's light for the corner light (see CORNER): its colour v (linear) at full strength, taken toward white at
+  // least CORNER.pale and as far as needed for it to be no more colourful than CORNER.sat, both in itself and against
+  // the paper it falls on (r, g, b: the paper's colour, linear): (brightest - dimmest channel of the light, and of the
+  // light over the paper) <= sat x its luminance (found by halving the interval: the excess falls as the light
+  // pales); into out.
+  const satOver = (p, x, y, z, r, g, b) => {
+    const X = (x + (1 - x) * p) / r, Y = (y + (1 - y) * p) / g, Z = (z + (1 - z) * p) / b;
+    return Math.max(X, Y, Z) - Math.min(X, Y, Z) - CORNER.sat * (0.2126 * X + 0.7152 * Y + 0.0722 * Z);
+  };
+  const lightOf = (out, v, r, g, b) => {
+    const m = Math.max(v.x, v.y, v.z, 1e-6), x = v.x / m, y = v.y / m, z = v.z / m;
+    let lo = CORNER.pale, hi = 1;
+    if (Math.max(satOver(lo, x, y, z, 1, 1, 1), satOver(lo, x, y, z, r, g, b)) > 0) {
+      for (let i = 0; i < 16; i++) { const mid = 0.5 * (lo + hi); if (Math.max(satOver(mid, x, y, z, 1, 1, 1), satOver(mid, x, y, z, r, g, b)) > 0) lo = mid; else hi = mid; }
+      lo = hi;
+    }
+    return out.set(x, y, z).lerp(WHITE, lo);
+  };
   // Draws the light map: the pools of the lit notes and of the light trails, over the shadow mask's window.
   function drawLight() {
     if (!sh) return;
@@ -2054,9 +2218,9 @@ export function buildPaper(T, tools, piece, opts = {}) {
       probe.balls[hand].copy(bp); // (also where its shadow is cast from)
       m.position.copy(bp); ballU[hand].uAlpha.value = linB;
       pb.set(bp.x, bp.y, bp.z, BALL.r);
-      paperU.uBallColor.value[hand].copy(looks[hand].refl).multiplyScalar(linB);
-      paperU.uPoolColor.value[hand].copy(ballTint[hand]).multiplyScalar(linB);
-      setGlow(bp.x, bp.y, bp.z, GLINT.r.ball, ballTint[hand], GLINT.k.ball * linB);
+      paperU.uBallColor.value[hand].copy(looks[hand].refl).lerp(WHITE, POOL.ball.pale).multiplyScalar(linB);
+      paperU.uPoolColor.value[hand].copy(ballTint[hand]).lerp(WHITE, POOL.ball.pale).multiplyScalar(linB);
+      setGlow(bp.x, bp.y, bp.z, GLINT.r.ball, paperU.uPoolColor.value[hand], GLINT.k.ball); // (its pale light, as above: already faded)
       if (trailOn) {
         fillTrail(hand, t, L, c, camera.aspect);
         const v = ballTint[hand], lum = 0.2126 * v.x + 0.7152 * v.y + 0.0722 * v.z;
@@ -2080,7 +2244,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
     // the corner light and the powder sparks (both optional), set off by the touches
     const cs = Math.max(0, CORNER.ids.indexOf(o.corner)), np = Math.round(Math.min(1, Math.max(0, Number(o.sparks) || 0)) * SPARK.max);
     if (cs || np) touches(t, live, np, linB);
-    if (cs) corner(cs, camera, o.pr || 1, linS); else cornerOff();
+    if (cs) corner(cs, camera, o.pr || 1, linS, Math.min(1, Math.max(0, o.cornerK ?? 0.5))); else cornerOff();
     sparkMesh.visible = sparkPool.visible = np > 0;
     if (np) {
       sparkGeo.instanceCount = np * 2 * SPARK.slots; sparkMU.uMinPx.value = SPARK.minPx * (o.pr || 1); sparkMU.uFade.value = linB;

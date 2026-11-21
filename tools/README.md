@@ -47,7 +47,8 @@ node tools/app-check.mjs --out ~/Desktop/app --piece demo --export 720 --fps 30
 node tools/app-check.mjs --out ~/Desktop/app --steps steps.json
 ```
 
-`--look paper|night`, `--view`, `--shape` and `--set key=value` start the page with those saved choices. The microphone
+`--look paper|night`, `--view`, `--shape` and `--set key=value` start the page with those saved choices (saved as
+settings version 7; add `--set v=6` to try how an older save is brought up to date). The microphone
 is a fake test tone in this browser, so "Listen with the microphone" can be tried too. The script exits with code 2
 when the page logged any error.
 
@@ -69,7 +70,7 @@ The prefix is the piece name, with the view added when it is not `sheet`. Use `-
 - **Sequence** (`--video <start> <end> <fps>`): every frame from start up to, but not including, end.
 - **Size** (`--w`, `--h`, `--shape wide|tall`): the default is 1280x720, or 720x1280 when tall.
 - **Pixel ratio** (`--ratio`): by default each frame is drawn larger and scaled down, exactly as the app's video export does it. That means 2x up to 1080p, 1.5x up to 1440p and 1x above. `--raw` saves the full drawn picture instead.
-- **Stage options** (`--set key=value`, or `--key value`): every option the driver itself does not use goes to the page. The page calls the stage setter of the same name, ignoring case: `theme` calls `setTheme`, `sheetCam` calls `setSheetCam`, and the same goes for `sky`, `glow`, `landing`, `effects`, `motion`, `paths`, `view` and others. `look` calls `setLook` (`paper` or `night`), `hands` calls `setHands` (`rose`, `gold`, `lilac`, `pearl`), `paper` calls `setPaper` (`ivory`, `beige`, `parchment`, `grey`, `lavender`), `finish` calls `setFinish` (`matte`, `metal`, `glass`, `gold`), `trails` calls `setTrails` (`true` for the light trails), `corner` calls `setCorner` (`off`, `glow`, `ripples`, `electric`), `sparks` calls `setSparks` (0 for none up to 1 for the most powder sparks) and `title` calls `setTitle`. Values `true`/`false`/`on`/`off` become booleans, numbers become numbers, and JSON is parsed. If a name has no setter, the script prints a warning listing the setters that do exist.
+- **Stage options** (`--set key=value`, or `--key value`): every option the driver itself does not use goes to the page. The page calls the stage setter of the same name, ignoring case: `theme` calls `setTheme`, `sheetCam` calls `setSheetCam`, and the same goes for `sky`, `glow`, `landing`, `effects`, `motion`, `paths`, `view` and others. `look` calls `setLook` (`paper` or `night`), `hands` calls `setHands` (`rose`, `gold`, `lilac`, `pearl`), `paper` calls `setPaper` (`ivory`, `beige`, `parchment`, `grey`, `lavender`), `finish` calls `setFinish` (`matte`, `metal`, `glass`, `gold`), `trails` calls `setTrails` (`true` for the light trails), `corner` calls `setCorner` (`off`, `glow`, `ripples`, `electric`), `cornerStrength` calls `setCornerStrength` (0 for a faint corner light up to 1 for a strong one; 0.5 by default), `sparks` calls `setSparks` (0 for none up to 1 for the most powder sparks) and `title` calls `setTitle`. Values `true`/`false`/`on`/`off` become booleans, numbers become numbers, and JSON is parsed. If a name has no setter, the script prints a warning listing the setters that do exist.
 - **Page script** (`--js "<code>"`): runs in the page after setup, with `stage` in scope.
 - **Waiting for assets** (`--settle <ms>`): waits after the first frame, for anything the stage loads in the background. If the stage ever gains a `stage.ready()` function that returns a promise, it is always awaited.
 - **Format** (`--format jpeg --quality 0.9`): smaller and faster files, useful for long sequences.

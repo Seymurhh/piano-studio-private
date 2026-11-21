@@ -1,6 +1,6 @@
 // Piano studio: play live from the piano, load or record a performance, watch it in 3D, and make a video. Everything runs in the browser.
 import { parseMidi, fromRecording, writeMidi, demoPiece, noteName } from './midi.js?v=13';
-import { createStage } from './stage.js?v=32';
+import { createStage } from './stage.js?v=33';
 import { createListener, STYLE_NAMES } from './listen.js?v=8';
 import { drawCard, OPEN, CLOSE, STYLES } from './cards.js?v=2';
 import { INSTRUMENTS, ROOMS, makeOutput, noteOn, voice, renderPiece, loadInstrument, isLoaded } from './synth.js?v=12';
@@ -58,7 +58,7 @@ function previewCard(kind) { // play a card over the picture, as it will appear 
 }
 
 const ui = Object.fromEntries(['play', 'seek', 'clock', 'speed', 'midifile', 'demo', 'record', 'savemidi', 'labels', 'effects', 'motion', 'mic', 'capture', 'vtitle', 'size', 'fps',
-  'export', 'prog', 'download', 'overlay', 'connect', 'volume', 'monitor', 'now', 'ribbon', 'library', 'dots', 'paths', 'trails', 'sparks', 'glow', 'title3d', 'ptitle'].map((id) => [id, $('#' + id)]));
+  'export', 'prog', 'download', 'overlay', 'connect', 'volume', 'monitor', 'now', 'ribbon', 'library', 'dots', 'paths', 'trails', 'sparks', 'cornerk', 'glow', 'title3d', 'ptitle'].map((id) => [id, $('#' + id)]));
 const say = (id, text) => { $('#' + id).textContent = text; };
 const mmss = (s) => { s = Math.max(0, s); return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`; };
 const safeName = () => (P.name || 'piano').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'piano';
@@ -69,18 +69,20 @@ const fill = (el) => el.style.setProperty('--fill', `${((el.value - el.min) / (e
 const PHONE = matchMedia('(max-width: 640px)').matches; // a phone held upright: start with the tall picture looking along the keys, which fills the screen
 // New visitors start with the sheet music on soft paper (look) in ivory (paper), its hands in rose and ice (hands), the
 // title lettered in 3D.
-const DEFAULTS = { instrument: 'grand', room: 'hall', volume: 0.9, monitor: true, theme: 'aurora', view: 'sheet', look: 'paper', hands: 'rose', paper: 'ivory', finish: 'matte', trails: false, corner: 'off', sparks: 0, title3d: true, v: 6, dance: 'auto', camera: PHONE ? 'side' : 'front', shape: PHONE ? 'tall' : 'wide', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', cardOpen: true, cardOpenPaper: false, cardClose: true, cardStyle: 'lumen', channel: 'Lumen Keys', message: 'Thank you for listening', labels: false, effects: true, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
+const DEFAULTS = { instrument: 'grand', room: 'hall', volume: 0.9, monitor: true, theme: 'aurora', view: 'sheet', look: 'paper', hands: 'rose', paper: 'ivory', finish: 'matte', trails: false, corner: 'off', cornerK: 0.5, sparks: 0, title3d: true, v: 7, dance: 'auto', camera: PHONE ? 'side' : 'front', shape: PHONE ? 'tall' : 'wide', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', cardOpen: true, cardOpenPaper: false, cardClose: true, cardStyle: 'lumen', channel: 'Lumen Keys', message: 'Thank you for listening', labels: false, effects: true, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
 const C = { ...DEFAULTS };
 try { // v 2: note names off unless switched on again; v 3: notes are trails of light unless changed again; v 4: the
   // picture starts as the sheet music on soft paper (choices saved by the older studio this one was copied from do not
   // count); v 5: the paper has a colour (ivory unless chosen; every other choice is kept); v 6: the paper look keeps
-  // its own opening-card choice, off unless switched on (its 3D title opens the video), while the other looks keep theirs
+  // its own opening-card choice, off unless switched on (its 3D title opens the video), while the other looks keep theirs;
+  // v 7: the corner light has a strength (0.5 unless chosen; every other choice is kept)
   const saved = JSON.parse(localStorage.getItem('studio') || '{}');
   if (!(saved.v >= 2)) delete saved.labels;
   if (!(saved.v >= 3)) delete saved.notes;
   if (!(saved.v >= 4)) { delete saved.view; delete saved.look; delete saved.hands; }
   if (!(saved.v >= 6)) delete saved.cardOpenPaper;
-  Object.assign(C, saved, { v: 6 });
+  if (!(saved.v >= 7)) delete saved.cornerK;
+  Object.assign(C, saved, { v: 7 });
 } catch {}
 const remember = () => { try { localStorage.setItem('studio', JSON.stringify(C)); } catch {} };
 
@@ -326,11 +328,18 @@ $('#preview-close').addEventListener('click', () => previewCard('close'));
 radios($('#landing'), [], C.landing, (v) => { C.landing = v; remember(); stage.setLanding(v); });
 stage.setLanding(C.landing);
 // On paper, both off unless chosen: the corner light (each ball's touches light the open paper in its corner) and the
-// powder sparks (how many: the slider; left = none). The line under the corner light describes the style chosen.
-const CORNERS = stage.corners(), cornerDesc = () => { $('#corner-desc').textContent = (CORNERS.find((c) => c.id === C.corner) || CORNERS[0]).desc; };
+// powder sparks (how many: the slider; left = none). The line under the corner light describes the style chosen; its
+// strength slider (left = faint) does nothing, and is shown greyed, while the corner light is off.
+const CORNERS = stage.corners(), cornerDesc = () => {
+  $('#corner-desc').textContent = (CORNERS.find((c) => c.id === C.corner) || CORNERS[0]).desc;
+  const off = C.corner === 'off'; ui.cornerk.disabled = off; $('#cornerk-line').classList.toggle('off', off); $('#cornerk-desc').classList.toggle('off', off);
+};
 if (!CORNERS.some((c) => c.id === C.corner)) C.corner = 'off';
 radios($('#corner'), [], C.corner, (v) => { C.corner = v; remember(); stage.setCorner(v); cornerDesc(); });
 stage.setCorner(C.corner); cornerDesc();
+C.cornerK = Number.isFinite(Number(C.cornerK)) ? Math.max(0, Math.min(1, Number(C.cornerK))) : 0.5;
+ui.cornerk.value = C.cornerK; fill(ui.cornerk); stage.setCornerStrength(C.cornerK);
+ui.cornerk.addEventListener('input', () => { C.cornerK = Number(ui.cornerk.value); remember(); stage.setCornerStrength(C.cornerK); fill(ui.cornerk); });
 C.sparks = Math.max(0, Math.min(1, Number(C.sparks) || 0));
 ui.sparks.value = C.sparks; fill(ui.sparks); stage.setSparks(C.sparks);
 ui.sparks.addEventListener('input', () => { C.sparks = Number(ui.sparks.value); remember(); stage.setSparks(C.sparks); fill(ui.sparks); });

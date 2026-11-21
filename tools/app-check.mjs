@@ -97,7 +97,7 @@ async function main() {
     };
     const base = `http://127.0.0.1:${server.address().port}/`;
     // saved settings (as the studio keeps them in localStorage) go in before the page's own script runs
-    const saved = { v: 6 };
+    const saved = { v: 7 };
     if (o.look) saved.look = o.look;
     if (o.view) saved.view = o.view;
     if (o.shape) saved.shape = o.shape;
