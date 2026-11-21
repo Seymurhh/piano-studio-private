@@ -8,7 +8,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' blob: data:; media-src blob:; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Piano studio</title>
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="assets/css/studio.css?v=21">
+<link rel="stylesheet" href="assets/css/studio.css?v=22">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -106,6 +106,8 @@
       <h2 class="paper-only">Notes made of</h2>
       <div class="swatches finishes paper-only" id="finishes" role="radiogroup" aria-label="Notes made of"></div>
       <p class="fine paper-only" id="finish-desc"></p>
+      <label class="slider paper-only"><span>Shine of the notes <small>(left: quiet)</small></span><input type="range" id="shine" min="0" max="1" step="0.05" value="0.5"></label>
+      <p class="fine paper-only">How brightly the notes catch the balls of light as they come near, like polished metal.</p>
       <h2 class="keys-only">Notes</h2>
       <div class="seg keys-only" id="notes" role="radiogroup" aria-label="Notes">
         <button type="button" role="radio" data-v="trails" aria-checked="true">Trails of light</button>
@@ -151,7 +153,15 @@
       </div>
       <label class="slider sheet-only no-paper"><span>Glow of the notes <small>(left: matte)</small></span><input type="range" id="glow" min="0" max="1" step="0.05" value="0.45"></label>
       <label class="check sheet-only"><input type="checkbox" id="paths" checked><span>Balls of light from note to note<small>A light for each hand hops along the music and lands on every note as it is played.</small></span></label>
+      <label class="slider sheet-only paper-only" id="ballk-line"><span>Brightness of the balls <small>(left: soft)</small></span><input type="range" id="ballk" min="0" max="1" step="0.05" value="0.5"></label>
+      <p class="fine sheet-only paper-only" id="ballk-desc">How bright the two balls are, with the light they throw on the paper and the notes. The middle is the usual brightness.</p>
       <label class="check sheet-only paper-only"><input type="checkbox" id="trails"><span>Light trails<small>Each ball leaves a soft, thin line of light along its path, fading behind it.</small></span></label>
+      <h2 class="sheet-only paper-only">Camera</h2>
+      <div class="seg sheet-only paper-only" id="cammove" role="radiogroup" aria-label="Camera movement">
+        <button type="button" role="radio" data-v="steady" aria-checked="true">Steady</button>
+        <button type="button" role="radio" data-v="cinematic" aria-checked="false">Cinematic</button>
+      </div>
+      <p class="fine sheet-only paper-only" id="cammove-desc"></p>
       <h2 class="sheet-only paper-only">Corner light</h2>
       <div class="seg sheet-only paper-only" id="corner" role="radiogroup" aria-label="Corner light">
         <button type="button" role="radio" data-v="off" aria-checked="true">Off</button>
@@ -211,6 +221,6 @@
   </aside>
 </main>
 <footer class="credits">Grand piano recordings: Salamander Grand Piano by Alexander Holm (CC BY 3.0). Electric pianos and harpsichord: FluidR3 GM by Frank Wen. Music symbols converted from Bravura by Steinberg Media Technologies, and lettering converted from Libre Baskerville by Pablo Impallari and Rodrigo Fuenzalida, both under the <a href="assets/glyphs/OFL.txt">SIL Open Font License 1.1</a> (<a href="assets/glyphs/CREDITS.txt">details</a>).</footer>
-<script type="module" src="assets/js/studio.js?v=34"></script>
+<script type="module" src="assets/js/studio.js?v=36"></script>
 </body>
 </html>

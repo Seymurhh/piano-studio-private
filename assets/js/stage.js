@@ -6,7 +6,7 @@ import { buildFlight, voicesFromPiece } from './flight.js?v=14';
 import { buildDancer } from './dancer.js?v=9';
 import { buildScore } from './score.js?v=20';
 import { buildSheet } from './sheet.js?v=8';
-import { buildPaper, HAND_PAIRS, PAPERS, PAPER_DEFAULT, FINISHES, FINISH_DEFAULT, CORNER_STYLES } from './paper.js?v=8';
+import { buildPaper, HAND_PAIRS, PAPERS, PAPER_DEFAULT, FINISHES, FINISH_DEFAULT, CORNER_STYLES, CAM_MOVES, SHINE_DEFAULT } from './paper.js?v=11';
 import { loadGlyphs } from './glyphs.js?v=1';
 
 const THEMES = {
@@ -81,7 +81,7 @@ const clamp01 = (v) => Math.min(1, Math.max(0, v));
 // above the glass is judged by its own distance, not by the glass behind it. Each pixel gathers its neighbours on a
 // spiral; a neighbour only spreads into it if its own blur is wide enough to reach, so sharp things do not smear.
 const DOF_FRAG = `
-uniform sampler2D tDiffuse, tDepth; uniform vec2 uRes; uniform float uFocus, uRange, uMax, uSky, uNear, uFar;
+uniform sampler2D tDiffuse, tDepth; uniform vec2 uRes; uniform float uFocus, uRange, uMax, uSky, uNear, uFar, uTaps;
 varying vec2 vUv;
 float blurAt(vec2 uv) {
   float d = texture2D(tDepth, uv).x;
@@ -95,7 +95,8 @@ void main() {
   float r = blurAt(vUv), w = 1.0;
   if (r > 0.6) {
     for (int i = 0; i < 36; i++) {
-      float a = float(i) * 2.39996323, rr = sqrt((float(i) + 0.5) / 36.0) * r;
+      if (float(i) >= uTaps) break; // (36 in the night look; fewer on paper, where the blur is smaller)
+      float a = float(i) * 2.39996323, rr = sqrt((float(i) + 0.5) / uTaps) * r;
       vec2 uv2 = vUv + vec2(cos(a), sin(a)) * rr / uRes;
       float k = clamp(blurAt(uv2) - rr + 1.0, 0.0, 1.0);
       sum += texture2D(tDiffuse, uv2) * k; w += k;
@@ -103,8 +104,9 @@ void main() {
   }
   gl_FragColor = sum / w;
 }`;
+const DOF_PAPER = 0.004; // the cinematic paper camera's widest blur, as a share of the picture's shorter side
 function depthOfField() {
-  const material = new THREE.ShaderMaterial({ uniforms: { tDiffuse: { value: null }, tDepth: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uFocus: { value: 20 }, uRange: { value: 9 }, uMax: { value: 0 }, uSky: { value: 1 }, uNear: { value: 0.5 }, uFar: { value: 600 } },
+  const material = new THREE.ShaderMaterial({ uniforms: { tDiffuse: { value: null }, tDepth: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uFocus: { value: 20 }, uRange: { value: 9 }, uMax: { value: 0 }, uSky: { value: 1 }, uNear: { value: 0.5 }, uFar: { value: 600 }, uTaps: { value: 36 } },
     vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }', fragmentShader: DOF_FRAG, depthTest: false, depthWrite: false });
   const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   quad.frustumCulled = false;
@@ -141,7 +143,7 @@ export function createStage(canvas) {
   const clip = [new THREE.Plane(new THREE.Vector3(0, 0, -1), 0)]; // hide the part of a note that has passed the keys
   const dot = canvasTex(64, 64, (g) => { const r = g.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, '#fff'); r.addColorStop(0.35, 'rgba(255,255,255,.55)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); });
   const beamTex = canvasTex(32, 128, (g, w, h) => { const r = g.createLinearGradient(0, h, 0, 0); r.addColorStop(0, 'rgba(255,255,255,.95)'); r.addColorStop(0.25, 'rgba(255,255,255,.35)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, w, h); });
-  const S = { look: 'paper', title: null, glyphs: null, hands: 'rose', paperTone: PAPER_DEFAULT, finish: FINISH_DEFAULT, trails: false, corner: 'off', cornerK: 0.5, sparks: 0, notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheet: null, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', score: null, theme: 'aurora', camera: 'front', trail: null, pool: [], labels: true, effects: true, motion: true, piece: null, view: 'piano', voices: [], mic: null, flight: null, scene: null, keys: [], items: [], beams: [], live: new Map(), far: 60, cam: null };
+  const S = { look: 'paper', title: null, glyphs: null, hands: 'rose', paperTone: PAPER_DEFAULT, finish: FINISH_DEFAULT, trails: false, corner: 'off', cornerK: 0.5, sparks: 0, camMove: 'steady', shine: SHINE_DEFAULT, ballK: 0.5, notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheet: null, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', score: null, theme: 'aurora', camera: 'front', trail: null, pool: [], labels: true, effects: true, motion: true, piece: null, view: 'piano', voices: [], mic: null, flight: null, scene: null, keys: [], items: [], beams: [], live: new Map(), far: 60, cam: null };
   const labelMats = new Map(), ray = new THREE.Raycaster(), point = new THREE.Vector2(), bufSize = new THREE.Vector2();
   const paperLook = () => S.view === 'sheet' && S.look === 'paper';
   // The paper look's 3D lettering needs the glyph outlines, which load in the background. Until they arrive the paper
@@ -358,7 +360,15 @@ export function createStage(canvas) {
     if (S.view === 'dancer') { S.dancer.render(camera, S.music, { effects: S.effects, motion: S.motion, style: S.dance }); composer.render(); return; }
     if (paperLook()) {
       renderer.getDrawingBufferSize(bufSize);
-      S.paper.render(t, camera, { live: live ? S.trail || [] : null, res: bufSize, pr: renderer.getPixelRatio(), paths: S.paths, trails: S.trails, corner: S.corner, cornerK: S.cornerK, sparks: S.sparks, glow: S.glow, effects: S.effects, motion: S.motion });
+      const view = S.paper.render(t, camera, { live: live ? S.trail || [] : null, res: bufSize, pr: renderer.getPixelRatio(), paths: S.paths, trails: S.trails, corner: S.corner, cornerK: S.cornerK, sparks: S.sparks, shine: S.shine, ballK: S.ballK, glow: S.glow, effects: S.effects, motion: S.motion, camMove: S.camMove });
+      // the cinematic camera's lens: sharp where the music is being played, the paper softening nearer and further off
+      // (the Steady camera has none)
+      dof.enabled = S.effects && view.dof > 0.001;
+      if (dof.enabled) {
+        const u = dof.material.uniforms;
+        u.uNear.value = camera.near; u.uFar.value = camera.far; u.uFocus.value = view.focusZ; u.uRange.value = view.range;
+        u.uMax.value = view.dof * DOF_PAPER * Math.min(bufSize.x, bufSize.y); u.uSky.value = 1; u.uTaps.value = 16;
+      }
       composer.render();
       return;
     }
@@ -369,7 +379,7 @@ export function createStage(canvas) {
       camera.updateMatrixWorld();
       const u = dof.material.uniforms, size = renderer.getDrawingBufferSize(new THREE.Vector2());
       u.uNear.value = camera.near; u.uFar.value = camera.far;
-      u.uFocus.value = -view.point.applyMatrix4(camera.matrixWorldInverse).z; u.uRange.value = view.range; u.uMax.value = S.effects ? 0.0075 * Math.min(size.x, size.y) : 0; u.uSky.value = view.sky ? 0.1 : 1;
+      u.uFocus.value = -view.point.applyMatrix4(camera.matrixWorldInverse).z; u.uRange.value = view.range; u.uTaps.value = 36; u.uMax.value = S.effects ? 0.0075 * Math.min(size.x, size.y) : 0; u.uSky.value = view.sky ? 0.1 : 1;
       composer.render();
       return;
     }
@@ -547,8 +557,8 @@ export function createStage(canvas) {
     setHands(id) { S.hands = HAND_PAIRS.some((p) => p.id === id) ? id : 'rose'; if (S.paper) S.paper.setHands(S.hands); },
     handPairs: () => HAND_PAIRS.map(({ id, name, chips }) => ({ id, name, chips })),
     // The paper look's paper colour: the id of one of the colours papers() lists (no rebuild needed).
-    setPaper(id) { S.paperTone = PAPERS.some((p) => p.id === id) ? id : PAPER_DEFAULT; if (S.paper) S.paper.setPaper(S.paperTone); },
-    papers: () => PAPERS.map(({ id, name, desc, swatch }) => ({ id, name, desc, swatch })),
+    setPaper(id) { S.paperTone = PAPERS.some((p) => p.id === id) ? id : PAPER_DEFAULT; if (S.paper) { S.paper.setPaper(S.paperTone); if (paperLook()) [bloom.strength, bloom.radius, bloom.threshold] = S.paper.bloom.pass; } },
+    papers: () => PAPERS.map(({ id, name, desc, swatch, dark }) => ({ id, name, desc, swatch, dark: !!dark })),
     // What the paper look's notation is made of: the id of one of the finishes finishes() lists (the scene is built again).
     setFinish(id) { const v = FINISHES.some((f) => f.id === id) ? id : FINISH_DEFAULT; if (v !== S.finish) { S.finish = v; if (paperLook()) S.scene = null; } },
     finishes: () => FINISHES.map(({ id, name, desc, chip }) => ({ id, name, desc, chip })),
@@ -558,9 +568,18 @@ export function createStage(canvas) {
     setCorner(id) { S.corner = CORNER_STYLES.some((c) => c.id === id) ? id : 'off'; },
     // Its strength: 0 (faint) to 1 (strong), 0.5 by default; it changes only uniforms, so no rebuild is needed.
     setCornerStrength(v) { const k = Number(v); S.cornerK = Number.isFinite(k) ? Math.max(0, Math.min(1, k)) : 0.5; },
+    // The paper look's shine of the notes: how strongly the notation mirrors the balls and the lit notes, 0 (the quiet
+    // sheen of before) to 1 (strongly metallic); SHINE_DEFAULT unless chosen. No rebuild.
+    setShine(v) { const k = Number(v); S.shine = Number.isFinite(k) ? Math.max(0, Math.min(1, k)) : SHINE_DEFAULT; },
+    // The paper look's brightness of the balls: 0 (soft and dim) to 1 (brighter), 0.5 as designed; the light they throw
+    // goes with them. No rebuild.
+    setBallBrightness(v) { const k = Number(v); S.ballK = Number.isFinite(k) ? Math.max(0, Math.min(1, k)) : 0.5; },
     corners: () => CORNER_STYLES.map(({ id, name, desc }) => ({ id, name, desc })),
     // The paper look's powder sparks: how many, 0 (none) to 1 (the most).
     setSparks(v) { S.sparks = Math.max(0, Math.min(1, Number(v) || 0)); },
+    // The paper look's camera: 'steady' (the default) or 'cinematic' (moves with the music, planned from the piece).
+    setCamMove(v) { S.camMove = CAM_MOVES.some((c) => c.id === v) ? v : 'steady'; },
+    camMoves: () => CAM_MOVES.map(({ id, name, desc }) => ({ id, name, desc })),
     // Resolves once everything the current picture needs has loaded and its scene is built (the frame bench and the
     // video export wait for it before drawing).
     async ready() { await glyphsLoaded; if (!S.scene) build(); },

@@ -1,6 +1,6 @@
 // Piano studio: play live from the piano, load or record a performance, watch it in 3D, and make a video. Everything runs in the browser.
 import { parseMidi, fromRecording, writeMidi, demoPiece, noteName } from './midi.js?v=13';
-import { createStage } from './stage.js?v=33';
+import { createStage } from './stage.js?v=35';
 import { createListener, STYLE_NAMES } from './listen.js?v=8';
 import { drawCard, OPEN, CLOSE, STYLES } from './cards.js?v=2';
 import { INSTRUMENTS, ROOMS, makeOutput, noteOn, voice, renderPiece, loadInstrument, isLoaded } from './synth.js?v=13';
@@ -58,7 +58,7 @@ function previewCard(kind) { // play a card over the picture, as it will appear 
 }
 
 const ui = Object.fromEntries(['play', 'seek', 'clock', 'speed', 'midifile', 'demo', 'record', 'savemidi', 'labels', 'effects', 'motion', 'mic', 'capture', 'vtitle', 'size', 'fps',
-  'export', 'prog', 'download', 'overlay', 'connect', 'volume', 'monitor', 'now', 'ribbon', 'library', 'dots', 'paths', 'trails', 'sparks', 'cornerk', 'glow', 'title3d', 'ptitle'].map((id) => [id, $('#' + id)]));
+  'export', 'prog', 'download', 'overlay', 'connect', 'volume', 'monitor', 'now', 'ribbon', 'library', 'dots', 'paths', 'trails', 'sparks', 'cornerk', 'shine', 'ballk', 'glow', 'title3d', 'ptitle'].map((id) => [id, $('#' + id)]));
 const say = (id, text) => { $('#' + id).textContent = text; };
 const mmss = (s) => { s = Math.max(0, s); return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`; };
 const safeName = () => (P.name || 'piano').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'piano';
@@ -69,20 +69,24 @@ const fill = (el) => el.style.setProperty('--fill', `${((el.value - el.min) / (e
 const PHONE = matchMedia('(max-width: 640px)').matches; // a phone held upright: start with the tall picture looking along the keys, which fills the screen
 // New visitors start with the sheet music on soft paper (look) in ivory (paper), its hands in rose and ice (hands), the
 // title lettered in 3D.
-const DEFAULTS = { instrument: 'grand', room: 'hall', volume: 0.9, monitor: true, theme: 'aurora', view: 'sheet', look: 'paper', hands: 'rose', paper: 'ivory', finish: 'matte', trails: false, corner: 'off', cornerK: 0.5, sparks: 0, title3d: true, v: 7, dance: 'auto', camera: PHONE ? 'side' : 'front', shape: PHONE ? 'tall' : 'wide', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', cardOpen: true, cardOpenPaper: false, cardClose: true, cardStyle: 'lumen', channel: 'Lumen Keys', message: 'Thank you for listening', labels: false, effects: true, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
+const DEFAULTS = { instrument: 'grand', room: 'hall', volume: 0.9, monitor: true, theme: 'aurora', view: 'sheet', look: 'paper', hands: 'rose', paper: 'ivory', finish: 'matte', trails: false, corner: 'off', cornerK: 0.5, sparks: 0, camMove: 'steady', shine: 0.5, ballK: 0.5, title3d: true, v: 9, dance: 'auto', camera: PHONE ? 'side' : 'front', shape: PHONE ? 'tall' : 'wide', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', cardOpen: true, cardOpenPaper: false, cardClose: true, cardStyle: 'lumen', channel: 'Lumen Keys', message: 'Thank you for listening', labels: false, effects: true, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
 const C = { ...DEFAULTS };
 try { // v 2: note names off unless switched on again; v 3: notes are trails of light unless changed again; v 4: the
   // picture starts as the sheet music on soft paper (choices saved by the older studio this one was copied from do not
   // count); v 5: the paper has a colour (ivory unless chosen; every other choice is kept); v 6: the paper look keeps
   // its own opening-card choice, off unless switched on (its 3D title opens the video), while the other looks keep theirs;
-  // v 7: the corner light has a strength (0.5 unless chosen; every other choice is kept)
+  // v 7: the corner light has a strength (0.5 unless chosen; every other choice is kept); v 8: the paper look has a
+  // camera choice (Steady unless chosen; every other choice is kept); v 9: the paper look has a shine of the notes and
+  // a brightness of the balls (their defaults unless chosen; every other choice is kept)
   const saved = JSON.parse(localStorage.getItem('studio') || '{}');
   if (!(saved.v >= 2)) delete saved.labels;
   if (!(saved.v >= 3)) delete saved.notes;
   if (!(saved.v >= 4)) { delete saved.view; delete saved.look; delete saved.hands; }
   if (!(saved.v >= 6)) delete saved.cardOpenPaper;
   if (!(saved.v >= 7)) delete saved.cornerK;
-  Object.assign(C, saved, { v: 7 });
+  if (!(saved.v >= 8)) saved.camMove = 'steady';
+  if (!(saved.v >= 9)) { delete saved.shine; delete saved.ballK; }
+  Object.assign(C, saved, { v: 9 });
 } catch {}
 const remember = () => { try { localStorage.setItem('studio', JSON.stringify(C)); } catch {} };
 
@@ -260,14 +264,17 @@ if (!PAPERS.some((p) => p.id === C.paper)) C.paper = PAPERS[0].id;
 radios($('#papers'), PAPERS.map((p) => ({ id: p.id, build(b) {
   b.className = 'swatch';
   const sheet = document.createElement('i'), label = document.createElement('span');
-  sheet.className = 'sheet'; sheet.style.background = `radial-gradient(120% 95% at 45% 100%, ${p.swatch[0]} 35%, ${p.swatch[1]})`;
+  sheet.className = p.dark ? 'sheet dark' : 'sheet'; sheet.style.background = `radial-gradient(120% 95% at 45% 100%, ${p.swatch[0]} 35%, ${p.swatch[1]})`;
   label.textContent = p.name;
   b.append(sheet, label);
-} })), C.paper, (id) => { C.paper = id; remember(); stage.setPaper(id); paperDesc(); });
+} })), C.paper, (id) => { C.paper = id; remember(); stage.setPaper(id); paperDesc(); finishDesc(); });
 paperDesc();
 // On paper: what the notes are made of (matte ink, polished metal, smoked glass, satin gold), each shown as a small
 // notehead of it; the line below describes the one chosen. Changing it builds the picture again.
-const FINISHES = stage.finishes(), finishDesc = () => { $('#finish-desc').textContent = (FINISHES.find((f) => f.id === C.finish) || FINISHES[0]).desc; };
+const FINISHES = stage.finishes(), finishDesc = () => { // (on a dark paper each finish takes its light version)
+  const dark = PAPERS.find((p) => p.id === C.paper)?.dark;
+  $('#finish-desc').textContent = (FINISHES.find((f) => f.id === C.finish) || FINISHES[0]).desc + (dark ? ' (on dark paper: pearl, silver, opal glass, gold)' : '');
+};
 if (!FINISHES.some((f) => f.id === C.finish)) C.finish = FINISHES[0].id;
 radios($('#finishes'), FINISHES.map((f) => ({ id: f.id, build(b) {
   b.className = 'swatch';
@@ -327,6 +334,17 @@ $('#preview-open').addEventListener('click', () => previewCard('open'));
 $('#preview-close').addEventListener('click', () => previewCard('close'));
 radios($('#landing'), [], C.landing, (v) => { C.landing = v; remember(); stage.setLanding(v); });
 stage.setLanding(C.landing);
+// On paper, the camera: Steady (the default) or Cinematic (planned from the piece); the line under it describes the
+// one chosen. Cinematic needs the gentle camera movement: without it the buttons are greyed and the camera stays still.
+const CAM_MOVES = stage.camMoves(), camDesc = () => {
+  const off = !C.motion;
+  $('#cammove-desc').textContent = off ? 'Turn on Gentle camera movement to use Cinematic.' : (CAM_MOVES.find((c) => c.id === C.camMove) || CAM_MOVES[0]).desc;
+  for (const b of $('#cammove').querySelectorAll('button')) b.disabled = off;
+  $('#cammove').classList.toggle('off', off);
+};
+if (!CAM_MOVES.some((c) => c.id === C.camMove)) C.camMove = ['crane', 'breathe', 'follow'].includes(C.camMove) ? 'cinematic' : 'steady'; // (names used by earlier trials)
+radios($('#cammove'), [], C.camMove, (v) => { C.camMove = v; remember(); stage.setCamMove(v); camDesc(); });
+stage.setCamMove(C.camMove);
 // On paper, both off unless chosen: the corner light (each ball's touches light the open paper in its corner) and the
 // powder sparks (how many: the slider; left = none). The line under the corner light describes the style chosen; its
 // strength slider (left = faint) does nothing, and is shown greyed, while the corner light is off.
@@ -340,6 +358,16 @@ stage.setCorner(C.corner); cornerDesc();
 C.cornerK = Number.isFinite(Number(C.cornerK)) ? Math.max(0, Math.min(1, Number(C.cornerK))) : 0.5;
 ui.cornerk.value = C.cornerK; fill(ui.cornerk); stage.setCornerStrength(C.cornerK);
 ui.cornerk.addEventListener('input', () => { C.cornerK = Number(ui.cornerk.value); remember(); stage.setCornerStrength(C.cornerK); fill(ui.cornerk); });
+// On paper, the shine of the notes (how strongly the notation mirrors the balls; left = quiet) and the brightness of the
+// balls (with the light they throw; left = soft, the middle as designed). The brightness does nothing, and is shown
+// greyed, while the balls are off.
+const unit = (v, d) => (Number.isFinite(Number(v)) ? Math.max(0, Math.min(1, Number(v))) : d);
+const ballDesc = () => { const off = !C.paths; ui.ballk.disabled = off; $('#ballk-line').classList.toggle('off', off); $('#ballk-desc').classList.toggle('off', off); };
+C.shine = unit(C.shine, DEFAULTS.shine); C.ballK = unit(C.ballK, DEFAULTS.ballK);
+ui.shine.value = C.shine; fill(ui.shine); stage.setShine(C.shine);
+ui.shine.addEventListener('input', () => { C.shine = Number(ui.shine.value); remember(); stage.setShine(C.shine); fill(ui.shine); });
+ui.ballk.value = C.ballK; fill(ui.ballk); stage.setBallBrightness(C.ballK);
+ui.ballk.addEventListener('input', () => { C.ballK = Number(ui.ballk.value); remember(); stage.setBallBrightness(C.ballK); fill(ui.ballk); });
 C.sparks = Math.max(0, Math.min(1, Number(C.sparks) || 0));
 ui.sparks.value = C.sparks; fill(ui.sparks); stage.setSparks(C.sparks);
 ui.sparks.addEventListener('input', () => { C.sparks = Number(ui.sparks.value); remember(); stage.setSparks(C.sparks); fill(ui.sparks); });
@@ -350,8 +378,9 @@ stage.setStrip(C.strip);
 stage.setNotes(C.notes);
 for (const [k, fn] of [['labels', 'setLabels'], ['effects', 'setEffects'], ['motion', 'setMotion'], ['ribbon', 'setRibbon'], ['dots', 'setDots'], ['paths', 'setPaths'], ['trails', 'setTrails']]) {
   ui[k].checked = C[k]; stage[fn](C[k]);
-  ui[k].addEventListener('change', () => { C[k] = ui[k].checked; remember(); stage[fn](C[k]); });
+  ui[k].addEventListener('change', () => { C[k] = ui[k].checked; remember(); stage[fn](C[k]); if (k === 'motion') camDesc(); if (k === 'paths') ballDesc(); });
 }
+camDesc(); ballDesc();
 stage.setTheme(C.theme); stage.setLook(C.look); stage.setHands(C.hands); stage.setPaper(C.paper); stage.setFinish(C.finish); stage.setView(C.view); stage.setDance(C.dance); pictureChanged(); stage.setCamera(C.camera); box.classList.toggle('tall', C.shape === 'tall');
 ui.vtitle.addEventListener('input', () => { ui.overlay.textContent = ui.vtitle.value; });
 const goFull = box.requestFullscreen || box.webkitRequestFullscreen; // iPhones have no full screen for a part of a page: there the picture simply covers the page
