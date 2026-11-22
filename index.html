@@ -177,6 +177,10 @@
       <p class="fine sheet-only paper-only">A small puff of glowing powder rises where each ball lands, then settles on the paper and fades.</p>
       <label class="slider sheet-only paper-only"><span>Electric notes <small>(left: none)</small></span><input type="range" id="zap" min="0" max="1" step="0.05" value="0"></label>
       <p class="fine sheet-only paper-only">Each note crackles with sharp sparks of electricity as its ball lands, and a bolt of current jumps to it from the note before. Works with the powder sparks too.</p>
+      <label class="slider sheet-only paper-only" id="current-line"><span>Current with the balls <small>(left: none)</small></span><input type="range" id="current" min="0" max="1" step="0.05" value="0"></label>
+      <p class="fine sheet-only paper-only" id="current-desc">The balls carry electricity: a crackling tail of current follows each ball through the air, strongest at the ball and fading toward its end. Where a ball lands, the note sparks and a bolt leaps ahead to the next note.</p>
+      <label class="slider sheet-only paper-only"><span>Cracks of light in the notes <small>(left: none)</small></span><input type="range" id="cracks" min="0" max="1" step="0.05" value="0"></label>
+      <p class="fine sheet-only paper-only">As it is played, each whole note (head, stem, flag and beam) breaks into glowing cracks, lit from inside, yet keeps its shape; the cracks flicker with current.</p>
       <label class="check sheet-only paper-only"><input type="checkbox" id="title3d" checked><span>Show the title in 3D at the start<small>Raised letters on the paper before the first notes.</small></span></label>
       <label class="field sheet-only paper-only"><span>Title on the paper</span><input type="text" id="ptitle" maxlength="80" placeholder="Name of the piece"></label>
       <label class="check keys-only"><input type="checkbox" id="dots" checked><span>Bouncing balls on the film strip<small>A ball for each hand jumps from note to note and moves from left to right as the piece goes on, reaching the right end as it finishes.</small></span></label>
@@ -237,6 +241,6 @@
   </aside>
 </main>
 <footer class="credits">Grand piano recordings: Salamander Grand Piano by Alexander Holm (CC BY 3.0). Electric pianos and harpsichord: FluidR3 GM by Frank Wen. Music symbols converted from Bravura by Steinberg Media Technologies, and lettering converted from Libre Baskerville by Pablo Impallari and Rodrigo Fuenzalida, both under the <a href="assets/glyphs/OFL.txt">SIL Open Font License 1.1</a> (<a href="assets/glyphs/CREDITS.txt">details</a>).</footer>
-<script type="module" src="assets/js/studio.js?v=41"></script>
+<script type="module" src="assets/js/studio.js?v=42"></script>
 </body>
 </html>
