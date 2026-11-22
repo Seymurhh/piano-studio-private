@@ -100,8 +100,8 @@
       <div class="swatches no-paper" id="themes" role="radiogroup" aria-label="Colours"></div>
       <h2 class="paper-only">Colours of the two hands</h2>
       <div class="swatches pairs paper-only" id="hands" role="radiogroup" aria-label="Colours of the two hands"></div>
-      <h2 class="paper-only">Paper colour</h2>
-      <div class="swatches papers paper-only" id="papers" role="radiogroup" aria-label="Paper colour"></div>
+      <h2 class="paper-only">Paper or marble</h2>
+      <div class="swatches papers paper-only" id="papers" role="radiogroup" aria-label="Paper or marble"></div>
       <p class="fine paper-only" id="paper-desc"></p>
       <h2 class="paper-only">Notes made of</h2>
       <div class="swatches finishes paper-only" id="finishes" role="radiogroup" aria-label="Notes made of"></div>
@@ -160,6 +160,7 @@
       <div class="seg sheet-only paper-only" id="cammove" role="radiogroup" aria-label="Camera movement">
         <button type="button" role="radio" data-v="steady" aria-checked="true">Steady</button>
         <button type="button" role="radio" data-v="cinematic" aria-checked="false">Cinematic</button>
+        <button type="button" role="radio" data-v="closeup" aria-checked="false">Close-ups</button>
       </div>
       <p class="fine sheet-only paper-only" id="cammove-desc"></p>
       <h2 class="sheet-only paper-only">Corner light</h2>
@@ -174,12 +175,14 @@
       <p class="fine sheet-only paper-only" id="cornerk-desc">How bright the corner light is and how far it reaches. The two corners fall into a little more shade as it grows stronger.</p>
       <label class="slider sheet-only paper-only"><span>Powder sparks <small>(left: none)</small></span><input type="range" id="sparks" min="0" max="1" step="0.05" value="0"></label>
       <p class="fine sheet-only paper-only">A small puff of glowing powder rises where each ball lands, then settles on the paper and fades.</p>
+      <label class="slider sheet-only paper-only"><span>Electric notes <small>(left: none)</small></span><input type="range" id="zap" min="0" max="1" step="0.05" value="0"></label>
+      <p class="fine sheet-only paper-only">Each note crackles with sharp sparks of electricity as its ball lands, and a bolt of current jumps to it from the note before. Works with the powder sparks too.</p>
       <label class="check sheet-only paper-only"><input type="checkbox" id="title3d" checked><span>Show the title in 3D at the start<small>Raised letters on the paper before the first notes.</small></span></label>
       <label class="field sheet-only paper-only"><span>Title on the paper</span><input type="text" id="ptitle" maxlength="80" placeholder="Name of the piece"></label>
       <label class="check keys-only"><input type="checkbox" id="dots" checked><span>Bouncing balls on the film strip<small>A ball for each hand jumps from note to note and moves from left to right as the piece goes on, reaching the right end as it finishes.</small></span></label>
       <label class="check"><input type="checkbox" id="labels"><span>Show note names</span></label>
       <label class="check no-paper"><input type="checkbox" id="effects" checked><span>Sparks, mist and light beams</span></label>
-      <label class="check"><input type="checkbox" id="motion" checked><span>Gentle camera movement<small class="paper-only">On paper: the camera slowly rises, sinks and turns a little as it glides.</small></span></label>
+      <label class="check"><input type="checkbox" id="motion" checked><span>Gentle camera movement<small class="paper-only">On paper: the Steady camera slowly rises, sinks and turns a little as it glides. (Cinematic and Close-ups always move.)</small></span></label>
       <label class="field no-paper"><span>Title shown in the picture (optional)</span><input type="text" id="vtitle" maxlength="60"></label>
     </section>
 
@@ -234,6 +237,6 @@
   </aside>
 </main>
 <footer class="credits">Grand piano recordings: Salamander Grand Piano by Alexander Holm (CC BY 3.0). Electric pianos and harpsichord: FluidR3 GM by Frank Wen. Music symbols converted from Bravura by Steinberg Media Technologies, and lettering converted from Libre Baskerville by Pablo Impallari and Rodrigo Fuenzalida, both under the <a href="assets/glyphs/OFL.txt">SIL Open Font License 1.1</a> (<a href="assets/glyphs/CREDITS.txt">details</a>).</footer>
-<script type="module" src="assets/js/studio.js?v=40"></script>
+<script type="module" src="assets/js/studio.js?v=41"></script>
 </body>
 </html>

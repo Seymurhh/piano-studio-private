@@ -1,6 +1,6 @@
 // Piano studio: play live from the piano, load or record a performance, watch it in 3D, and make a video. Everything runs in the browser.
 import { parseMidi, fromRecording, writeMidi, demoPiece, noteName } from './midi.js?v=13';
-import { createStage } from './stage.js?v=37';
+import { createStage } from './stage.js?v=38';
 import { createListener, STYLE_NAMES } from './listen.js?v=8';
 import { drawCard, OPEN, CLOSE, STYLES } from './cards.js?v=3';
 import { INSTRUMENTS, ROOMS, makeOutput, noteOn, voice, renderPiece, loadInstrument, isLoaded } from './synth.js?v=13';
@@ -64,7 +64,7 @@ function previewCard(kind) { // play a card over the picture, as it will appear 
 }
 
 const ui = Object.fromEntries(['play', 'seek', 'clock', 'speed', 'midifile', 'demo', 'record', 'savemidi', 'labels', 'effects', 'motion', 'mic', 'capture', 'vtitle', 'size', 'fps',
-  'export', 'prog', 'download', 'overlay', 'connect', 'volume', 'monitor', 'now', 'ribbon', 'library', 'dots', 'paths', 'trails', 'sparks', 'cornerk', 'shine', 'ballk', 'glow', 'title3d', 'ptitle'].map((id) => [id, $('#' + id)]));
+  'export', 'prog', 'download', 'overlay', 'connect', 'volume', 'monitor', 'now', 'ribbon', 'library', 'dots', 'paths', 'trails', 'sparks', 'zap', 'cornerk', 'shine', 'ballk', 'glow', 'title3d', 'ptitle'].map((id) => [id, $('#' + id)]));
 const say = (id, text) => { $('#' + id).textContent = text; };
 const mmss = (s) => { s = Math.max(0, s); return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`; };
 const safeName = () => (P.name || 'piano').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'piano';
@@ -75,7 +75,7 @@ const fill = (el) => el.style.setProperty('--fill', `${((el.value - el.min) / (e
 const PHONE = matchMedia('(max-width: 640px)').matches; // a phone held upright: start with the tall picture looking along the keys, which fills the screen
 // New visitors start with the sheet music on soft paper (look) in ivory (paper), its hands in rose and ice (hands), the
 // title lettered in 3D.
-const DEFAULTS = { instrument: 'grand', room: 'hall', volume: 0.9, monitor: true, theme: 'aurora', view: 'sheet', look: 'paper', hands: 'rose', paper: 'ivory', finish: 'matte', trails: false, corner: 'off', cornerK: 0.5, sparks: 0, camMove: 'steady', shine: 0.5, ballK: 0.5, title3d: true, v: 9, dance: 'auto', camera: PHONE ? 'side' : 'front', shape: PHONE ? 'tall' : 'wide', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', cardOpen: true, cardOpenPaper: false, cardOpenPart: true, cardClose: true, markOn: true, part: 'whole', cardStyle: 'lumen', channel: 'Lumen Keys', message: 'Thank you for listening', labels: false, effects: true, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
+const DEFAULTS = { instrument: 'grand', room: 'hall', volume: 0.9, monitor: true, theme: 'aurora', view: 'sheet', look: 'paper', hands: 'rose', paper: 'ivory', finish: 'matte', trails: false, corner: 'off', cornerK: 0.5, sparks: 0, zap: 0, camMove: 'steady', shine: 0.5, ballK: 0.5, title3d: true, v: 9, dance: 'auto', camera: PHONE ? 'side' : 'front', shape: PHONE ? 'tall' : 'wide', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', cardOpen: true, cardOpenPaper: false, cardOpenPart: true, cardClose: true, markOn: true, part: 'whole', cardStyle: 'lumen', channel: 'Lumen Keys', message: 'Thank you for listening', labels: false, effects: true, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
 const C = { ...DEFAULTS };
 try { // v 2: note names off unless switched on again; v 3: notes are trails of light unless changed again; v 4: the
   // picture starts as the sheet music on soft paper (choices saved by the older studio this one was copied from do not
@@ -325,7 +325,7 @@ if (!PAPERS.some((p) => p.id === C.paper)) C.paper = PAPERS[0].id;
 radios($('#papers'), PAPERS.map((p) => ({ id: p.id, build(b) {
   b.className = 'swatch';
   const sheet = document.createElement('i'), label = document.createElement('span');
-  sheet.className = p.dark ? 'sheet dark' : 'sheet'; sheet.style.background = `radial-gradient(120% 95% at 45% 100%, ${p.swatch[0]} 35%, ${p.swatch[1]})`;
+  sheet.className = p.dark ? 'sheet dark' : 'sheet'; sheet.style.background = p.css || `radial-gradient(120% 95% at 45% 100%, ${p.swatch[0]} 35%, ${p.swatch[1]})`; // (marble: its veins)
   label.textContent = p.name;
   b.append(sheet, label);
 } })), C.paper, (id) => { C.paper = id; remember(); stage.setPaper(id); paperDesc(); finishDesc(); });
@@ -400,13 +400,13 @@ $('#preview-open').addEventListener('click', () => previewCard('open'));
 $('#preview-close').addEventListener('click', () => previewCard('close'));
 radios($('#landing'), [], C.landing, (v) => { C.landing = v; remember(); stage.setLanding(v); });
 stage.setLanding(C.landing);
-// On paper, the camera: Steady (the default) or Cinematic (planned from the piece); the line under it describes the
-// one chosen. Cinematic needs the gentle camera movement: without it the buttons are greyed and the camera stays still.
+// On paper, the camera: Steady (the default), Cinematic or Close-ups (both planned from the piece); the line under it
+// describes the one chosen. Every choice can always be made: Cinematic and Close-ups move even with the gentle camera
+// movement off (it only calms the Steady camera), so they are never greyed out (round 5: greyed buttons, with the
+// gentle movement off, e.g. under the system's Reduce motion, looked as if the camera could not be changed).
 const CAM_MOVES = stage.camMoves(), camDesc = () => {
-  const off = !C.motion;
-  $('#cammove-desc').textContent = off ? 'Turn on Gentle camera movement to use Cinematic.' : (CAM_MOVES.find((c) => c.id === C.camMove) || CAM_MOVES[0]).desc;
-  for (const b of $('#cammove').querySelectorAll('button')) b.disabled = off;
-  $('#cammove').classList.toggle('off', off);
+  const d = (CAM_MOVES.find((c) => c.id === C.camMove) || CAM_MOVES[0]).desc;
+  $('#cammove-desc').textContent = C.camMove === 'steady' && !C.motion ? d + ' (Held still: Gentle camera movement is off.)' : d;
 };
 if (!CAM_MOVES.some((c) => c.id === C.camMove)) C.camMove = ['crane', 'breathe', 'follow'].includes(C.camMove) ? 'cinematic' : 'steady'; // (names used by earlier trials)
 radios($('#cammove'), [], C.camMove, (v) => { C.camMove = v; remember(); stage.setCamMove(v); camDesc(); });
@@ -437,6 +437,10 @@ ui.ballk.addEventListener('input', () => { C.ballK = Number(ui.ballk.value); rem
 C.sparks = Math.max(0, Math.min(1, Number(C.sparks) || 0));
 ui.sparks.value = C.sparks; fill(ui.sparks); stage.setSparks(C.sparks);
 ui.sparks.addEventListener('input', () => { C.sparks = Number(ui.sparks.value); remember(); stage.setSparks(C.sparks); fill(ui.sparks); });
+// On paper, the electric notes (round 5): sharp crackles of current at each note as its ball lands (left = none).
+C.zap = unit(C.zap, 0);
+ui.zap.value = C.zap; fill(ui.zap); stage.setZap(C.zap);
+ui.zap.addEventListener('input', () => { C.zap = Number(ui.zap.value); remember(); stage.setZap(C.zap); fill(ui.zap); });
 stage.setSheetCam(C.sheetCam); stage.setSky(C.sky); stage.setGlow(C.glow);
 ui.glow.value = C.glow; fill(ui.glow);
 ui.glow.addEventListener('input', () => { C.glow = Number(ui.glow.value); remember(); stage.setGlow(C.glow); fill(ui.glow); });

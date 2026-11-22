@@ -1,7 +1,7 @@
 // "Paper": the written music lies on a long sheet of real paper (ivory by default; a few other calm colours in PAPERS),
 // printed in a matching near-black ink, and the camera glides along it like a dolly on rails, looking diagonally down
-// the music. The title, clefs, brace and signs stand a little above the paper on short silver pins, black lacquer with
-// a thin chrome rim. One soft light travels with the camera, so the paper is brightest just below the picture and dims
+// the music. The title, clefs, brace and signs stand solid on the paper (raised from it, no pins: round 5), black
+// lacquer with a thin chrome rim. One soft light travels with the camera, so the paper is brightest just below the picture and dims
 // gently toward the top. The paper has a fine grain, fibres and a faint cockle, lit by the key light (one seeded,
 // tileable texture made once), and everything that stands up from it casts a soft shadow on it (shadowMask below).
 // One small ball of light per hand (right pink, left ice-cyan) hops from note to note; each note lights up white-hot
@@ -160,16 +160,22 @@ const TRAIL = { T: 0.85, n: 72, max: 96, w: 0.1, minPx: 1.5, lum: 0.55, dim: 0.4
 //   ripples: a ring of light from `at` (just inside the corner) at each touch: radius S (r0 + R (1 - e^(-age / T))),
 //     width S (w0 + w1 (1 - e^(-age / T))), fading as it grows (time constant `decay`, gone by `life`), with a fainter
 //     echo ring inside it (`echo`: its size and brightness), and a faint glow at the centre (`glow`).
-//   electric: a thin filament reaching in from a point of the frame edge round the corner (`edge`: the picture points
-//     of that edge, chosen by the note's seed) toward the note just touched; `n` steps and `branches` side branches of
-//     `bn` steps, `len` of the picture's height long on screen (at most 3 S; S from the corner itself, CORNER.at) and
-//     stopping `stop` ss short of the music; it grows from the edge in `grow` s, wanders (`wiggle`) and crawls a
-//     little (`crawl`, smooth in time), and dies away (time constant `decay`, gone by `life`). Its core is w ss wide
-//     (at least minPx drawing pixels), the hand's colour `white` of the way to white; its soft halo `halo` ss (at
-//     least haloPx), both wider where the paper is further off than S = sRef ss (so they look about as wide in either
-//     corner); lum, haloLum: their brightness, dim, haloDim: how much each dims the paper under it; k: its soft light
-//     on the paper around it, which flickers softly (two smooth waves of flickHz per second, seeded: flick[0] of the
-//     filament's brightness, flick[1] of its light on the paper; far too little to count as a flash).
+//   electric (round 5: a Tesla-coil discharge, sharp, no longer a soft wisp): a jagged bolt of current reaching in
+//     from a point of the frame edge round the corner (`edge`: the picture points of that edge, chosen by the note's
+//     seed: the arc's terminal) toward the note just touched, `len` of the picture's height long on screen (at most
+//     3 S; S from the corner itself, CORNER.at) and stopping `stop` ss short of the music. Its shape is fractal: the
+//     straight line split `n` = 2^k times, each midpoint pushed sideways by `rough` x the piece's length (random), so
+//     it kinks sharply at every scale, with `branches` forks of `bn` steps (`fork` [shortest, longest] of its length,
+//     leaving at [least, most] radians). It re-strikes `hz` times a second, each strike a new shape from the same
+//     terminal (seeded, so every frame is a pure function of the time), flashing `flash` brighter as it strikes and
+//     settling; a pulse of current runs along it from the terminal to the tip `pulseHz` times a second (`pulse`: how
+//     much brighter, `pulseW` its length, a share of the bolt). The leader grows from the edge in `grow` s and the
+//     whole discharge dies away (time constant `decay`, gone by `life`). Its core is hard-edged and white-hot (the
+//     hand's colour `white` of the way to white), w ss wide (at least minPx drawing pixels); its halo is the hand's
+//     colour, `halo` ss (at least haloPx), both wider where the paper is further off than S = sRef ss (so they look
+//     about as wide in either corner); lum, haloLum: their brightness (the core blooms); dim, haloDim: how much each
+//     dims the paper under it (so the bolt reads on white paper too); k: its light on the paper around it, which
+//     flickers with the strikes (flick: [the bolt's, its light's] share of the flicker).
 // Strength (the "Corner light strength" slider, K from 0 to 1, 0.5 by default): every style's brightness is scaled by
 // light[0] + (light[1] - light[0]) K and its size and reach by reach[0] + (reach[1] - reach[0]) K (both 1 at 0.5).
 // Shade: with the corner light on, the lamp's light falls off into the two open corners, so the corner light stands
@@ -187,9 +193,10 @@ const CORNER = {
   strength: { light: [0.4, 1.6], reach: [0.82, 1.18] },
   shade: { depth: [[0.62, 0.9], [0.55, 0.84]], R: [[1.9, 1.0], [1.7, 1.0]], p: 2.6, band: [[17.5, 30], [-3, -12]], warm: 0.08, dither: 1 },
   glow: { at: [[-0.72, 0.62], [0.72, -0.72]], k: 0.26, R: 0.7, stretch: 1.6, up: 0.18, down: 0.27, grow: 0.25, life: 1.0 },
-  ripples: { at: [[-0.92, 0.88], [0.92, -0.92]], n: 4, k: 0.6, r0: 0.05, R: 1.6, T: 0.6, w0: 0.05, w1: 0.24, decay: 0.5, life: 1.4, echo: [0.62, 0.4], glow: 0.25 },
-  electric: { n: 12, branches: 3, bn: 6, len: 0.33, stop: 5, grow: 0.08, decay: 0.12, life: 0.45, wiggle: 0.55, crawl: 0.12, w: 0.07, sRef: 10, minPx: 1.2, halo: 0.7, haloPx: 7,
-    lum: 0.6, white: 0.15, dim: 0.45, haloDim: 0.28, haloLum: 0.27, k: 0.35, flick: [0.12, 0.3], flickHz: [7, 11], edge: [[[-1.04, 0.2], [-1.04, 1.04], [-0.75, 1.04]], [[1.04, -0.2], [1.04, -1.04], [0.3, -1.04]]] },
+  ripples: { at: [[-0.92, 0.88], [0.92, -0.92]], n: 4, k: 1.0, r0: 0.05, R: 1.6, T: 0.6, w0: 0.018, w1: 0.075, decay: 0.5, life: 1.4, echo: [0.72, 0.55], glow: 0.14 }, // (round 5: crisp, thin rings; 0.05 / 0.24 wide and k 0.6 before)
+  electric: { n: 16, branches: 4, bn: 8, len: 0.52, stop: 2.5, rough: 0.32, fork: [0.22, 0.48], forkAng: [0.35, 0.95], hz: 14, flash: 0.55, pulseHz: 5, pulse: 1.3, pulseW: 0.09,
+    grow: 0.05, decay: 0.17, life: 0.62, w: 0.05, sRef: 10, minPx: 1.6, halo: 0.95, haloPx: 9,
+    lum: 1.9, white: 0.82, dim: 0.5, haloDim: 0.36, haloLum: 0.6, k: 0.6, flick: [0.35, 0.3], edge: [[[-1.04, 0.2], [-1.04, 1.04], [-0.75, 1.04]], [[1.04, -0.2], [1.04, -1.04], [0.3, -1.04]]] },
 };
 // The corner light's styles as the Look tab offers them (one line each, plain words).
 export const CORNER_STYLES = [
@@ -209,6 +216,17 @@ const ARCS = 2, ARC_PTS = (CORNER.electric.n + 1) + CORNER.electric.branches * (
 // to `least` of it). Each particle lights the paper under it a little (pool k, as a lamp h0 ss above its height).
 const SPARK = { max: 56, slots: 12, fade: 3, life: [1, 1.6], tail: 0.45, hot: 0.18, vUp: [1.6, 4.2], vOut: [0.8, 3.2], drag: [2.4, 4], g: 3, r0: 0.35, y0: 0.3,
   size: [0.04, 0.085], minPx: 1.2, lum: 0.75, dim: 0.6, fast: 0.3, least: 0.35, pool: { k: 0.012, h0: 0.35 } };
+// Electric notes (round 5; the "Electric notes" slider, K from 0 to 1, 0 = none): as a ball lands on a note, the note
+// crackles with short, sharp bolts of current (white-hot cores in the hand's colour, as the Electric corner light),
+// and a bolt jumps to it from the hand's note before, when that is within `reach` ss (and not touching it). For each
+// of the hand's newest `notes` landings within `life` s: the jump (bolt 0) and 1 + (bolts - 2) K crackles, leaving
+// the head `r0` ss from its middle in seeded directions, len [shortest, longest] ss long (times 0.7 + 0.6 K). Each is a
+// fractal bolt (n steps and one fork of bn steps, rough as CORNER.electric's), re-struck hz times a second, flashing
+// `flash` brighter as it strikes; it flares up in 15 ms and dies away (time constant decay). Its core is w ss wide (at
+// least minPx), its halo `halo` ss (at least haloPx); lum, haloLum: their brightness at K 1 (0.6 + 0.8 K of it);
+// dim, haloDim: how much they dim what is behind (so they read on white paper); white: the core's share of white.
+const ZAP = { notes: 3, bolts: 4, life: 0.42, reach: 9, r0: 0.72, len: [1.1, 2.6], n: 8, branches: 1, bn: 4, rough: 0.34, hz: 18, flash: 0.6, decay: 0.12,
+  w: 0.042, minPx: 1.4, halo: 0.62, haloPx: 7, dim: 0.55, haloDim: 0.45, lum: 2.2, haloLum: 0.75, white: 0.8 };
 // The balls: radius (with the bloom, the clipped core is 0.40 ss across, as measured), centre height at contact, hop
 // rise k * T^p (capped at hMax). Entry: inT seconds before its first note it comes in at the left edge of the picture,
 // inH ss high, and glides straight to the note at a constant speed, sinking fast at first and gently at the end
@@ -238,7 +256,7 @@ const LIGHT = { vNear: 1.15, h0: 22, hExp: 1.0, lam: 2.6, cap: 0.88, elev: 40, o
 // (those up to `high` ss above the paper go from the sharp shadow to that one); bump = how strongly the grain tilts the
 // light; cockle = the faint waviness of the sheet (slope); inkLift: the printing ink casts its shadow as if it stood
 // this many times higher than its 0.11 ss (a thin, readable crescent beside each notehead and beam).
-const SHADE = { amb: 0.38, shadow: 0.9, ball: 0.55, ballSize: 1.8, contact: 0.3, low: 0.4, soft: 0.3, high: 0.9, bump: 0.55, cockle: 0.012, inkLift: 2.2 };
+const SHADE = { amb: 0.38, shadow: 0.9, ball: 0.55, ballSize: 1.8, contact: 0.3, low: 0.4, soft: 0.3, high: 0.9, bump: 0.55, cockle: 0.012, inkLift: 1.4 }; // (inkLift 2.2 for the 0.11 ss ink before round 5)
 // The shadow mask: everything raised is drawn once per frame, seen straight from above and slid along the key light
 // onto the paper (a planar shadow), into a texture of texels[0] x texels[1] covering a window of the page: from `back`
 // ss behind the camera's place to W ss further on (along x), and world z from z0 over H ss (the whole system, the title
@@ -258,6 +276,16 @@ export const PAPERS = [
   { id: 'lavender', name: 'Lavender', desc: 'Lavender-slate paper in blue-black ink, as in the first video, a little brighter.', near: '#ccd3ff', far: '#b5bfff', expo: 0.8, ink: '#090a13', tone: [0.045, 0.03], grain: 0.9, swatch: ['#a9acc4', '#6b6e86'] },
   { id: 'charcoal', name: 'Charcoal', desc: 'Warm near-black paper in pearl ink under a soft lamp; the lit notes glow and shine in its satin sheen.', near: '#3f3329', far: '#382d25', expo: 0.32, ink: '#e0d8c9', tone: [0.055, 0.045], grain: 0.95, swatch: ['#3b322b', '#0f0c0a'], dark: 'charcoal' },
   { id: 'graphite', name: 'Graphite', desc: 'Deep neutral grey paper in pearl ink under a soft lamp; the hand colours look their truest.', near: '#3a3a3b', far: '#333437', expo: 0.32, ink: '#dddad3', tone: [0.05, 0.04], grain: 0.9, swatch: ['#3b3a38', '#131315'], dark: 'graphite' },
+  // Marble (round 5): polished stone instead of paper. marble: the veins (see MARBLE in PAPER_FRAG): size = the
+  // pattern's size (ss), warp, w = [main, fine] vein widths, k = [main veins, fine veins, cloudiness, halo], vein = the
+  // veins' colour at full light; polish (light marble; a dark one takes DARK.marble) = [reflection strength over
+  // REFL.k, gloss (radians), mirror of the lit notes, sheen of the room]; css: its button.
+  { id: 'marble-dark', name: 'Dark marble', desc: 'Polished black marble with fine white veins, in pearl ink; the balls and the lit notes mirror in its polish.', near: '#2d2a28', far: '#282624', expo: 0.32, ink: '#e6e0d4', tone: [0.015, 0.03], grain: 0.18, swatch: ['#2e2b29', '#0d0c0c'], dark: 'marble',
+    marble: { size: 34, warp: 2.6, w: [0.02, 0.0032], k: [1, 0.5, 0.2, 0.14], vein: '#c6c2ba' },
+    css: 'linear-gradient(118deg, transparent 37%, rgba(236,231,222,.8) 39.5%, transparent 42%), linear-gradient(32deg, transparent 61%, rgba(236,231,222,.45) 62.5%, transparent 64%), radial-gradient(120% 95% at 45% 100%, #2e2b29 35%, #0d0c0c)' },
+  { id: 'marble-white', name: 'White marble', desc: 'Polished white marble with soft grey veins, in black ink: cool, bright and calm, with the lights mirrored in it.', near: '#f4f2ee', far: '#e7e4df', expo: 0.95, ink: '#141313', tone: [0.012, 0.025], grain: 0.18, swatch: ['#f4f2ee', '#c9c6c0'],
+    marble: { size: 40, warp: 2.2, w: [0.03, 0.005], k: [0.75, 0.3, 0.08, 0.32], vein: '#969390' }, polish: [1.15, 0.13, 0.45, 0.08],
+    css: 'linear-gradient(118deg, transparent 35%, rgba(128,124,118,.55) 39%, transparent 43%), linear-gradient(30deg, transparent 59%, rgba(128,124,118,.35) 61.5%, transparent 64%), radial-gradient(120% 95% at 45% 100%, #f4f2ee 35%, #c9c6c0)' },
 ];
 // Dark papers (a paper with `dark`: the id of one of these). The ink turns light by itself (the paper's own `ink`, and
 // for each finish its `dark` version in FINISH), and the light behaves as on a real dark sheet under one lamp:
@@ -286,6 +314,8 @@ const DARK = {
     line: '#9d9587', face: '#d9d1c2', faceRough: 0.22, env: 0.85, bloom: [0.15, 0, 0.92] },
 };
 DARK.graphite = { ...DARK.charcoal, line: '#9a9893', face: '#d8d5ce' }; // the same sheet and lamp in a neutral grey
+// polished black marble: the same lamp, a sharper and stronger mirror of the balls and the lit notes, more sheen
+DARK.marble = { ...DARK.charcoal, refl: 0.85, gloss: 0.1, sheen: 0.8, room: 0.5, line: '#a49e94', face: '#e2ddd3', faceRough: 0.16 };
 export const PAPER_DEFAULT = 'ivory';
 // Layout speed (ss per second of music; see engrave()): at least the first video's 13.5, enough that the closest
 // notes (10th percentile of the gaps, ornaments left out) stand 2.6 ss apart, and at most 24, so the camera never
@@ -330,18 +360,37 @@ const still = (c) => ({ ...c, yawAmp: 0, hAmp: 0 });
 // so the far paper does not sink into black.
 // Poses: [tilt, heading, distance to the place (ss), at x, at y (fractions of the picture), wh, wp] where the place's
 // page y is the Steady one moved wh of the way to the two hands' mean and wp of the way to the middle of the system.
+// Round 5: bolder than the calmed round-4 version (rate 6 -> 8.5 deg/s, blending in from 0.8 s instead of 1.5 s after
+// the first note, the first phrase cut from 6 s), so the moves are seen; it stays smooth (the same Gaussian plan).
 const CINE = {
-  sigma: 1.5, rate: 6, tMin: 4, tMax: 12, hold: 3, lead: 0.6, inW: [1.5, 6.5], outW: [3, 0.5], highGap: 24, sweep: 1.35, shadowPad: 1.35, lowLam: [0.7, 14, 44],
-  orbit: 0.5, orbitMax: 5, push: { LOW: 0.88, HIGH: 1.05, MID2: 0.95 }, tip: { HIGH: -3 },
-  seg: { min: 9, max: 24, pref: 13, first: 7 },
+  sigma: 1.5, rate: 8.5, tMin: 4, tMax: 12, hold: 3, lead: 0.6, inW: [0.8, 4.5], outW: [3, 0.5], highGap: 24, sweep: 1.35, shadowPad: 1.35, lowLam: [0.7, 14, 44],
+  orbit: 0.6, orbitMax: 6, push: { LOW: 0.85, HIGH: 1.06, MID2: 0.95 }, tip: { HIGH: -3 },
+  seg: { min: 9, max: 24, pref: 13, first: 6 },
   frame: { m: 0.9, mBall: 0.84, hold: 0.3, ahead: 0.2, reach: 2.6, dt: 0.1, knot: 0.25, sigma: 1, hands: 2 },
   minPx: 16, distSigma: 0.8, lam: 1.3, dof: { range: 0.85, wide: [18, 26], tall: [29, 37] }, sysMid: (TB + 4) / 2, // dof: the lens blur, only in the low views (full below the first tilt, none above the second)
   wide: { HIGH: (e) => [71 + 6 * e, 88, 90 + 14 * e, 0.42, 0.5, 0, 1], LOW: (e, side) => [14 + 3 * e, side ? 62 : 74, 24 + 5 * e, 0.55, 0.5, 1, 0], MID2: (e, side) => [36, side ? 66 : 42, 50, 0.52, 0.53, 0.5, 0] },
   tall: { HIGH: (e) => [62 + 6 * e, 44, 70 + 10 * e, 0.5, 0.6, 0, 1], LOW: (e, side) => [27 + 3 * e, side ? 14 : 30, 32 + 5 * e, 0.6, 0.62, 1, 0], MID2: (e, side) => [40, side ? 40 : 22, 55, 0.6, 0.52, 0.5, 0] },
 };
+// The close-up camera ("Close-ups", camMove 'closeup'): the same planned machinery as CINE (phrases, a Gaussian-smoothed
+// plan, framing, the Steady camera's light), with two poses that take turns phrase by phrase: CLOSE (down low behind
+// one hand's ball of light, looking along the music as it comes, so the notes stream toward the lens; it follows that
+// ball's own height on the page, smoothed by `follow` s, and pushes in a little more while it holds) and WIDE (pulled
+// far back and up, the whole grand staff in view; it opens out a little while it holds). Each close-up follows the
+// hand with more to play in that phrase (the right hand counts `rh` times, as it usually carries the tune; after
+// `same` close-ups on one hand the other gets a turn if it has at least half as much). Its first move starts `first` s
+// after the first note (it dives in as the music begins). In a close-up only the followed ball and the notes it lands
+// on within `frame` s must stay in the picture (the other hand may leave it), and the paper may stream past up to
+// `sweep` times as fast as with the Steady camera (it moves mostly toward the lens). Poses as CINE's, plus hb: which
+// ball the place follows (1 = the right hand's, -1 = the left hand's, 0 = between them).
+const CLOSE = {
+  first: 0.6, rh: 1.6, same: 2, sweep: 2.6, follow: 0.7, frame: { hold: 0.15, ahead: 0.15 }, push: { CLOSE: 0.8, WIDE: 1.07 },
+  wide: { CLOSE: (e, side) => [17 + 4 * e, side ? 22 : 36, 13 + 3 * e, 0.5, 0.58, 1, 0], WIDE: (e, side) => [56 + 8 * e, side ? 74 : 86, 86 + 12 * e, 0.45, 0.5, 0.3, 0.7] },
+  tall: { CLOSE: (e, side) => [22 + 4 * e, side ? 12 : 24, 16 + 3 * e, 0.55, 0.62, 1, 0], WIDE: (e, side) => [54 + 6 * e, side ? 40 : 48, 72 + 10 * e, 0.5, 0.58, 0.3, 0.7] },
+};
 export const CAM_MOVES = [
   { id: 'steady', name: 'Steady', desc: 'A slow, steady glide along the music from the side.' },
-  { id: 'cinematic', name: 'Cinematic', desc: 'Moves with the music: rises high over the page at new sections and loud passages, comes down low and close in quiet ones, and turns slowly to new angles. Live playing uses Steady.' },
+  { id: 'cinematic', name: 'Cinematic', desc: 'Moves with the music: rises high over the page at new sections and loud passages, comes down low and close in quiet ones, and turns to new angles. Live playing uses Steady.' },
+  { id: 'closeup', name: 'Close-ups', desc: 'Swoops down low behind a ball of light and rides along the music with it for a phrase, then pulls far back to show the whole page, and in again. Live playing uses Steady.' },
 ];
 // Live playing (no piece, or someone playing over a paused piece): the camera glides at the slowest layout speed
 // along endless systems of a grand staff, each `system` seconds long with a brace and clefs at its start and `gap` ss
@@ -366,8 +415,13 @@ const ENDING = { lag: 7, over: 10, crane: 12, settle: 1, lead: 0.8, land: 0.4, l
 const OPENING = { at: 1.5, margin: 1, before: 4, after: 5, start: -1.5, fadeIn: 0.7 };
 
 // ---- sizes of the printing (ss) ----
-const INK = { depth: 0.03, bevelThickness: 0.04, bevelSize: 0.03, bevelSegments: 2, curveSegments: 6 }; // 0.11 high, flush-looking
-const RAISED = { depth: 0.09, bevelThickness: 0.03, bevelSize: 0.022, bevelSegments: 2, curveSegments: 8, lift: 0.35, pin: 0.055 };
+// Round 5: the printed symbols (noteheads, beams, flags, rests, dots) stand 0.2 ss high (0.11 before) with softer,
+// rounder edges (more bevel steps; the bevel cut a little into the outline so a symbol keeps its size); the raised
+// signs (clefs, brace, key and time signatures, accidentals) stand solid on the paper, `height` ss from the paper to
+// their face (no lift, no pins: on pins they looked as if they stood on sticks). Their bottom bevel lies just under
+// the paper, so they meet it cleanly.
+const INK = { depth: 0.08, bevelThickness: 0.06, bevelSize: 0.045, bevelOffset: -0.015, bevelSegments: 4, curveSegments: 6 }; // 0.2 high
+const RAISED = { depth: 0.3, bevelThickness: 0.035, bevelSize: 0.026, bevelSegments: 3, curveSegments: 8, lift: 0, pin: 0.055, height: 0.37 };
 const COMPOSER = { size: 3.1, above: 3.4 }; // the composer's name: printed in ink, its baseline `above` ss over the top staff line, under the title's right end
 const TITLE = { cap: 12, maxW: 110, minScale: 0.45, rowScale: 0.7, depth: 0.95, bevelThickness: 0.07, bevelSize: 0.07, bevelSegments: 3, curveSegments: 10, gap: 8.5, x: 6 }; // solid letters standing on the paper, depth high
 // The channel's name, raised like the title but smaller (cap high), above the top staff every `every` s of music from
@@ -392,10 +446,10 @@ export const FINISH_DEFAULT = 'matte';
 // a narrow rounded rim (polished metal: the top mirrors the dark room, so the notes stay dark and readable on the
 // paper, and the rim catches the light); 'round' is a soft dome.
 const DOME = {
-  round: { ink: { depth: 0.02, bevelThickness: 0.09, bevelSize: 0.065, bevelOffset: -0.04, bevelSegments: 3, curveSegments: 8 },
+  round: { ink: { depth: 0.06, bevelThickness: 0.1, bevelSize: 0.07, bevelOffset: -0.045, bevelSegments: 4, curveSegments: 8 },
     raised: { depth: 0.06, bevelThickness: 0.06, bevelSize: 0.05, bevelOffset: -0.028, bevelSegments: 3, curveSegments: 8 },
     title: { bevelThickness: 0.14, bevelSize: 0.13, bevelOffset: -0.07, bevelSegments: 4 } },
-  rim: { ink: { depth: 0.04, bevelThickness: 0.055, bevelSize: 0.06, bevelOffset: -0.03, bevelSegments: 3, curveSegments: 8 },
+  rim: { ink: { depth: 0.09, bevelThickness: 0.06, bevelSize: 0.06, bevelOffset: -0.03, bevelSegments: 4, curveSegments: 8 },
     raised: { depth: 0.08, bevelThickness: 0.04, bevelSize: 0.04, bevelOffset: -0.02, bevelSegments: 3, curveSegments: 8 },
     title: { bevelThickness: 0.1, bevelSize: 0.1, bevelOffset: -0.05, bevelSegments: 4 } },
 };
@@ -490,8 +544,51 @@ uniform sampler2D uTex, uMask, uMaskSoft, uLight; uniform vec2 uTile; uniform ve
 uniform vec4 uBall[2], uRefl; uniform vec3 uBallColor[2], uPoolColor[2];
 uniform float uAccOn; uniform vec2 uAccK; uniform vec4 uAccA[2], uAccP[4], uRing[16]; uniform vec2 uBand[2]; uniform vec3 uAccC[2];
 varying vec3 vW; varying vec4 vClip; varying vec2 vP;${SHADE_GLSL}${LAMP_GLSL}
-#ifdef DARK_PAPER
+#if defined(DARK_PAPER) || defined(MARBLE)
 uniform vec4 uDark, uGW[${GLOWS}]; uniform vec3 uGC[${GLOWS}], uSheenC; // uDark = (pool share, corner light share, sheen, room sheen); uSheenC = the room sheen's colour (the paper's own peak light); the glows as lamps (world; see LINE_FRAG)
+#endif
+#ifdef MARBLE
+// Marble (a paper with \`marble\`, round 5): its veins and clouds are worked out at each point of the slab (world x, z),
+// so they are crisp at any distance and never repeat. uMarble = (1 / the pattern's size in ss, warp, main vein width,
+// fine vein width, both in the field's units); uMarbleK = (main veins, fine veins, cloudiness, the soft halo round the
+// main veins); uVein = a vein's colour over the stone's (linear, per channel: what the lit stone is multiplied by where
+// a vein is, so the veins take the same light, shadow and lamp fall-off as the stone).
+uniform vec4 uMarble, uMarbleK; uniform vec3 uVein;
+vec2 mh(vec2 p) { vec3 a = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973)); a += dot(a, a.yzx + 33.33); return fract((a.xx + a.yz) * a.zy) * 2.0 - 1.0; }
+float gn(vec2 p) { vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(dot(mh(i), f), dot(mh(i + vec2(1.0, 0.0)), f - vec2(1.0, 0.0)), u.x), mix(dot(mh(i + vec2(0.0, 1.0)), f - vec2(0.0, 1.0)), dot(mh(i + vec2(1.0)), f - vec2(1.0)), u.x), u.y); }
+float fbm(vec2 p, int n) { float a = 0.5, s = 0.0; for (int i = 0; i < 6; i++) { if (i >= n) break; s += a * gn(p); p = mat2(1.6, 1.2, -1.2, 1.6) * p + vec2(3.1, 1.7); a *= 0.5; } return s; }
+// a vein: a thin line where the field f (a distance, >= 0) is under w; far off, where it would be thinner than a pixel,
+// it fades instead of shimmering
+float vein(float f, float w) { float aa = fwidth(f) + 1e-5; return smoothstep(w + aa, 0.0, f) * min(1.0, w / aa); }
+// the distance to the nearest edge of a cell pattern (the cracks of the stone: its fine veins), as the exact distance
+// to the bisector of the two nearest cell points
+float cracks(vec2 p) {
+  vec2 n = floor(p), f = fract(p), mg = vec2(0.0), mr = vec2(0.0); float md = 8.0;
+  for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) { vec2 g = vec2(float(i), float(j)), r = g + 0.5 + 0.45 * mh(n + g) - f; float d = dot(r, r); if (d < md) { md = d; mr = r; mg = g; } }
+  md = 8.0;
+  for (int j = -2; j <= 2; j++) for (int i = -2; i <= 2; i++) { vec2 g = mg + vec2(float(i), float(j)), r = g + 0.5 + 0.45 * mh(n + g) - f; vec2 e = r - mr; if (dot(e, e) > 1e-5) md = min(md, dot(0.5 * (mr + r), normalize(e))); }
+  return md;
+}
+vec4 marble(vec2 w) { // (main veins, fine veins, cloud tone about -1..1, the main veins' soft halo)
+  vec2 p = w * uMarble.x;
+  vec2 q = vec2(fbm(p * 0.8, 4), fbm(p * 0.8 + vec2(5.2, 1.3), 4));
+  // the main veins: long, turbulent lines running mostly one way across the slab (a warped stripe pattern), each
+  // swelling, thinning and fading out along its course; a second, rarer set crosses them at an angle
+  float s1 = dot(p, vec2(0.86, 0.5)) * 0.9 + uMarble.y * fbm(p * 0.55 + 1.8 * q, 5);
+  float s2 = dot(p, vec2(-0.35, 0.94)) * 0.55 + 0.8 * uMarble.y * fbm(p * 0.7 - 1.4 * q + vec2(3.0, 8.0), 5);
+  float d1 = abs(fract(s1) - 0.5) * 2.0, d2 = abs(fract(s2) - 0.5) * 2.0; // (0 on a vein's line)
+  d1 = 1.0 - d1; d2 = 1.0 - d2;
+  float wv = uMarble.z * (0.35 + 1.3 * smoothstep(-0.35, 0.45, gn(p * 0.9 + 11.0)));
+  float on1 = smoothstep(-0.3, 0.1, gn(p * 0.35 + vec2(7.0, 3.0))), on2 = smoothstep(0.05, 0.35, gn(p * 0.3 + vec2(2.0, 9.0)));
+  float m = max(vein(d1, wv) * on1, vein(d2, 0.7 * wv) * on2);
+  float h = max(exp(-d1 / (wv * 6.0)) * on1, 0.6 * exp(-d2 / (wv * 5.0)) * on2);
+  // the fine veins: a web of thin cracks (warped cells), in patches, and gathered near the main veins
+  float c = cracks(p * 3.2 + 2.2 * q + 1.1 * vec2(fbm(p * 2.0, 3), fbm(p * 2.0 + 4.0, 3)));
+  float spread = max(0.8 * h, smoothstep(0.0, 0.35, gn(p * 0.8 + vec2(5.0, 2.0))));
+  float fi = vein(c, uMarble.w * 12.0) * spread;
+  return vec4(m, fi, 2.0 * fbm(p * 0.45 + 3.3, 4) + 0.5 * h, h);
+}
 #endif
 vec3 toLinear(vec3 c) { return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)); }
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); } // fixed dither against banding
@@ -529,6 +626,14 @@ void main() {
   }
   float E = (uShade.x + (1.0 - uShade.x) * (1.0 - occ) * dif) * (1.0 - ao);
   float tone = (1.0 + uLook.x * (g.r - 0.5) * 2.0) * (1.0 + uLook.y * (slow - 0.5) * 2.0);
+#ifdef MARBLE
+  { // the stone's clouds and veins (see marble()), lit as the stone is
+    vec4 mb = marble(vW.xz);
+    float vv = clamp(uMarbleK.x * mb.x + uMarbleK.y * mb.y + uMarbleK.w * mb.w, 0.0, 1.0);
+    tone *= max(0.2, 1.0 + uMarbleK.z * mb.z);
+    col *= mix(vec3(1.0), uVein, vv);
+  }
+#endif
   col *= E * tone;
   // The corner shade (with the corner light on): the lamp's light falling off into the open corners (CORNER.shade).
 #ifdef CORNER_SHADE
@@ -585,8 +690,8 @@ void main() {
     float refl = a2 / sqrt(ve * vs) * exp(-0.5 * (de * de / ve + ds * ds / vs));
     col += uBallColor[i] * uRefl.x * refl;
   }
-#ifdef DARK_PAPER
-  // dark paper: its satin sheen also mirrors the lit notes (the glows of radius > 0.3: not the balls, done above), as
+#if defined(DARK_PAPER) || defined(MARBLE)
+  // dark paper (and polished marble): its sheen also mirrors the lit notes (the glows of radius > 0.3: not the balls, done above), as
   // soft streaks of their colour toward the camera
   for (int i = 0; i < ${GLOWS}; i++) {
     vec4 s = uGW[i];
@@ -893,14 +998,16 @@ void main() {
   gl_Position = vec4(vS / (uRes * 0.5), paperDepth(vS, pv), 1.0);
 }`;
 const ARC_FRAG = `
-uniform vec3 uColor; uniform float uFade, uDim;
+uniform vec3 uColor; uniform float uFade, uDim, uHard;
 flat varying vec4 vAB, vPN, vK; flat varying vec2 vHas; varying vec2 vS;
 float segD(vec2 p, vec2 a, vec2 b, out float u) { vec2 ab = b - a; u = clamp(dot(p - a, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0); return length(p - a - ab * u); }
 void main() {
   float u, v, d = segD(vS, vAB.xy, vAB.zw, u);
   if (vHas.x > 0.5 && segD(vS, vPN.xy, vAB.xy, v) < d) discard;   // (nearer the segment before: it lights this pixel)
   if (vHas.y > 0.5 && segD(vS, vAB.zw, vPN.zw, v) <= d) discard;  // (or the one after)
-  float q = d / mix(vK.x, vK.y, u), a = exp(-1.6 * q * q) * mix(vK.z, vK.w, u) * uFade;
+  float q = d / mix(vK.x, vK.y, u);
+  // the halo: a soft Gaussian; the core (uHard 1): a hard, white-hot line with a narrow shoulder, as an arc of current is
+  float a = mix(exp(-1.6 * q * q), (1.0 - smoothstep(0.42, 0.95, q)) + 0.35 * exp(-1.1 * q * q), uHard) * mix(vK.z, vK.w, u) * uFade;
   gl_FragColor = vec4(uColor * a, uDim * a);
 }`;
 // Powder sparks (SPARK): one instance per particle, aI = (puff slot, particle number). Puff slot s: uPuff[s] = (x, z of
@@ -1324,7 +1431,8 @@ export function buildPaper(T, tools, piece, opts = {}) {
   // What the notation is made of (opts.finish, one of FINISHES): matte ink keeps the original materials; the others
   // are physically based (FINISH), with their own rounded bevels (DOME) and a room with a window to reflect.
   const fid = FINISH[opts.finish] ? opts.finish : FINISH_DEFAULT, FX = FINISH[fid], F = fid === 'matte' ? null : FX;
-  const DM = F && DOME[F.dome], IP = F ? DM.ink : INK, RP = F ? { ...RAISED, ...DM.raised } : RAISED, TP = F ? { ...TITLE, ...DM.title } : TITLE;
+  const DM = F && DOME[F.dome], IP = F ? DM.ink : INK, RP = { ...RAISED, ...(F ? DM.raised : {}) }, TP = F ? { ...TITLE, ...DM.title } : TITLE;
+  RP.depth = Math.max(0.05, RAISED.height - 2 * RP.bevelThickness); // (the raised signs: solid, the same height in every finish)
   const grow = IP.bevelSize + (IP.bevelOffset || 0); // how far the symbols' sides stand out from their outlines
   const fenv = F ? paperEnv(renderer, paperTone, F.win, F.room) : env;
   // A finish's material (see FINISH): physically based, reflecting the room; smoked glass is drawn over what lies below
@@ -1416,7 +1524,8 @@ export function buildPaper(T, tools, piece, opts = {}) {
     uRefl: { value: new THREE.Vector4(REFL.k, REFL.gloss, 0, REFL.narrow) },
     uLight: { value: null }, uPool: { value: new THREE.Vector3(POOL.ball.k, POOL.ball.h0, POOL.max) }, uPoolColor: { value: [new THREE.Vector3(), new THREE.Vector3()] },
     uAccOn: { value: 0 }, uAccA: { value: [new THREE.Vector4(), new THREE.Vector4()] }, uAccP: { value: Array.from({ length: 4 }, () => new THREE.Vector4()) },
-    uRing: { value: Array.from({ length: 16 }, () => new THREE.Vector4()) }, uBand: { value: CORNER.band.map(([a, b]) => new THREE.Vector2(a, b)) }, uAccC: { value: [new THREE.Vector3(), new THREE.Vector3()] }, uAccK: { value: new THREE.Vector2(CORNER.max, CORNER.dim) }, ...csU, ...lampU, uDark: { value: new THREE.Vector4(1, 1, 0, 0) }, uSheenC: { value: new THREE.Vector3() } };
+    uRing: { value: Array.from({ length: 16 }, () => new THREE.Vector4()) }, uBand: { value: CORNER.band.map(([a, b]) => new THREE.Vector2(a, b)) }, uAccC: { value: [new THREE.Vector3(), new THREE.Vector3()] }, uAccK: { value: new THREE.Vector2(CORNER.max, CORNER.dim) }, ...csU, ...lampU, uDark: { value: new THREE.Vector4(1, 1, 0, 0) }, uSheenC: { value: new THREE.Vector3() },
+    uMarble: { value: new THREE.Vector4() }, uMarbleK: { value: new THREE.Vector4() }, uVein: { value: new THREE.Vector3(1, 1, 1) } };
   const paperMat = new THREE.ShaderMaterial({ uniforms: paperU, vertexShader: PAPER_VERT, fragmentShader: PAPER_FRAG, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 });
   shadeMats.push(paperMat);
   // The corner shade is compiled in only while the corner light is on (CORNER_SHADE), so with it off every shader is
@@ -1434,6 +1543,9 @@ export function buildPaper(T, tools, piece, opts = {}) {
   // paper every shader is exactly as it was.
   let darkIn = false;
   const darkOn = (v) => { if (v === darkIn) return; darkIn = v; for (const m of [...shadeMats, lineMat]) { if (v) m.defines.DARK_PAPER = ''; else delete m.defines.DARK_PAPER; m.needsUpdate = true; } };
+  // Marble (a paper with `marble`) compiles its veins into the paper's program (MARBLE), likewise only when chosen.
+  let marbleIn = false;
+  const marbleOn = (v) => { if (v === marbleIn) return; marbleIn = v; if (v) paperMat.defines.MARBLE = ''; else delete paperMat.defines.MARBLE; paperMat.needsUpdate = true; };
 
   // ---- the paper: one large sheet that travels under the camera (its shading depends only on the camera) ----
   const paper = new THREE.Mesh(flat(new THREE.PlaneGeometry(1, 1)), paperMat);
@@ -1481,19 +1593,26 @@ export function buildPaper(T, tools, piece, opts = {}) {
   const printed = new THREE.Group(); scene.add(printed);
   const titleBox = new THREE.Box3(); // the 3D title's extent in the world (empty without a title), for the opening shot
   const heads = []; // one per notehead, for lighting them up: { kind, mesh, index, t, staff, x, y, chord }
-  const geos = new Map(), kinds = new Map(), lines = [], slabs = [];
+  const geos = new Map(), kinds = new Map(), lines = [], slabs = [], stems = [];
   const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), SC = new THREE.Vector3();
   const cached = (k, make) => { if (!geos.has(k)) geos.set(k, make()); return geos.get(k); };
   // ink symbols: printed, nearly flush; raised symbols: on pins, black faces and chrome sides
   const inkGlyph = (name, dx = 0) => cached('i:' + name, () => domeOf(flat(extrude(musicShapes(name), IP).translate(dx, 0, 0)), /^notehead|Dot$/.test(name) ? 'bowl' : 'outline'));
   const raisedGlyph = (name, size = 1, sx = 1) => cached(`r:${name}:${size}:${sx}`, () => {
     const shapes = musicShapes(name, { size }), geo = domeOf(flat(extrude(shapes, RP).scale(sx, 1, 1)));
-    geo.userData.pins = pinSpots(shapes, { step: 0.12 * size, margin: RAISED.pin + 0.05, per: 2.2 * size * size, max: 3 }).map(([x, y]) => [x * sx, y]);
+    geo.userData.pins = RAISED.lift > 0 ? pinSpots(shapes, { step: 0.12 * size, margin: RAISED.pin + 0.05, per: 2.2 * size * size, max: 3 }).map(([x, y]) => [x * sx, y]) : []; // (standing solid: no pins)
     return geo;
   });
   const kind = (name, geo, mat, lift = 0, colors = false) => { if (!kinds.has(name)) kinds.set(name, { geo, mat, lift, colors, list: [] }); return kinds.get(name); };
   const put = (k, x, y, sx = 1, sy = 1, tag = null) => k.list.push([x, y, sx, sy, tag]);
   const line = (x0, y0, x1, y1, w) => lines.push([x0, y0, x1, y1, w]);
+  // a stem: raised like the ink (round 5; a printed line before, which looked flat beside the raised heads and beams),
+  // w ss wide over all, its outline inset by the bevel's growth
+  const stem = (x, y0, y1, w) => {
+    const s = new THREE.Shape(), h = Math.max(0.012, w / 2 - grow), a = Math.min(y0, y1), b = Math.max(y0, y1);
+    s.moveTo(x - h, a); s.lineTo(x + h, a); s.lineTo(x + h, b); s.lineTo(x - h, b); s.lineTo(x - h, a);
+    stems.push([x, s]);
+  };
   const slab = (x0, y0, x1, y1, thick) => { // a beam or thick bar line: a parallelogram with vertical ends, raised like the ink
     const s = new THREE.Shape(), h = thick / 2 - grow;
     s.moveTo(x0, y0 - h); s.lineTo(x1, y1 - h); s.lineTo(x1, y1 + h); s.lineTo(x0, y0 + h); s.lineTo(x0, y0 - h);
@@ -1578,7 +1697,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
         let end = near(c) + d * (3.5 + extra);
         end = d > 0 ? Math.max(end, MID[c.staff]) : Math.min(end, MID[c.staff]);
         const sx = stemX(c, d);
-        line(sx, far(c) + d * STEM_DY, sx, end, LINE.stem);
+        stem(sx, far(c) + d * STEM_DY, end, LINE.stem);
         if (c.v < 1) { const f = FLAG[Math.min(2, lv[0] - 1)] + (d > 0 ? 'Up' : 'Down'); put(kind('flag:' + f, inkGlyph(f), ink), sx - LINE.stem / 2, end); }
         continue;
       }
@@ -1587,7 +1706,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
       let base = y0;
       g.forEach((c, i) => { const need = near(c) + d * (3.0 + (deep - 1) * 0.75), at = base + slope * (xs[i] - xs[0]); if ((need - at) * d > 0) base += need - at; });
       const at = (x) => base + slope * (x - xs[0]);
-      g.forEach((c, i) => line(xs[i], far(c) + d * STEM_DY, xs[i], at(xs[i]), LINE.stem));
+      g.forEach((c, i) => stem(xs[i], far(c) + d * STEM_DY, at(xs[i]), LINE.stem));
       for (let L = 1; L <= deep; L++) {
         const off = -d * ((L - 1) * 0.75 + 0.25), seg = (xa, xb) => slab(xa, at(xa) + off, xb, at(xb) + off, 0.5);
         if (L === 1) { seg(xs[0] - LINE.stem / 2, xs[xs.length - 1] + LINE.stem / 2); continue; }
@@ -1711,6 +1830,9 @@ export function buildPaper(T, tools, piece, opts = {}) {
     const slabChunks = new Map();
     for (const [x, s] of slabs) { const c = Math.floor(x / CHUNK); if (!slabChunks.has(c)) slabChunks.set(c, []); slabChunks.get(c).push(s); }
     for (const shapes of slabChunks.values()) { const g = domeOf(flat(extrude(shapes, { ...IP, curveSegments: 1, smooth: 30 })), 'ridge'); printed.add(cast(new THREE.Mesh(g, ink))); }
+    const stemChunks = new Map();
+    for (const [x, s] of stems) { const c = Math.floor(x / CHUNK); if (!stemChunks.has(c)) stemChunks.set(c, []); stemChunks.get(c).push(s); }
+    for (const shapes of stemChunks.values()) { const g = domeOf(flat(extrude(shapes, { ...IP, curveSegments: 1, smooth: 30 }))); printed.add(cast(new THREE.Mesh(g, ink))); }
   }
 
   // ---- the halos of the lit notes: one square per notehead, all in one draw; a note's square appears when it is played ----
@@ -1763,7 +1885,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
       m.frustumCulled = false; liveGroup.add(cast(m)); sysGlyphs.push([m, dx, y]);
       for (const [px, py] of geo.userData.pins) sysPins.push([dx + px, y + py]);
     }
-    sysPinMesh = new THREE.InstancedMesh(pinGeo, pinMat, 3 * sysPins.length); sysPinMesh.frustumCulled = false; liveGroup.add(cast(sysPinMesh));
+    if (sysPins.length) { sysPinMesh = new THREE.InstancedMesh(pinGeo, pinMat, 3 * sysPins.length); sysPinMesh.frustumCulled = false; liveGroup.add(cast(sysPinMesh)); } // (none while the signs stand solid)
     const N = LIVE.heads, hw = HEAD_W / 2, head = inkGlyph('noteheadBlack', -hw), g = new THREE.BufferGeometry();
     g.setIndex(head.index);
     for (const [n, a] of Object.entries(head.attributes)) g.setAttribute(n, a);
@@ -2061,14 +2183,21 @@ export function buildPaper(T, tools, piece, opts = {}) {
     for (let k = lo; k < n && T[k] <= t + r; k++) { const b = bend(t - T[k], sigma); for (let d = 0; d < dim; d++) out[d] += ds[k * dim + d] * b; }
     return out;
   }
-  const cine = { aspect: 0, c: null, pose: null, hands: null, need: null, dist: null, cuts: [], base: null, moves: [] };
-  const cv = new Float64Array(7), c1 = new Float64Array(1), cQ = new THREE.Quaternion(), cE = new THREE.Euler(0, 0, 0, 'YXZ'), cP = new THREE.Vector3(), cB = new THREE.Vector3();
+  // One plan per moving camera (CINE's 'cinematic', CLOSE's 'closeup'), each made once per picture shape; `cine` is
+  // the one in use (pickCam).
+  const newPlan = (style) => ({ style, aspect: 0, c: null, pose: null, hands: null, need: null, dist: null, cuts: [], base: null, moves: [] });
+  const plans = { cinematic: newPlan('cinematic'), closeup: newPlan('closeup') };
+  let cine = plans.cinematic;
+  const pickCam = (m) => { cineOn = Object.hasOwn(plans, m); if (cineOn) cine = plans[m]; };
+  const cv = new Float64Array(8), c1 = new Float64Array(1), c2 = new Float64Array(2), cQ = new THREE.Quaternion(), cE = new THREE.Euler(0, 0, 0, 'YXZ'), cP = new THREE.Vector3(), cB = new THREE.Vector3();
   const cR = new THREE.Vector3(), cU = new THREE.Vector3(), cF = new THREE.Vector3();
   const mix = (a, b, w) => a + (b - a) * w;
-  // The planned pose at t, into cv, and the place's page y (returned): the plan, then the hands' mean for the place.
+  // The planned pose at t, into cv, and the place's page y (returned): the plan, then the hands for the place (their
+  // mean, or one hand's ball as hb says: cine.hands holds the right hand's and the left hand's, smoothed).
   function cinePlace(t, c) {
     evalCurve(cine.pose, t, cv);
-    const hy = evalCurve(cine.hands, t, c1)[0];
+    evalCurve(cine.hands, t, c2);
+    const hy = (c2[0] + c2[1]) / 2 + (cv[7] * (c2[0] - c2[1])) / 2;
     return c.y + cv[5] * (hy - c.y) + cv[6] * (CINE.sysMid - c.y);
   }
   // the camera's right, up and forward for a tilt and heading (degrees), into cR, cU, cF; returns the quaternion cQ
@@ -2080,7 +2209,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
   // The Steady pose at t (already in pos, quat, ps; its heading yawS in radians, height hS, place xS / page y yS and
   // distance distS along its ray) moved W of the way to the planned one.
   function cineBlend(L, t, c, aspect, pos, quat, ps, W, yawS, hS, xS, yS, up, distS) {
-    if (cine.aspect !== aspect || cine.c !== c) buildCine(c, aspect);
+    if (cine.aspect !== aspect || cine.c !== c || !cine.pose) buildCine(c, aspect);
     const th = Math.tan((c.fov * DEG) / 2), tyP = cinePlace(t, c);
     const tilt = mix(c.tilt, cv[0], W), yaw = mix(yawS / DEG, cv[1], W), a0 = mix(c.at[0], cv[3], W), a1 = mix(c.at[1], cv[4], W);
     E.set(-tilt * DEG, yaw * DEG - Math.PI / 2, 0); quat.setFromEuler(E);
@@ -2147,32 +2276,53 @@ export function buildPaper(T, tools, piece, opts = {}) {
     const rd = rank('dens'), rv = rank('vel');
     return { cuts, energy: segs.map((_, i) => 0.5 * rd[i] + 0.5 * rv[i]) };
   }
-  // The whole plan for one camera and picture shape (once): the poses, the hands' mean, the framing.
+  // The whole plan for one camera and picture shape (once): the poses, the hands' places, the framing. Two styles:
+  // 'cinematic' (CINE: HIGH, LOW and MID2 poses by the music's energy and sections) and 'closeup' (CLOSE: CLOSE and
+  // WIDE taking turns, each close-up following one hand's ball).
   function buildCine(c, aspect) {
     cine.aspect = aspect; cine.c = c;
-    const L = layout, Fm = CINE[aspect < 1 ? 'tall' : 'wide'], th = Math.tan((c.fov * DEG) / 2), tx = th * aspect;
+    const close = cine.style === 'closeup', shape = aspect < 1 ? 'tall' : 'wide';
+    const L = layout, Fm = close ? CLOSE[shape] : CINE[shape], fams = close ? ['CLOSE', 'WIDE'] : ['HIGH', 'LOW', 'MID2'], push = close ? CLOSE.push : CINE.push, th = Math.tan((c.fov * DEG) / 2), tx = th * aspect;
     cineAxes(c.tilt, c.yaw);
     cP.set((2 * c.at[0] - 1) * tx, (1 - 2 * c.at[1]) * th, -1).applyQuaternion(cQ);
-    const base = [c.tilt, c.yaw, (c.h * cP.length()) / -cP.y, c.at[0], c.at[1], 0, 0];
+    const base = [c.tilt, c.yaw, (c.h * cP.length()) / -cP.y, c.at[0], c.at[1], 0, 0, 0];
     const { cuts, energy } = phrases(L);
     const ang = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]); // how far the view turns between two poses (deg)
     const tBack = L.tEnd - CINE.outW[0] - 2 * CINE.sigma, T = [], V = [], moves = []; // (back at the Steady pose, smoothing and all, before the blend out begins)
     const put = (t, p) => { if (T.length && t < T[T.length - 1] + 0.05) t = T[T.length - 1] + 0.05; T.push(t); V.push(...p); };
     put(L.t1 - 30, base);
-    let cur = base.slice(), fam = 'MID', lowSide = true, orbit = 1, lastHigh = -Infinity;
+    let cur = base.slice(), fam = 'MID', lowSide = true, orbit = 1, lastHigh = -Infinity, lastHand = 0, sameN = 0;
     // the return to the Steady pose before the end can need up to backMax s: no move starts so late that it could not
     // be held for a while and then make that return in time
     let angMax = 0;
-    for (const f of ['HIGH', 'LOW', 'MID2']) for (const e of [0, 1]) for (const sd of [false, true]) angMax = Math.max(angMax, ang(Fm[f](e, sd), base));
+    for (const f of fams) for (const e of [0, 1]) for (const sd of [false, true]) angMax = Math.max(angMax, ang(Fm[f](e, sd), base));
     const slack = CINE.orbitMax + Math.abs(CINE.tip.HIGH), backMax = Math.max(CINE.tMin, (angMax + slack) / CINE.rate);
-    const use = cuts.filter((q) => q.t - CINE.lead <= tBack - backMax - CINE.tMin - CINE.hold), starts = use.map((q) => q.t - CINE.lead);
+    // the close-ups dive in as the music begins: a first cut CLOSE.first s after the first note (when the first real
+    // cut is not close by), with the first phrase's energy
+    const all = close && (!cuts.length || cuts[0].t - L.t1 > CLOSE.first + CINE.lead + CINE.tMin + CINE.hold + 2) ? [{ t: L.t1 + CLOSE.first + CINE.lead, sec: false, first: true }, ...cuts] : cuts;
+    const eOf = (q) => (q.first ? energy[0] : energy[cuts.indexOf(q) + 1]);
+    const use = all.filter((q) => q.t - CINE.lead <= tBack - backMax - CINE.tMin - CINE.hold), starts = use.map((q) => q.t - CINE.lead);
+    // how much each hand plays between two times (its landings), for choosing which ball a close-up follows
+    const count = (h, a, b) => { let k = 0; for (const l of paths[h]) { if (l.t >= b) break; if (l.t >= a) k++; } return k; };
     for (let i = 0; i < use.length; i++) {
-      const s = starts[i], q = use[i], e = energy[cuts.indexOf(q) + 1];
-      let next = fam === 'HIGH' ? 'LOW' : fam === 'LOW' ? (e >= 0.35 || q.sec ? 'HIGH' : 'MID2') : e >= 0.55 ? 'HIGH' : 'LOW';
-      if (q.sec && fam !== 'HIGH') next = 'HIGH';
-      if (next === 'HIGH' && s - lastHigh < CINE.highGap) next = 'MID2'; // (no two cranes close together)
-      const side = next === 'LOW' ? (lowSide = !lowSide) : !lowSide;
-      const ideal = Fm[next](e, side);
+      const s = starts[i], q = use[i], e = eOf(q);
+      let next, hb = 0;
+      if (close) {
+        next = fam === 'CLOSE' ? 'WIDE' : 'CLOSE';
+        if (next === 'CLOSE') { // which ball: the hand with more to play here (the right hand counted CLOSE.rh times), with turns for variety
+          const b = i + 1 < use.length ? use[i + 1].t : L.tEnd, nR = count(0, q.t, b), nL = count(1, q.t, b);
+          let hand = nR * CLOSE.rh >= nL ? 0 : 1;
+          if (!nR && nL) hand = 1; else if (!nL && nR) hand = 0;
+          if (hand === lastHand && sameN >= CLOSE.same && (hand ? nR >= 0.5 * nL : nL >= 0.5 * nR)) hand = 1 - hand;
+          sameN = hand === lastHand ? sameN + 1 : 1; lastHand = hand; hb = hand ? -1 : 1;
+        }
+      } else {
+        next = fam === 'HIGH' ? 'LOW' : fam === 'LOW' ? (e >= 0.35 || q.sec ? 'HIGH' : 'MID2') : e >= 0.55 ? 'HIGH' : 'LOW';
+        if (q.sec && fam !== 'HIGH') next = 'HIGH';
+        if (next === 'HIGH' && s - lastHigh < CINE.highGap) next = 'MID2'; // (no two cranes close together)
+      }
+      const side = next === 'LOW' || next === 'CLOSE' ? (lowSide = !lowSide) : !lowSide;
+      const ideal = [...Fm[next](e, side), hb];
       // the last move's hold ends when the return must start (time for the furthest it can then be from the Steady pose)
       const end = i + 1 < use.length ? starts[i + 1] : tBack - Math.max(CINE.tMin, (Math.max(ang(cur, base), ang(ideal, base)) + slack) / CINE.rate);
       if (end - s < CINE.tMin + CINE.hold) continue; // no room for a move here: the pose before is held on
@@ -2184,21 +2334,23 @@ export function buildPaper(T, tools, piece, opts = {}) {
       // the hold: a slow orbit (alternating sides), a low view closing in, a high one opening out and tipping a little
       const hd = end - s - Tm, Pe = P.slice();
       Pe[1] += orbit * Math.min(CINE.orbitMax, CINE.orbit * hd); orbit = -orbit;
-      Pe[2] *= CINE.push[next] ?? 1; Pe[0] += (CINE.tip[next] ?? 0) * Math.min(1, hd / 10);
+      Pe[2] *= push[next] ?? 1; Pe[0] += (CINE.tip[next] ?? 0) * Math.min(1, hd / 10);
       put(end, Pe);
-      moves.push({ t: +s.toFixed(2), T: +Tm.toFixed(2), fam: next, e: +e.toFixed(2), sec: q.sec, A: +A.toFixed(1), shrunk: P !== ideal });
+      moves.push({ t: +s.toFixed(2), T: +Tm.toFixed(2), fam: next, e: +e.toFixed(2), sec: q.sec, A: +A.toFixed(1), shrunk: P !== ideal, hb });
       cur = Pe; fam = next; if (next === 'HIGH') lastHigh = s;
     }
     put(tBack, base); put(tBack + 30, base);
-    cine.pose = curve(T, V, 7, CINE.sigma); cine.cuts = cuts; cine.moves = moves; cine.base = base;
-    // the two hands' mean page y (where their balls are), smoothed
+    cine.pose = curve(T, V, 8, CINE.sigma); cine.cuts = cuts; cine.moves = moves; cine.base = base;
+    // each hand's page y (where its ball is; a hand with no ball here takes the other's, or the middle), smoothed (a
+    // close-up follows its ball more tightly)
     const Fr = CINE.frame, t0 = L.t1 - 3, t9 = L.tEnd + 3, HT = [], HV = [], tb = (t) => Math.min(t, L.tEnd); // (the balls' flight away at the very end does not count)
     for (let t = t0; t <= t9; t += Fr.knot) {
-      let s = 0, n = 0;
-      for (let h = 0; h < 2; h++) if (paths[h].length && ballAt(h, tb(t), L, c, aspect, cB)) { s += -cB.z; n++; }
-      HT.push(t); HV.push(n ? s / n : c.y);
+      const y = [null, null];
+      for (let h = 0; h < 2; h++) if (paths[h].length && ballAt(h, tb(t), L, c, aspect, cB)) y[h] = -cB.z;
+      const m = y[0] != null && y[1] != null ? (y[0] + y[1]) / 2 : y[0] ?? y[1] ?? c.y;
+      HT.push(t); HV.push(y[0] ?? m, y[1] ?? m);
     }
-    cine.hands = curve(HT, HV, 1, Fr.hands);
+    cine.hands = curve(HT, HV, 2, close ? CLOSE.follow : Fr.hands);
     // the framing: the least distance that keeps the notes each hand has just played or is about to play, and both
     // balls, inside the picture, every Fr.dt s (for the planned turn, place and framing point), held Fr.reach s
     const ch = [...S.chords].sort((a, b) => a.t - b.t), n = Math.ceil((t9 - t0) / Fr.dt) + 1, need = new Float64Array(n), why = (cine.why = new Int8Array(n)); // (why: which edge of the picture held it back, +4 for a ball; for tuning)
@@ -2208,15 +2360,18 @@ export function buildPaper(T, tools, piece, opts = {}) {
       cineAxes(cv[0], cv[1]);
       const ax = 2 * cv[3] - 1, ay = 1 - 2 * cv[4], x0 = camX(L, t);
       cP.copy(cF).addScaledVector(cR, ax * tx).addScaledVector(cU, ay * th); const len = cP.length();
+      // (a close-up keeps only the ball it follows, and the notes that ball lands on now, in the picture)
+      const only = close && Math.abs(cv[7]) > 0.5 ? (cv[7] > 0 ? 0 : 1) : -1, hold = only < 0 ? Fr.hold : CLOSE.frame.hold, ahead = only < 0 ? Fr.ahead : CLOSE.frame.ahead;
       let k = 0;
       const fit = (px, py, pz, m) => {
         const dx = px - x0, dy = py, dz = pz + y, X = dx * cR.x + dy * cR.y + dz * cR.z, Y = dx * cU.x + dy * cU.y + dz * cU.z, Z = dx * cF.x + dy * cF.y + dz * cF.z;
         const k0 = Math.max((X - m * tx * Z) / (tx * (m - ax)), (-X - m * tx * Z) / (tx * (m + ax)), (Y - m * th * Z) / (th * (m - ay)), (-Y - m * th * Z) / (th * (m + ay)));
         if (k0 > k) { k = k0; why[i] = (m === Fr.mBall ? 4 : 0) + (k0 === (X - m * tx * Z) / (tx * (m - ax)) ? 0 : k0 === (-X - m * tx * Z) / (tx * (m + ax)) ? 1 : k0 === (Y - m * th * Z) / (th * (m - ay)) ? 2 : 3); }
       };
-      for (let h = 0; h < 2; h++) if (t <= L.tEnd && paths[h].length && t >= paths[h][0].t - 0.2 && ballAt(h, t, L, c, aspect, cB)) { fit(cB.x, cB.y, cB.z, Fr.mBall); fit(cB.x, cB.y + 0.8, cB.z, Fr.mBall); }
+      for (let h = 0; h < 2; h++) if ((only < 0 || h === only) && t <= L.tEnd && paths[h].length && t >= paths[h][0].t - 0.2 && ballAt(h, t, L, c, aspect, cB)) { fit(cB.x, cB.y, cB.z, Fr.mBall); fit(cB.x, cB.y + 0.8, cB.z, Fr.mBall); }
       while (lo < ch.length && ch[lo].t < t - Fr.hold) lo++;
       for (let j = lo; j < ch.length && ch[j].t <= t + Fr.ahead; j++) {
+        if (ch[j].t < t - hold || ch[j].t > t + ahead || (only >= 0 && ch[j].staff !== only)) continue;
         const q = ch[j], y0 = q.heads[0].y, y1 = q.heads[q.heads.length - 1].y;
         for (const yy of [Math.min(y0, y1) - 0.7, Math.max(y0, y1) + 0.7]) { fit(q.x - 0.8, 0.1, -yy, Fr.m); fit(q.x + 0.8, 0.1, -yy, Fr.m); }
       }
@@ -2262,14 +2417,15 @@ export function buildPaper(T, tools, piece, opts = {}) {
       const t = t0 + i * Fr.dt, t2 = t + Fr.dt;
       if (t < L.t1 || t > L.tEnd) continue;
       let m = 0; spot.set(0, 0, 0);
-      for (let h = 0; h < 2; h++) if (paths[h].length && ballAt(h, tb(t), L, c, aspect, cB)) { spot.x += cB.x; spot.z += cB.z; m++; }
+      cinePlace(t, c); const only = close && Math.abs(cv[7]) > 0.5 ? (cv[7] > 0 ? 0 : 1) : -1; // (a close-up: the ball it follows)
+      for (let h = 0; h < 2; h++) if ((only < 0 || h === only) && paths[h].length && ballAt(h, tb(t), L, c, aspect, cB)) { spot.x += cB.x; spot.z += cB.z; m++; }
       if (!m) continue;
       spot.multiplyScalar(1 / m); spot.y = 0;
       const a = steadySeen(t), b = steadySeen(t2), vS = Math.max(0.15, Math.hypot(b[0] - a[0], b[1] - a[1]) / Fr.dt);
       let f = 1;
       for (let it = 0; it < 2; it++) {
         const p0 = planSeen(t, dBase[i] * f), p1 = planSeen(t2, dBase[i + 1] * f), v = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) / Fr.dt;
-        f = Math.min(2.5, Math.max(f, (f * v) / (CINE.sweep * vS)));
+        f = Math.min(2.5, Math.max(f, (f * v) / ((close ? CLOSE.sweep : CINE.sweep) * vS)));
       }
       if (f > 1) low[i] = Math.max(low[i], dBase[i] * f);
     }
@@ -2460,33 +2616,54 @@ export function buildPaper(T, tools, piece, opts = {}) {
   const sparkPool = new THREE.Mesh(sparkGeo, new THREE.ShaderMaterial({ uniforms: sparkPU, vertexShader: SPARK_POOL_VERT, fragmentShader: SPARK_POOL_FRAG, depthTest: false, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
   sparkPool.frustumCulled = false; sparkPool.visible = false; poolScene.add(sparkPool);
 
-  // The corner light's electric filaments: per hand one geometry holding ARCS filaments of ARC_PTS points each (the main
-  // one, then its branches), as the ARC_SEGS segments between them (four corners each), drawn twice (core and halo).
-  const EL = CORNER.electric, ARC_DYN = ['position', 'aP', 'aB', 'aN', 'aAl', 'aWd'];
-  // whether point i of a filament (0 .. ARC_PTS - 1) is the first or the last of its piece; the point each segment starts at
-  const arcFirst = (i) => i === 0 || (i > EL.n && (i - EL.n - 1) % (EL.bn + 1) === 0), arcLast = (i) => i === EL.n || (i > EL.n && (i - EL.n) % (EL.bn + 1) === 0);
-  const segAt = Int32Array.from({ length: ARC_PTS }, (_, i) => i).filter((i) => !arcLast(i)), ARC_SEGS = segAt.length;
-  const arcIdx = [], arcInvPV = { value: new THREE.Matrix4() }; // (the camera undone: world from the picture, for the filaments' depth)
-  for (let q = 0; q < ARCS * ARC_SEGS; q++) arcIdx.push(4 * q, 4 * q + 1, 4 * q + 2, 4 * q + 1, 4 * q + 3, 4 * q + 2);
-  const arcs = looks.map(() => {
-    const g = new THREE.BufferGeometry(), N = ARCS * ARC_SEGS * 4, dyn = (k) => new THREE.BufferAttribute(new Float32Array(N * k), k).setUsage(THREE.DynamicDrawUsage);
-    for (const [k, n] of [['position', 3], ['aP', 3], ['aB', 3], ['aN', 3], ['aAl', 2], ['aWd', 2]]) g.setAttribute(k, dyn(n));
-    g.setAttribute('aCorner', new THREE.BufferAttribute(Float32Array.from({ length: N * 2 }, (_, i) => (i & 1 ? ((i >> 1) & 1 ? 1 : -1) : (i >> 2) & 1)), 2));
-    g.setAttribute('aE', new THREE.BufferAttribute(Float32Array.from({ length: N }, (_, i) => (arcFirst(segAt[(i >> 2) % ARC_SEGS]) ? 1 : 0)), 1));
-    g.setIndex(arcIdx);
-    const mk = (w, minPx, dim, order, end) => {
-      const u = { uRes: lineU.uRes, uW: { value: w }, uMinPx: { value: minPx }, uColor: { value: new THREE.Vector3() }, uFade: { value: 1 }, uDim: { value: dim }, uEnd: { value: end }, uInvPV: arcInvPV };
-      const m = new THREE.Mesh(g, new THREE.ShaderMaterial({ uniforms: u, vertexShader: ARC_VERT, fragmentShader: ARC_FRAG, transparent: true, depthWrite: false, side: THREE.DoubleSide,
-        blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor }));
-      m.frustumCulled = false; m.visible = false; m.renderOrder = order; scene.add(m);
-      return m;
-    };
-    return { geo: g, halo: mk(EL.halo, EL.haloPx, EL.haloDim, 8, 1), core: mk(EL.w, EL.minPx, EL.dim, 8.5, 0) };
-  });
+  // Bolts of current (the corner light's electric bolts, and the electric notes, ZAP): a kit holds, per hand, one
+  // geometry of `count` bolts of PTS points each (the main channel of n steps, then `branches` forks of bn steps), as
+  // the SEGS segments between them (four corners each), drawn twice (the hard core and the soft halo: [w, minPx, dim]
+  // and [halo, haloPx, haloDim] of the style's settings, at drawing order `order`). Each frame the bolts' points go into
+  // the kit's QX, QZ, QA (brightness), QW (width) one bolt at a time, and writeArc lays them into its geometry.
+  const ARC_DYN = ['position', 'aP', 'aB', 'aN', 'aAl', 'aWd'], arcInvPV = { value: new THREE.Matrix4() }; // (the camera undone: world from the picture, for the bolts' depth)
+  function arcKit(st, count, order) {
+    const { n, branches, bn } = st, PTS = n + 1 + branches * (bn + 1);
+    // whether point i of a bolt (0 .. PTS - 1) is the first or the last of its piece; the point each segment starts at
+    const first = (i) => i === 0 || (i > n && (i - n - 1) % (bn + 1) === 0), last = (i) => i === n || (i > n && (i - n) % (bn + 1) === 0);
+    const segAt = Int32Array.from({ length: PTS }, (_, i) => i).filter((i) => !last(i)), SEGS = segAt.length, idx = [];
+    for (let q = 0; q < count * SEGS; q++) idx.push(4 * q, 4 * q + 1, 4 * q + 2, 4 * q + 1, 4 * q + 3, 4 * q + 2);
+    const hands = looks.map(() => {
+      const g = new THREE.BufferGeometry(), N = count * SEGS * 4, dyn = (k) => new THREE.BufferAttribute(new Float32Array(N * k), k).setUsage(THREE.DynamicDrawUsage);
+      for (const [k, d] of [['position', 3], ['aP', 3], ['aB', 3], ['aN', 3], ['aAl', 2], ['aWd', 2]]) g.setAttribute(k, dyn(d));
+      g.setAttribute('aCorner', new THREE.BufferAttribute(Float32Array.from({ length: N * 2 }, (_, i) => (i & 1 ? ((i >> 1) & 1 ? 1 : -1) : (i >> 2) & 1)), 2));
+      g.setAttribute('aE', new THREE.BufferAttribute(Float32Array.from({ length: N }, (_, i) => (first(segAt[(i >> 2) % SEGS]) ? 1 : 0)), 1));
+      g.setIndex(idx);
+      const mk = (w, minPx, dim, ord, end) => {
+        const u = { uRes: lineU.uRes, uW: { value: w }, uMinPx: { value: minPx }, uColor: { value: new THREE.Vector3() }, uFade: { value: 1 }, uDim: { value: dim }, uEnd: { value: end }, uHard: { value: 1 - end }, uInvPV: arcInvPV };
+        const m = new THREE.Mesh(g, new THREE.ShaderMaterial({ uniforms: u, vertexShader: ARC_VERT, fragmentShader: ARC_FRAG, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+          blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor }));
+        m.frustumCulled = false; m.visible = false; m.renderOrder = ord; scene.add(m);
+        return m;
+      };
+      return { geo: g, halo: mk(st.halo, st.haloPx, st.haloDim, order, 1), core: mk(st.w, st.minPx, st.dim, order + 0.5, 0) };
+    });
+    return { st, n, branches, bn, count, PTS, SEGS, segAt, first, last, hands, QX: new Float32Array(PTS), QZ: new Float32Array(PTS), QA: new Float32Array(PTS), QW: new Float32Array(PTS) };
+  }
+  // bolt a of hand h: its segments from the kit's points, each with the points before and after it on its piece (itself
+  // at the piece's ends), at all four corners
+  function writeArc(K, h, a) {
+    const g = K.hands[h].geo.attributes, { QX, QZ, QA, QW, segAt, first, last, SEGS } = K;
+    const PA = g.position.array, PP = g.aP.array, PB = g.aB.array, PN = g.aN.array, AL = g.aAl.array, WD = g.aWd.array;
+    for (let s = 0; s < SEGS; s++) {
+      const i = segAt[s], p = first(i) ? i : i - 1, q = last(i + 1) ? i + 1 : i + 2;
+      for (let c = 0, v = 4 * (a * SEGS + s); c < 4; c++, v++) {
+        PA[3 * v] = QX[i]; PA[3 * v + 1] = 0.02; PA[3 * v + 2] = QZ[i]; PB[3 * v] = QX[i + 1]; PB[3 * v + 1] = 0.02; PB[3 * v + 2] = QZ[i + 1];
+        PP[3 * v] = QX[p]; PP[3 * v + 1] = 0.02; PP[3 * v + 2] = QZ[p]; PN[3 * v] = QX[q]; PN[3 * v + 1] = 0.02; PN[3 * v + 2] = QZ[q];
+        AL[2 * v] = QA[i]; AL[2 * v + 1] = QA[i + 1]; WD[2 * v] = QW[i]; WD[2 * v + 1] = QW[i + 1];
+      }
+    }
+  }
+  const EL = CORNER.electric, kitE = arcKit(EL, ARCS, 8), arcs = kitE.hands, kitZ = arcKit(ZAP, ZAP.notes * ZAP.bolts, 8.6), zaps = kitZ.hands;
   // Where the ray through a point of the picture (nx, ny: -1..1) meets the paper: into cp (world x, z); returns its
   // distance from the camera.
-  const rayV = new THREE.Vector3(), cp = { x: 0, z: 0 }, AX = new Float32Array(ARC_PTS), AZ = new Float32Array(ARC_PTS), AG = new Float32Array(EL.n + 1);
-  const QX = new Float32Array(ARC_PTS), QZ = new Float32Array(ARC_PTS), QA = new Float32Array(ARC_PTS), QW = new Float32Array(ARC_PTS); // (one filament's points)
+  const rayV = new THREE.Vector3(), cp = { x: 0, z: 0 }, AX = new Float32Array(ARC_PTS), AZ = new Float32Array(ARC_PTS);
+  const { QX, QZ, QA, QW } = kitE; // (one corner bolt's points)
   function onPaper(camera, nx, ny) {
     rayV.set(nx, ny, 0.5).unproject(camera).sub(camera.position);
     const s = camera.position.y / Math.max(-rayV.y, 1e-4);
@@ -2494,17 +2671,26 @@ export function buildPaper(T, tools, piece, opts = {}) {
     return s * rayV.length();
   }
   const bandOf = (h, py) => { const [a, b] = CORNER.band[h]; return sstep(0, 1, (py - a) / (b - a)); };
-  // One filament (slot a of hand h) for a trigger: from a point on the frame edge near the corner (chosen by the seed)
-  // toward the note it was set off by, stopping short of the music (EL.stop); a jagged walk whose heading wanders (and
-  // crawls a little with time), with a few branches; it grows from the edge, thins and dims toward its tip. Returns
-  // its brightness (0: nothing drawn) and leaves its middle in cp, for its glow on the paper.
+  // One bolt (slot a of hand h) for a trigger (see CORNER.electric): from its terminal on the frame edge near the corner
+  // (chosen by the seed) toward the note it was set off by, stopping short of the music; a fractal, jagged channel of
+  // current with forks, re-struck EL.hz times a second (a new shape each time), a pulse running along it, the leader
+  // growing from the edge, thinning and dimming toward its tip. Returns its brightness (0: nothing drawn) and leaves
+  // its middle in cp, for its light on the paper.
+  const MD = new Float32Array(2 * (EL.n + 1)); // (one piece's points while it is split)
+  function bolt(x0, z0, x1, z1, n, sd, salt, rough) { // midpoint displacement from (x0, z0) to (x1, z1) in n (2^k) steps, into MD
+    MD[0] = x0; MD[1] = z0; MD[2 * n] = x1; MD[2 * n + 1] = z1;
+    for (let step = n; step > 1; step >>= 1) for (let i = 0; i < n; i += step) {
+      const j = i + step, m = i + (step >> 1), ax = MD[2 * i], az = MD[2 * i + 1], bx = MD[2 * j], bz = MD[2 * j + 1];
+      const dx = bx - ax, dz = bz - az, off = rough * (2 * hash01(sd, salt + m * 31 + step) - 1); // (sideways, a share of the piece's length)
+      MD[2 * m] = (ax + bx) / 2 - dz * off; MD[2 * m + 1] = (az + bz) / 2 + dx * off;
+    }
+  }
   function fillArc(h, a, tau, seed, nx, ny, S, camera, kr) {
-    const g = arcs[h].geo.attributes;
-    const env0 = tau < 0 || tau > EL.life ? 0 : sstep(0, 0.03, tau) * Math.exp(-tau / EL.decay) * (1 - sstep(EL.life - 0.1, EL.life, tau));
-    // a soft flicker, smooth in time (two slow waves, seeded): a little in the filament, more in its light on the paper
-    const fl = 0.6 * Math.sin(6.283 * (EL.flickHz[0] * tau + hash01(seed, 5))) + 0.4 * Math.sin(6.283 * (EL.flickHz[1] * tau + hash01(seed, 6)));
-    const env = env0 * (1 + EL.flick[0] * fl);
-    // the start: along the frame edge (two straight pieces round the corner), a little outside the picture
+    const env0 = tau < 0 || tau > EL.life ? 0 : sstep(0, 0.02, tau) * Math.exp(-tau / EL.decay) * (1 - sstep(EL.life - 0.12, EL.life, tau));
+    // the strikes: a new shape EL.hz times a second, each flashing brighter as it strikes and settling
+    const sk = Math.floor(tau * EL.hz), ph = tau * EL.hz - sk, sd = (seed + Math.imul(sk + 1, 0x9e3779b1)) >>> 0;
+    const flash = Math.exp(-ph * 3.2), env = env0 * (1 - EL.flick[0] + EL.flick[0] * (0.35 + 0.65 * flash)) * (1 + EL.flash * flash);
+    // the terminal: along the frame edge (two straight pieces round the corner), a little outside the picture
     const ed = EL.edge[h], l1 = Math.hypot(ed[1][0] - ed[0][0], ed[1][1] - ed[0][1]), l2 = Math.hypot(ed[2][0] - ed[1][0], ed[2][1] - ed[1][1]);
     let v = hash01(seed, 1) * (l1 + l2), ex, ey;
     if (v < l1) { v /= l1; ex = ed[0][0] + (ed[1][0] - ed[0][0]) * v; ey = ed[0][1] + (ed[1][1] - ed[0][1]) * v; } else { v = (v - l1) / l2; ex = ed[1][0] + (ed[2][0] - ed[1][0]) * v; ey = ed[1][1] + (ed[2][1] - ed[1][1]) * v; }
@@ -2516,43 +2702,39 @@ export function buildPaper(T, tools, piece, opts = {}) {
     rayV.set(x0 + dx * S, 0, z0 + dz * S).project(camera);
     // (in the tall picture a little shorter: its height is so much larger than its width)
     let L = Math.min(3 * S * kr, (EL.len * kr * Math.sqrt(Math.min(1, camera.aspect)) * S) / Math.max(0.5 * Math.hypot((rayV.x - sx) * camera.aspect, rayV.y - sy), 0.05));
-    const stop = h === 0 ? TOP[0] + EL.stop : BOTTOM[1] - EL.stop, dpy = -dz;
+    const stop = h === 0 ? TOP[0] + EL.stop : BOTTOM[1] - EL.stop;
+    // each strike leans a little to one side or the other of the straight way (seeded), so the strikes fan out
+    const lean = 0.35 * (2 * hash01(sd, 3) - 1), cl = Math.cos(lean), sl = Math.sin(lean), ddx = dx * cl - dz * sl, ddz = dx * sl + dz * cl, dpy = -ddz;
     if (h === 0 && dpy < 0) L = Math.min(L, (py0 - stop) / -dpy); else if (h === 1 && dpy > 0) L = Math.min(L, (stop - py0) / dpy);
     const on = env > 0.002 && L > 1;
-    const grow = sstep(0, EL.grow, tau) * 1.1, step = L / EL.n, ang = Math.atan2(dz, dx);
+    const grow = sstep(0, EL.grow, tau) * 1.1, u = (tau * EL.pulseHz) % 1; // (the leader's reach; where the pulse of current is, 0..1 along the bolt)
+    const lit = (f) => 1 + EL.pulse * Math.exp(-(((f - u) / EL.pulseW) ** 2)); // (the pulse brightens where it passes)
     let k = 0, cx = 0, cz = 0;
-    // the main filament, then the branches
-    for (let b = 0; b <= EL.branches; b++) {
-      const len = b ? EL.bn : EL.n, root = b ? 2 + Math.floor(hash01(seed, 70 + b) * (EL.n - 5)) : 0;
-      let x = b ? AX[root] : x0, z = b ? AZ[root] : z0, hd = b ? AG[root] + (hash01(seed, 80 + b) < 0.5 ? -1 : 1) * (0.45 + 0.5 * hash01(seed, 90 + b)) : ang, dev = 0;
-      const st = b ? step * 0.55 : step, f0 = b ? root / EL.n : 0, df = b ? 0.55 / EL.n : 1 / EL.n, kb = b ? 0.6 : 1;
-      for (let i = 0; i <= len; i++, k++) {
-        if (i > 0) {
-          const s0 = 100 * b + 10 + i;
-          dev = 0.55 * dev + EL.wiggle * (2 * hash01(seed, s0) - 1) + EL.crawl * Math.sin(tau * 21 + 6.283 * hash01(seed, s0 + 50));
-          const hh = hd + dev, s = st * (0.75 + 0.5 * hash01(seed, s0 + 25));
-          x += Math.cos(hh) * s; z += Math.sin(hh) * s;
-          if (!b) AG[i] = hh;
-        } else if (!b) AG[0] = ang;
-        if (!b) { AX[i] = x; AZ[i] = z; }
-        const f = f0 + i * df;
-        const al = on ? env * kb * (1 - 0.45 * Math.pow(Math.min(f, 1), 1.5)) * (i === len ? 0.25 : 1) * (1 - sstep(grow - 0.12, grow, f)) * bandOf(h, -z) : 0;
-        QX[k] = x; QZ[k] = z; QA[k] = al; QW[k] = (1 - 0.55 * Math.min(f, 1)) * (b ? 0.7 : 1) * ws;
-        if (!b && i === EL.n >> 1) { cx = x; cz = z; }
+    // the main channel
+    bolt(x0, z0, x0 + ddx * L, z0 + ddz * L, EL.n, sd, 100, EL.rough);
+    for (let i = 0; i <= EL.n; i++, k++) {
+      const x = MD[2 * i], z = MD[2 * i + 1], f = i / EL.n;
+      AX[i] = x; AZ[i] = z;
+      QX[k] = x; QZ[k] = z; QW[k] = (1 - 0.5 * f) * ws;
+      QA[k] = on ? env * (1 - 0.4 * Math.pow(f, 1.5)) * (i === EL.n ? 0.3 : 1) * (1 - sstep(grow - 0.1, grow, f)) * lit(f) * bandOf(h, -z) : 0;
+      if (i === EL.n >> 1) { cx = x; cz = z; }
+    }
+    // the forks: from a point of the main channel, off to one side, each its own small fractal bolt
+    for (let b = 1; b <= EL.branches; b++) {
+      const root = 2 + Math.floor(hash01(sd, 70 + b) * (EL.n - 6)), rx = AX[root], rz = AZ[root];
+      const hx = AX[root + 1] - AX[root - 1], hz = AZ[root + 1] - AZ[root - 1], hl = Math.hypot(hx, hz) || 1;
+      const turn = (hash01(sd, 80 + b) < 0.5 ? -1 : 1) * (EL.forkAng[0] + (EL.forkAng[1] - EL.forkAng[0]) * hash01(sd, 90 + b)), c = Math.cos(turn), sn = Math.sin(turn);
+      const fx = (hx / hl) * c - (hz / hl) * sn, fz = (hx / hl) * sn + (hz / hl) * c, len = L * (EL.fork[0] + (EL.fork[1] - EL.fork[0]) * hash01(sd, 60 + b)), f0 = root / EL.n;
+      bolt(rx, rz, rx + fx * len, rz + fz * len, EL.bn, sd, 1000 * b, EL.rough * 1.1);
+      for (let i = 0; i <= EL.bn; i++, k++) {
+        const x = MD[2 * i], z = MD[2 * i + 1], fb = i / EL.bn, f = f0 + fb * (len / L);
+        QX[k] = x; QZ[k] = z; QW[k] = (1 - 0.5 * Math.min(f, 1)) * (1 - 0.5 * fb) * 0.7 * ws;
+        QA[k] = on ? env * 0.7 * (1 - 0.6 * fb) * (i === EL.bn ? 0.2 : 1) * (1 - sstep(grow - 0.1, grow, f)) * lit(f) * bandOf(h, -z) : 0;
       }
     }
-    // its segments, each with the points before and after it on its piece (itself at the piece's ends), at all four corners
-    const PA = g.position.array, PP = g.aP.array, PB = g.aB.array, PN = g.aN.array, AL = g.aAl.array, WD = g.aWd.array;
-    for (let s = 0; s < ARC_SEGS; s++) {
-      const i = segAt[s], p = arcFirst(i) ? i : i - 1, q = arcLast(i + 1) ? i + 1 : i + 2;
-      for (let c = 0, v = 4 * (a * ARC_SEGS + s); c < 4; c++, v++) {
-        PA[3 * v] = QX[i]; PA[3 * v + 1] = 0.02; PA[3 * v + 2] = QZ[i]; PB[3 * v] = QX[i + 1]; PB[3 * v + 1] = 0.02; PB[3 * v + 2] = QZ[i + 1];
-        PP[3 * v] = QX[p]; PP[3 * v + 1] = 0.02; PP[3 * v + 2] = QZ[p]; PN[3 * v] = QX[q]; PN[3 * v + 1] = 0.02; PN[3 * v + 2] = QZ[q];
-        AL[2 * v] = QA[i]; AL[2 * v + 1] = QA[i + 1]; WD[2 * v] = QW[i]; WD[2 * v + 1] = QW[i + 1];
-      }
-    }
+    writeArc(kitE, h, a);
     cp.x = cx; cp.z = cz;
-    return on ? env0 * (1 + EL.flick[1] * fl) : 0;
+    return on ? env0 * (1 - EL.flick[1] + EL.flick[1] * (0.4 + 0.6 * flash)) : 0;
   }
   // The corner light at time t (style: an index into CORNER.ids, 0 = off): its uniforms and filaments.
   // K: its strength, 0..1 (CORNER.strength: kb scales the brightness of each style, kr its size and reach).
@@ -2622,6 +2804,83 @@ export function buildPaper(T, tools, piece, opts = {}) {
       }
     }
   }
+  // The electric notes (ZAP) at time t, K their strength (0..1, more than 0), fade: the balls' fade.
+  const zapOff = () => { for (const z of zaps) z.halo.visible = z.core.visible = false; };
+  const zapCol = [new THREE.Vector3(), new THREE.Vector3()], lumOf = (v) => 0.2126 * v.x + 0.7152 * v.y + 0.0722 * v.z;
+  function zap(t, live, camera, pr, fade, K) {
+    const Z = ZAP, kz = kitZ, nCr = Math.round(1 + (Z.bolts - 2) * K), kl = 0.7 + 0.6 * K, kb = 0.6 + 0.8 * K;
+    arcInvPV.value.multiplyMatrices(camera.matrixWorld, camera.projectionMatrixInverse);
+    for (let h = 0; h < 2; h++) {
+      const zh = zaps[h];
+      zh.halo.visible = zh.core.visible = true;
+      let a = 0;
+      // one landing at page (x, y), the note before at (px, py) (NaN: none), tau s ago
+      const one = (x, y, px, py, tau, seed) => {
+        const env0 = tau < 0 || tau > Z.life ? 0 : sstep(0, 0.015, tau) * Math.exp(-tau / Z.decay) * (1 - sstep(Z.life - 0.1, Z.life, tau));
+        const sk = Math.floor(tau * Z.hz), ph = tau * Z.hz - sk, sd = (seed + Math.imul(sk + 1, 0x9e3779b1)) >>> 0, env = env0 * (1 + Z.flash * Math.exp(-ph * 3.2));
+        for (let b = 0; b < Z.bolts && a < kz.count; b++) {
+          let x0, z0, x1, z1, ok = env > 0.002;
+          if (b === 0) { // the jump from the note before
+            const d = Math.hypot(x - px, y - py), ux = (x - px) / (d || 1), uy = (y - py) / (d || 1);
+            if (!(d <= Z.reach) || d < 2 * Z.r0 + 0.3) ok = false; // (NaN: no note before)
+            x0 = px + ux * Z.r0; z0 = -(py + uy * Z.r0); x1 = x - ux * Z.r0; z1 = -(y - uy * Z.r0);
+            if (!ok) { x0 = x1 = x; z0 = z1 = -y; }
+          } else { // a crackle off the head
+            if (b > nCr) ok = false;
+            const ang = 6.2832 * hash01(seed, 40 + b) + 0.6 * (2 * hash01(sd, 50 + b) - 1), len = kl * (Z.len[0] + (Z.len[1] - Z.len[0]) * hash01(sd, 60 + b)), ca = Math.cos(ang), sa = Math.sin(ang);
+            x0 = x + ca * Z.r0; z0 = -(y + sa * Z.r0 * 0.85); x1 = x + ca * (Z.r0 + len); z1 = -(y + sa * (Z.r0 * 0.85 + len));
+          }
+          bolt(x0, z0, x1, z1, Z.n, sd, 200 + 97 * b, EL.rough);
+          let k = 0;
+          for (let i = 0; i <= Z.n; i++, k++) {
+            const f = i / Z.n;
+            kz.QX[k] = MD[2 * i]; kz.QZ[k] = MD[2 * i + 1]; kz.QW[k] = b ? 1 - 0.6 * f : 1;
+            kz.QA[k] = ok ? env * kb * (b ? (1 - 0.7 * f) * (i === Z.n ? 0.15 : 1) : 1 - 0.5 * Math.abs(2 * f - 1) ** 3) : 0;
+          }
+          // its fork, from a point along it, off to one side
+          const root = 2 + Math.floor(hash01(sd, 300 + b) * (Z.n - 4)), rx = kz.QX[root], rz = kz.QZ[root];
+          const hx = kz.QX[root + 1] - kz.QX[root - 1], hz = kz.QZ[root + 1] - kz.QZ[root - 1], hl = Math.hypot(hx, hz) || 1, turn = (hash01(sd, 310 + b) < 0.5 ? -1 : 1) * (0.4 + 0.5 * hash01(sd, 320 + b)), c = Math.cos(turn), sn = Math.sin(turn);
+          const fl = 0.45 * Math.hypot(x1 - x0, z1 - z0) * (0.5 + 0.5 * hash01(sd, 330 + b)), fx = ((hx * c - hz * sn) / hl) * fl, fz = ((hx * sn + hz * c) / hl) * fl;
+          bolt(rx, rz, rx + fx, rz + fz, Z.bn, sd, 400 + 97 * b, EL.rough);
+          for (let i = 0; i <= Z.bn; i++, k++) {
+            const f = i / Z.bn;
+            kz.QX[k] = MD[2 * i]; kz.QZ[k] = MD[2 * i + 1]; kz.QW[k] = 0.7 * (1 - 0.6 * f);
+            kz.QA[k] = ok ? env * kb * 0.6 * (1 - 0.7 * f) * (i === Z.bn ? 0.1 : 1) : 0;
+          }
+          writeArc(kz, h, a++);
+        }
+      };
+      if (!live) {
+        const list = paths[h];
+        if (list.length && t >= list[0].t) {
+          const lo = lastAt(list, t);
+          for (let k = 0; k < Z.notes && lo - k >= 0; k++) {
+            const i = lo - k, l = list[i], tau = t - l.t;
+            if (tau > Z.life) break;
+            const p = i > 0 ? list[i - 1] : null;
+            one(l.x, l.y, p ? p.x : NaN, p ? p.y : NaN, tau, (i * 2 + h + 0x5a17) & 0xffffff);
+          }
+        }
+      } else {
+        const lc = liveCh[h], m = Math.min(lc.n, LIVE_CH);
+        for (let k = 0; k < m && k < Z.notes; k++) {
+          const j = (lc.n - 1 - k) % LIVE_CH, tau = t - lc.t[j];
+          if (tau < 0) continue;
+          if (tau > Z.life) break;
+          const jp = k + 1 < m ? (lc.n - 2 - k) % LIVE_CH : -1;
+          one(lc.x[j], lc.y[j], jp >= 0 ? lc.x[jp] : NaN, jp >= 0 ? lc.y[jp] : NaN, tau, lc.seed[j]);
+        }
+      }
+      kz.QA.fill(0);
+      for (; a < kz.count; a++) writeArc(kz, h, a); // (the rest: dark)
+      const v = lightOf(zapCol[h], looks[h].ballHalo, 1, 1, 1), cc = zh.core.material.uniforms.uColor.value, hc = zh.halo.material.uniforms.uColor.value;
+      cc.copy(v).lerp(WHITE, Z.white); hc.copy(v);
+      cc.multiplyScalar(Z.lum / lumOf(cc)); hc.multiplyScalar(Z.haloLum / lumOf(hc));
+      zh.core.material.uniforms.uMinPx.value = Z.minPx * pr; zh.halo.material.uniforms.uMinPx.value = Z.haloPx * pr;
+      zh.core.material.uniforms.uFade.value = zh.halo.material.uniforms.uFade.value = fade;
+      for (const k of ARC_DYN) zh.geo.attributes[k].needsUpdate = true;
+    }
+  }
   // The glows as lights (GLINT): the next free one at world (x, y, z), radius r, colour col x k; into the 3D pieces'
   // uniforms (view space) and the lines' (world space).
   let glowN = 0, glowCam = null;
@@ -2689,13 +2948,23 @@ export function buildPaper(T, tools, piece, opts = {}) {
     paperTone = pt;
     const dk = pt.dark ? DARK[pt.dark] : null, FD = F && dk ? F.dark || {} : null;
     paperU.uTintNear.value.copy(tintOf(pt.near)); paperU.uTintFar.value.copy(tintOf(pt.far)); paperU.uCap.value = LIGHT.cap * pt.expo;
-    paperU.uLook.value.set(pt.tone[0], pt.tone[1], SHADE.bump * pt.grain, SHADE.cockle);
+    paperU.uLook.value.set(pt.tone[0], pt.tone[1], SHADE.bump * pt.grain, pt.marble ? 0 : SHADE.cockle); // (polished stone lies flat)
     // a dark paper (DARK): light ink, its lamp, softer marks of the glows, the satin sheen
     darkOn(!!dk);
     paperU.uShade.value.x = dk ? dk.amb : SHADE.amb;
-    paperU.uDark.value.set(dk ? dk.pool : 1, dk ? dk.corner : 1, dk ? dk.sheen : 0, dk ? dk.room : 0);
-    if (dk) { const pk = LIGHT.cap * pt.expo, tn = tintOf(pt.near), tf = tintOf(pt.far); paperU.uSheenC.value.set(srgbLin(pk * (tn.x + tf.x) / 2), srgbLin(pk * (tn.y + tf.y) / 2), srgbLin(pk * (tn.z + tf.z) / 2)); }
-    paperU.uRefl.value.set(REFL.k * (dk ? dk.refl : 1), dk ? dk.gloss : REFL.gloss, 0, REFL.narrow);
+    const pol = !dk && pt.polish; // (light marble's polish: its mirror of the lit notes and its sheen, as a dark paper's)
+    paperU.uDark.value.set(dk ? dk.pool : 1, dk ? dk.corner : 1, dk ? dk.sheen : pol ? pol[2] : 0, dk ? dk.room : pol ? pol[3] : 0);
+    // marble: its veins (MARBLE), their colour over the stone's
+    marbleOn(!!pt.marble);
+    if (pt.marble) {
+      // the veins' colour (linear; THREE.Color reads the hex as sRGB) over the stone's own in full light (its tint at the
+      // paper's peak, cap x expo, as the shader lights it), channel by channel
+      const mb = pt.marble, tn = tintOf(pt.near), vc = new THREE.Color(mb.vein), sl = (c, t) => c / Math.max(1e-4, srgbLin(Math.min(1, LIGHT.cap * pt.expo * t)));
+      paperU.uVein.value.set(sl(vc.r, tn.x), sl(vc.g, tn.y), sl(vc.b, tn.z));
+      paperU.uMarble.value.set(1 / mb.size, mb.warp, mb.w[0], mb.w[1]); paperU.uMarbleK.value.set(...mb.k);
+    }
+    if (dk || pol) { const pk = LIGHT.cap * pt.expo, tn = tintOf(pt.near), tf = tintOf(pt.far); paperU.uSheenC.value.set(srgbLin(pk * (tn.x + tf.x) / 2), srgbLin(pk * (tn.y + tf.y) / 2), srgbLin(pk * (tn.z + tf.z) / 2)); }
+    paperU.uRefl.value.set(REFL.k * (dk ? dk.refl : pol ? pol[0] : 1), dk ? dk.gloss : pol ? pol[1] : REFL.gloss, 0, REFL.narrow);
     haloU.uDim.value = dk ? dk.haloDim : GLOW.dim;
     if (!F) {
       ink.color.set(pt.ink); headMat.color.set(pt.ink); inkLinear.set(dk ? dk.line : pt.ink);
@@ -2713,13 +2982,13 @@ export function buildPaper(T, tools, piece, opts = {}) {
   // what the last frame drew, for checking it from outside: the balls' centres (world), whether each is shown, the fades
   const probe = { balls: [new THREE.Vector3(), new THREE.Vector3()], shown: [false, false], corner: 'off', sparks: 0, fade: 1, ballFade: 1, tc: layout ? layout.tc : null, tEnd: layout ? layout.tEnd : null, camera: null, t: 0, glows: 0 };
   function render(t, camera, o = {}) {
-    const c = camFor(camera.aspect, o.motion !== false), live = !!o.live || !S, L = live ? liveLayout : layout;
+    pickCam(o.camMove); // (a moving camera chosen on purpose moves even with the gentle movement off: that only calms Steady)
+    const c = camFor(camera.aspect, o.motion !== false || cineOn), live = !!o.live || !S, L = live ? liveLayout : layout;
     if (camera.fov !== c.fov || camera.near !== NEAR || camera.far !== FAR) { camera.fov = c.fov; camera.near = NEAR; camera.far = FAR; camera.updateProjectionMatrix(); }
     printed.visible = !live; liveGroup.visible = live;
     if (printedPools) printedPools.visible = !live;
     if (LG.pools) LG.pools.visible = live;
     if (live) liveBase = Math.floor(t / LIVE.period) * LIVE.period;
-    cineOn = o.camMove === 'cinematic';
     const p = place(camera, L, t, c);
     camera.updateMatrixWorld();
     if (live) drawLive(o.live || NONE, p.x, c.live || 0);
@@ -2808,6 +3077,9 @@ export function buildPaper(T, tools, piece, opts = {}) {
     const cs = Math.max(0, CORNER.ids.indexOf(o.corner)), np = Math.round(Math.min(1, Math.max(0, Number(o.sparks) || 0)) * SPARK.max);
     if (cs || np) touches(t, live, np, linB);
     if (cs) corner(cs, camera, o.pr || 1, linS, Math.min(1, Math.max(0, o.cornerK ?? 0.5))); else cornerOff();
+    const zk = clamp01(o.zap ?? 0); // the electric notes (optional)
+    if (zk > 0 && linB > 0) zap(t, live, camera, o.pr || 1, linB, zk); else zapOff();
+    probe.zap = zk;
     sparkMesh.visible = sparkPool.visible = np > 0;
     if (np) {
       sparkGeo.instanceCount = np * 2 * SPARK.slots; sparkMU.uMinPx.value = SPARK.minPx * (o.pr || 1); sparkMU.uFade.value = linB;
@@ -2831,8 +3103,8 @@ export function buildPaper(T, tools, piece, opts = {}) {
   const setPaper = (id) => applyPaper(paperOf(id));
 
   return { scene, render, setHands, setPaper, paperId: () => paperTone.id, finish: fid, bloom: { get pass() { return paperTone.dark ? DARK[paperTone.dark].bloom : GLOW.bloom; }, mips: GLOW.bloomMips }, layout: S, heads, hands, balls, paths, ballAt: (hand, t, aspect = 16 / 9, p = new THREE.Vector3(), motion = true) => (layout && ballAt(hand, t, layout, camFor(aspect, motion), aspect, p) ? p : null),
-    pose, probe, framing: frm, cine,
+    pose, probe, framing: frm, get cine() { return cine; }, plans,
     // the camera's pose at music time t for a picture shape, without drawing (for checking the motion from outside)
-    poseOf: (t, aspect, pos, quat, camMove = 'steady', motion = true) => { const keep = cineOn; cineOn = camMove === 'cinematic'; const r = layout ? poseAt(layout, t, camFor(aspect, motion), aspect, poseV, poseR, poseQ) : null; cineOn = keep; if (r) { pos.x = poseV.x; pos.y = poseV.y; pos.z = poseV.z; quat.x = poseR.x; quat.y = poseR.y; quat.z = poseR.z; quat.w = poseR.w; } return r; }, uniforms: { paper: paperU, line: lineU, glow: glowU, halo: haloU, glows: glU, pool: poolU, balls: ballU }, lights: { key, edge, ambient }, trails,
+    poseOf: (t, aspect, pos, quat, camMove = 'steady', motion = true) => { const keep = cineOn, keepPlan = cine; pickCam(camMove); const r = layout ? poseAt(layout, t, camFor(aspect, motion || cineOn), aspect, poseV, poseR, poseQ) : null; cineOn = keep; cine = keepPlan; if (r) { pos.x = poseV.x; pos.y = poseV.y; pos.z = poseV.z; quat.x = poseR.x; quat.y = poseR.y; quat.z = poseR.z; quat.w = poseR.w; } return r; }, uniforms: { paper: paperU, line: lineU, glow: glowU, halo: haloU, glows: glU, pool: poolU, balls: ballU }, lights: { key, edge, ambient }, trails,
     materials: { ink, head: headMat, face, chrome, fleck, pin: pinMat, paper: paperMat, line: lineMat }, printed, camX: (t) => camX(layout || liveLayout, t), timing: layout };
 }
