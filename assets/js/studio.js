@@ -1,6 +1,6 @@
 // Piano studio: play live from the piano, load or record a performance, watch it in 3D, and make a video. Everything runs in the browser.
 import { parseMidi, fromRecording, writeMidi, demoPiece, noteName } from './midi.js?v=13';
-import { createStage } from './stage.js?v=40';
+import { createStage } from './stage.js?v=41';
 import { createListener, STYLE_NAMES } from './listen.js?v=8';
 import { drawCard, OPEN, CLOSE, STYLES } from './cards.js?v=3';
 import { INSTRUMENTS, ROOMS, makeOutput, noteOn, voice, renderPiece, loadInstrument, isLoaded } from './synth.js?v=13';
@@ -75,7 +75,7 @@ const fill = (el) => el.style.setProperty('--fill', `${((el.value - el.min) / (e
 const PHONE = matchMedia('(max-width: 640px)').matches; // a phone held upright: start with the tall picture looking along the keys, which fills the screen
 // New visitors start with the sheet music on soft paper (look) in ivory (paper), its hands in rose and ice (hands), the
 // title lettered in 3D.
-const DEFAULTS = { instrument: 'grand', room: 'hall', volume: 0.9, monitor: true, theme: 'aurora', view: 'sheet', look: 'paper', hands: 'rose', paper: 'ivory', finish: 'matte', trails: false, corner: 'off', cornerK: 0.5, sparks: 0, zap: 0, current: 0, cracks: 0, race: 0, camMove: 'steady', shine: 0.5, ballK: 0.5, title3d: true, v: 9, dance: 'auto', camera: PHONE ? 'side' : 'front', shape: PHONE ? 'tall' : 'wide', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', cardOpen: true, cardOpenPaper: false, cardOpenPart: true, cardClose: true, markOn: true, part: 'whole', cardStyle: 'lumen', channel: 'Lumen Keys', message: 'Thank you for listening', labels: false, effects: true, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
+const DEFAULTS = { instrument: 'grand', room: 'hall', volume: 0.9, monitor: true, theme: 'aurora', view: 'sheet', look: 'paper', hands: 'rose', paper: 'ivory', finish: 'matte', trails: false, corner: 'off', cornerK: 0.5, sparks: 0, zap: 0, current: 0, cracks: 0, race: 0, ballStyle: 'light', camMove: 'steady', shine: 0.5, ballK: 0.5, title3d: true, v: 9, dance: 'auto', camera: PHONE ? 'side' : 'front', shape: PHONE ? 'tall' : 'wide', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', cardOpen: true, cardOpenPaper: false, cardOpenPart: true, cardClose: true, markOn: true, part: 'whole', cardStyle: 'lumen', channel: 'Lumen Keys', message: 'Thank you for listening', labels: false, effects: true, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
 const C = { ...DEFAULTS };
 try { // v 2: note names off unless switched on again; v 3: notes are trails of light unless changed again; v 4: the
   // picture starts as the sheet music on soft paper (choices saved by the older studio this one was copied from do not
@@ -410,6 +410,9 @@ const CAM_MOVES = stage.camMoves(), camDesc = () => {
 };
 if (!CAM_MOVES.some((c) => c.id === C.camMove)) C.camMove = ['crane', 'breathe', 'follow'].includes(C.camMove) ? 'cinematic' : 'steady'; // (names used by earlier trials)
 radios($('#cammove'), [], C.camMove, (v) => { C.camMove = v; remember(); stage.setCamMove(v); camDesc(); });
+// On paper (round 8), the balls' style: balls of light, or dark-energy orbs (dark, a ring of light, a sparking dark-red nucleus).
+C.ballStyle = C.ballStyle === 'dark' ? 'dark' : 'light'; stage.setBallStyle(C.ballStyle);
+radios($('#ballstyle'), [], C.ballStyle, (v) => { C.ballStyle = v; remember(); stage.setBallStyle(v); });
 stage.setCamMove(C.camMove);
 // On paper, both off unless chosen: the corner light (each ball's touches light the open paper in its corner) and the
 // powder sparks (how many: the slider; left = none). The line under the corner light describes the style chosen; its
@@ -428,7 +431,7 @@ ui.cornerk.addEventListener('input', () => { C.cornerK = Number(ui.cornerk.value
 // balls (with the light they throw; left = soft, the middle as designed). The brightness does nothing, and is shown
 // greyed, while the balls are off.
 const unit = (v, d) => (Number.isFinite(Number(v)) ? Math.max(0, Math.min(1, Number(v))) : d);
-const ballDesc = () => { const off = !C.paths; for (const k of ['ballk', 'current', 'race']) { ui[k].disabled = off; $(`#${k}-line`).classList.toggle('off', off); $(`#${k}-desc`).classList.toggle('off', off); } };
+const ballDesc = () => { const off = !C.paths; for (const k of ['ballk', 'current', 'race']) { ui[k].disabled = off; $(`#${k}-line`).classList.toggle('off', off); $(`#${k}-desc`).classList.toggle('off', off); } for (const id of ['#ballstyle', '#ballstyle-desc']) $(id).classList.toggle('off', off); };
 C.shine = unit(C.shine, DEFAULTS.shine); C.ballK = unit(C.ballK, DEFAULTS.ballK);
 ui.shine.value = C.shine; fill(ui.shine); stage.setShine(C.shine);
 ui.shine.addEventListener('input', () => { C.shine = Number(ui.shine.value); remember(); stage.setShine(C.shine); fill(ui.shine); });

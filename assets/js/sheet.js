@@ -49,6 +49,17 @@ export function engrave(piece, opts = {}) {
     while (t < b - 1e-9) { const next = i + 1 < tempo.length ? tempo[i + 1].time : Infinity, e = Math.min(b, next); n += (e - t) * tempo[i].bpm / 60; t = e; i++; if (i >= tempo.length) i = tempo.length - 1; }
     return n;
   };
+  // Lengths in beats and times after some beats, through any tempo changes in between (so a played slowing never
+  // shortens a written note or leaves a false rest); with no tempo change inside, exactly the plain arithmetic.
+  const steady = (a, b) => !tempo.some((m) => m.time > a + 1e-6 && m.time < b - 1e-6);
+  const span = (a, b, dt = b - a) => (steady(a, b) ? dt / beatAt(a) : beatsBetween(a, b));
+  const timeAfter = (a, q) => {
+    const plain = a + q * beatAt(a);
+    if (steady(a, plain)) return plain;
+    let i = 0, t = a;
+    while (i + 1 < tempo.length && tempo[i + 1].time <= a + 1e-6) i++;
+    for (;;) { const next = i + 1 < tempo.length ? tempo[i + 1].time : Infinity, room = ((next - t) * tempo[i].bpm) / 60; if (room >= q) return t + (q * 60) / tempo[i].bpm; q -= room; t = next; i++; }
+  };
   const staffOf = (n) => (two ? (n.track === upper ? 0 : 1) : n.pitch < 60 ? 1 : 0);
   const spelled = spellNotes(piece.notes, sf, isMinor(piece, sf), staffOf, !!opts.doubles); // pitch spelling from the context
 
@@ -64,10 +75,10 @@ export function engrave(piece, opts = {}) {
     const list = events[staff];
     let held = [];
     list.forEach((e, i) => {
-      const beat = beatAt(e.t), gap = list[i + 1] ? (list[i + 1].t - e.t) / beat : Infinity, groups = new Map();
+      const beat = beatAt(e.t), gap = list[i + 1] ? span(e.t, list[i + 1].t) : Infinity, groups = new Map(); // (in beats, through any tempo changes)
       for (const n of e.notes) {
-        const d = n.dur / beat;
-        let v = d >= (opts.detached && gap <= 1.01 ? 0.45 : 0.7) * gap && d <= 1.45 * gap ? gap : d; // held until the next note: it lasts until then; much longer: another voice
+        const d = steady(e.t, n.onset + n.dur) ? n.dur / beat : beatsBetween(n.onset, n.onset + n.dur);
+        let v = d > (opts.detached && gap <= 1.01 ? 0.45 : 0.7) * gap + 1e-6 && d <= 1.45 * gap ? gap : d; // held until the next note: it lasts until then; much longer: another voice (exactly at the limit: its own length, whatever the rounding)
         v = VALUES.reduce((a, b) => (Math.abs(Math.log(b / v)) < Math.abs(Math.log(a / v)) ? b : a));
         if (!groups.has(v)) groups.set(v, []);
         groups.get(v).push(n);
@@ -79,7 +90,7 @@ export function engrave(piece, opts = {}) {
         if (gs.length > 1) voice = k === 0 ? 1 : 2;
         else if (held.length) voice = g.top <= Math.min(...held.map((h) => h.low)) ? 2 : g.low >= Math.max(...held.map((h) => h.top)) ? 1 : 0;
         const heads = g.ns.map((n) => { const s = spelled.get(n); return { pitch: n.pitch, step: s.step, acc: s.acc, y: pageY(s.step, staff) }; }).sort((a, b) => a.y - b.y);
-        return { t: e.t, staff, v: g.v, voice, heads, beat, end: e.t + g.v * beat, vel: Math.max(...g.ns.map((n) => n.vel)), top: g.top, low: g.low, pos: beatsBetween(barStart(e.t), e.t), bar: barStart(e.t), meter: meterAt(e.t) };
+        return { t: e.t, staff, v: g.v, voice, heads, beat, end: timeAfter(e.t, g.v), vel: Math.max(...g.ns.map((n) => n.vel)), top: g.top, low: g.low, pos: beatsBetween(barStart(e.t), e.t), bar: barStart(e.t), meter: meterAt(e.t) };
       });
       chords.push(...made); held.push(...made);
     });
@@ -194,7 +205,7 @@ export function engrave(piece, opts = {}) {
     return out;
   });
   const shown = meters.length > 1 && meters[1].time < 4 * beatAt(0) + 0.01 ? meters[1].meter : meters[0].meter; // a pickup bar does not change the printed time signature
-  const rests = opts.rests ? findRests(chords, bars, t0, finalT ?? Math.max(...chords.map((c) => c.end)), beatAt, xOf) : [];
+  const rests = opts.rests ? findRests(chords, bars, t0, finalT ?? Math.max(...chords.map((c) => c.end)), span, timeAfter, xOf) : [];
   return { sf, chords, groups, barX, barT, finalX, finalT, xOf, level, start: START, keyW, meter: shown, landings, end: X[last], speed, t0, rests, beatAt, linear: !!opts.linear };
 }
 
@@ -225,7 +236,7 @@ function carryAccidentals(chords, sf, barStart) {
 // gets a whole-bar rest in its middle; otherwise the silence is filled from its start with the longest rest that both
 // fits and starts on its own beat grid (half rests on half bars, quarters on beats ...), down to sixteenths.
 const REST_VALUES = [4, 2, 1, 0.5, 0.25];
-function findRests(chords, bars, t0, tEnd, beatAt, xOf) {
+function findRests(chords, bars, t0, tEnd, span, timeAfter, xOf) { // (beats counted through any tempo changes)
   const out = [], grid = bars.length ? bars.filter((b) => b < tEnd - 0.02) : [t0];
   const barEnd = (i) => (i + 1 < grid.length ? grid[i + 1] : tEnd);
   for (const staff of [0, 1]) {
@@ -240,13 +251,13 @@ function findRests(chords, bars, t0, tEnd, beatAt, xOf) {
       for (let i = 0; i < grid.length; i++) {
         const B0 = grid[i], B1 = barEnd(i), s0 = Math.max(a, B0), s1 = Math.min(b, B1);
         if (s1 <= s0) continue;
-        const beat = beatAt(B0), len = (B1 - B0) / beat;
-        const p0 = Math.round(((s0 - B0) / beat) * 4) / 4, p1 = Math.round(((s1 - B0) / beat) * 4) / 4;
+        const len = span(B0, B1);
+        const p0 = Math.round(span(B0, s0) * 4) / 4, p1 = Math.round(span(B0, s1) * 4) / 4;
         if (p1 - p0 < 0.25 - 1e-6) continue;
         if (p0 < 1e-6 && p1 > len - 1e-6) { out.push({ staff, t: B0, v: len, whole: true, x: (xOf(B0) + xOf(B1)) / 2 - 1.5 }); continue; }
         for (let p = p0; p < p1 - 1e-6;) {
           const v = REST_VALUES.find((r) => r <= p1 - p + 1e-6 && Math.abs(p / r - Math.round(p / r)) < 1e-6) ?? 0.25;
-          const t = B0 + p * beat;
+          const t = timeAfter(B0, p);
           out.push({ staff, t, v, whole: false, x: xOf(t) });
           p += v;
         }

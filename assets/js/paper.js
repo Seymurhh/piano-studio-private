@@ -9,10 +9,11 @@
 // lit notes and the balls throw soft pools of their colour on the paper (a light map, drawn each frame), the balls
 // show in the semi-gloss paper as soft streaks, and the balls and the newest lit notes are small lamps that every
 // shiny surface mirrors (GLINT). The notation can be printed matte ink or made of polished metal, smoked glass or satin
-// gold (FINISHES), each reflecting a dim studio with one soft window. Optionally each ball leaves a thin trail of light
+// gold (FINISHES), each reflecting a dim studio with one soft window. The composer's name and the tempo mark stand small
+// and solid like the title. Optionally each ball leaves a thin trail of light
 // along its path (TRAIL), its touches light the open paper in its corner of the picture (CORNER: a glow, ripples or
 // electric filaments) and set off small puffs of glowing powder (SPARK); and now and then the two balls can race,
-// taking turns running a little ahead of the music (RACE). At the end the camera cranes up, the balls
+// taking turns running a little ahead of the music (RACE); the balls can be dark-energy orbs instead (DARKBALL). At the end the camera cranes up, the balls
 // fly away and the picture fades to black.
 // Everything is a pure function of the music time t, so a video export draws exactly what playback shows.
 //
@@ -31,7 +32,7 @@
 // bar lines) are flat ribbons drawn by a small shader that never lets them get thinner than about one pixel on screen
 // (it fades them instead), so they do not shimmer as they glide past at a grazing angle.
 import * as THREE from '../vendor/three.min.js?v=7';
-import { engrave } from './sheet.js?v=8';
+import { engrave } from './sheet.js?v=9';
 import { SIG, speller } from './score.js?v=20';
 import { musicShapes, textShapes, extrude } from './glyphs.js?v=2';
 
@@ -126,6 +127,16 @@ const SHINE = { def: 0.5, k: 2, p: 1.3, rough: [0.2, 0.09], lamp: 0.2, aa: 0.12,
 // its light on the paper right under it (its pool and its mirror image) by `refl` of it (so a bright ball never
 // leaves a second bright spot below it); its glints and shine on the notation take the whole gain.
 const BALLK = { def: 0.5, light: [0.4, 1.7], core: 0.4, halo: 1, refl: 0.5 };
+// The balls' style (round 8; "Ball style"): 'light' (as designed above) or 'dark' (dark energy): an opaque near-black
+// orb (body, linear) with a faint sheen of its hand's colour toward its edge (sheen), a ring of light hugging it outside
+// (ring: brightness, its colour taken toward white by `white`) inside its usual halo; within, a dark-red nucleus
+// (nucleus: colour, linear, `size` ball radii) that pulses (`pulse`: its rate) and throws thin crackling sparks (`sparks`
+// of them, `spark` colour, re-struck `hz` times a second, from the music time so an export matches playback). It lights
+// the scene (pools, glints, reflections) with `light` of a light ball's light, and holds back `shadow` of the key light
+// (a solid orb: more than a ball of light). It is drawn `scale` times a ball of light's size, its halo `halo` times as
+// bright; its sparks reach `reach` [shortest, longest] ball radii from the middle, so some leap out past the ring.
+const DARKBALL = { body: [0.012, 0.009, 0.011], sheen: 0.3, ring: 1.6, white: 0.45, halo: 1.6, nucleus: [0.62, 0.03, 0.02], size: 0.4, pulse: 7, spark: [1.0, 0.18, 0.06], sparks: 6, reach: [0.55, 1.6], hz: 12, light: 0.55, shadow: 0.85, scale: 1.3 };
+const g3 = (v) => `vec3(${v.map((x) => x.toFixed(3)).join(', ')})`;
 export const SHINE_DEFAULT = SHINE.def;
 // The light trails (optional): behind each ball, a thin line of light along the exact path it flew (the same hops),
 // fading out over T s. Rebuilt every frame from the path itself (so it is a pure function of the time): `n` samples
@@ -459,7 +470,10 @@ const OPENING = { at: 1.5, margin: 1, before: 4, after: 5, start: -1.5, fadeIn: 
 // the paper, so they meet it cleanly.
 const INK = { depth: 0.08, bevelThickness: 0.06, bevelSize: 0.045, bevelOffset: -0.015, bevelSegments: 4, curveSegments: 6 }; // 0.2 high
 const RAISED = { depth: 0.3, bevelThickness: 0.035, bevelSize: 0.026, bevelSegments: 3, curveSegments: 8, lift: 0, pin: 0.055, height: 0.37 };
-const COMPOSER = { size: 3.1, above: 3.4 }; // the composer's name: printed in ink, its baseline `above` ss over the top staff line, under the title's right end
+// The composer's name under the title's right end, its baseline `above` ss over the top staff line, and the tempo mark
+// over the start of the first treble staff (tempo: its size, and its baseline over the top line): small solid letters
+// standing on the paper like the title (round 8; printed flat in ink before), `depth` ss high with `bevel` of the title's bevel.
+const COMPOSER = { size: 3.1, above: 3.4, depth: 0.3, bevel: 0.5, tempo: [2.5, 2.4] };
 const TITLE = { cap: 12, maxW: 110, minScale: 0.45, rowScale: 0.7, depth: 0.95, bevelThickness: 0.07, bevelSize: 0.07, bevelSegments: 3, curveSegments: 10, gap: 8.5, x: 6 }; // solid letters standing on the paper, depth high
 // The channel's name, raised like the title but smaller (cap high), above the top staff every `every` s of music from
 // the first `every` s on (none in the last `ending` s): its baseline `gap` ss over the top staff line, or `clear` ss
@@ -894,13 +908,39 @@ uniform float uSize; varying vec2 vQ;
 void main() { vQ = position.xy; vec4 mv = modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0); mv.xy += position.xy * uSize; gl_Position = projectionMatrix * mv; }`;
 const BALL_FRAG = `
 uniform vec3 uCore, uRim, uHalo; uniform float uQ, uAlpha; uniform vec2 uGain; varying vec2 vQ;
+#ifdef DARK_BALL
+uniform float uT;
+float dh(float n) { return fract(sin(n * 12.9898) * 43758.5453); }
+#endif
 void main() {
   float q = length(vQ) * uQ, aa = max(fwidth(q), 1e-4);
   float core = 1.0 - smoothstep(0.8 - aa, 1.0 + aa, q);
   float rim = exp(-pow((q - 1.0) / 0.2, 2.0));
   float halo = exp(-max(q - 1.0, 0.0) / 0.3) * (1.0 - smoothstep(1.4, 2.2, q));
+#ifndef DARK_BALL
   vec3 col = uCore * core * uGain.x + (1.0 - core) * (uRim * rim + uHalo * halo) * uGain.y; // (uGain: the balls' brightness, BALLK)
   gl_FragColor = vec4(col * uAlpha, 1.0);
+#else
+  // dark energy (DARKBALL): drawn premultiplied, the orb opaque (alpha 1) and the light outside it added (alpha 0)
+  float body = 1.0 - smoothstep(1.0 - aa, 1.0 + aa, q);
+  vec2 p = vQ * uQ; float ang = atan(p.y, p.x);
+  float pulse = 0.78 + 0.22 * sin(uT * ${DARKBALL.pulse.toFixed(2)}) * sin(uT * ${(DARKBALL.pulse * 0.33).toFixed(2)} + 1.3);
+  float nuc = exp(-pow(q / (${DARKBALL.size.toFixed(2)} * (0.9 + 0.2 * pulse)), 2.0));
+  float k = floor(uT * ${DARKBALL.hz.toFixed(1)}), spark = 0.0;
+  for (int i = 0; i < ${DARKBALL.sparks}; i++) { // thin crackling sparks thrown out from the nucleus, re-struck hz times a second
+    float a = dh(k + float(i) * 7.13) * 6.2832, len = ${DARKBALL.reach[0].toFixed(2)} + ${(DARKBALL.reach[1] - DARKBALL.reach[0]).toFixed(2)} * dh(k * 1.7 + float(i) * 3.1);
+    vec2 dir = vec2(cos(a), sin(a)); float along = dot(p, dir);
+    if (along <= 0.0 || along > len) continue;
+    float side = p.x * dir.y - p.y * dir.x + 0.06 * sin(along * 38.0 + k * 3.0 + float(i)) * along; // (jagged)
+    spark += exp(-pow(side / 0.03, 2.0)) * (1.0 - along / len);
+  }
+  vec3 inside = ${g3(DARKBALL.body)} + uRim * ${DARKBALL.sheen.toFixed(2)} * pow(smoothstep(0.55, 1.0, q), 3.0)
+    + ${g3(DARKBALL.nucleus)} * nuc * (1.3 + 0.6 * pulse) * uGain.x + ${g3(DARKBALL.spark)} * spark * 1.4 * uGain.x;
+  float ring = exp(-pow((q - 1.05) / 0.12, 2.0));
+  vec3 outside = (mix(uRim, vec3(1.0), ${DARKBALL.white.toFixed(2)}) * ring * ${DARKBALL.ring.toFixed(2)} + uHalo * halo * ${DARKBALL.halo.toFixed(2)}) * uGain.y
+    + ${g3(DARKBALL.spark)} * spark * 1.2 * uGain.x; // (the sparks that leap out past the ring)
+  gl_FragColor = vec4((inside * body + outside * (1.0 - body)) * uAlpha, body * uAlpha);
+#endif
 }`;
 // The glows as lights on the 3D pieces (added to three.js's own shading, after its lights): uGL = each glow's place in
 // view space and its radius (0 = none), uGLC its colour and strength. Each is shaded as three.js shades its own lamps
@@ -1503,6 +1543,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
   // are physically based (FINISH), with their own rounded bevels (DOME) and a room with a window to reflect.
   const fid = FINISH[opts.finish] ? opts.finish : FINISH_DEFAULT, FX = FINISH[fid], F = fid === 'matte' ? null : FX;
   const DM = F && DOME[F.dome], IP = F ? DM.ink : INK, RP = { ...RAISED, ...(F ? DM.raised : {}) }, TP = F ? { ...TITLE, ...DM.title } : TITLE;
+  const SMALL = { ...TP, depth: COMPOSER.depth, bevelThickness: TP.bevelThickness * COMPOSER.bevel, bevelSize: TP.bevelSize * COMPOSER.bevel, bevelOffset: (TP.bevelOffset || 0) * COMPOSER.bevel }; // (the composer and the tempo mark)
   RP.depth = Math.max(0.05, RAISED.height - 2 * RP.bevelThickness); // (the raised signs: solid, the same height in every finish)
   const grow = IP.bevelSize + (IP.bevelOffset || 0); // how far the symbols' sides stand out from their outlines
   const fenv = F ? paperEnv(renderer, paperTone, F.win, F.room) : env;
@@ -1819,13 +1860,9 @@ export function buildPaper(T, tools, piece, opts = {}) {
     { const s = new THREE.Shape(), x0 = S.finalX - 0.55 + grow, x1 = S.finalX - 0.05 - grow, y0 = grow - 0.07, y1 = TOP[0] + 0.07 - grow;
       s.moveTo(x0, y0); s.lineTo(x1, y0); s.lineTo(x1, y1); s.lineTo(x0, y1); s.lineTo(x0, y0);
       printed.add(cast(new THREE.Mesh(domeOf(flat(extrude([s], { ...IP, curveSegments: 1, smooth: 30 })), 'ridge'), restMat))); } // (the final bar: ink that never cracks)
-    // the tempo mark, printed flat above the first treble staff
+    // the tempo mark, small solid letters standing above the first treble staff
     const bpm = piece.tempoMap && piece.tempoMap.length ? Math.round(piece.tempoMap[0].bpm) : 0;
-    if (bpm) {
-      const tm = textShapes(`♩ = ${bpm}`, { size: 2.5 });
-      const m = new THREE.Mesh(noDome(flat(new THREE.ShapeGeometry(tm, 8))), ink);
-      m.position.set(1.0, LINE.lift + 0.002, -(TOP[0] + 2.4)); printed.add(m);
-    }
+    if (bpm) standing(domeOf(flat(extrude(textShapes(`♩ = ${bpm}`, { size: COMPOSER.tempo[0] }), SMALL))), 1.0, TOP[0] + COMPOSER.tempo[1], SMALL.bevelThickness);
     // the title, standing on the paper above the start of the music, and the composer printed under its right end, as
     // in a score; then the channel's name along the page
     addTitle(String(opts.title || '').trim());
@@ -1834,9 +1871,8 @@ export function buildPaper(T, tools, piece, opts = {}) {
   }
   function addComposer(text) {
     if (!text || titleBox.isEmpty()) return;
-    const shapes = textShapes(text, { size: COMPOSER.size, letterSpacing: 0.02 }), right = titleBox.max.x;
-    const m = new THREE.Mesh(noDome(flat(new THREE.ShapeGeometry(shapes, 8))), ink);
-    m.position.set(Math.max(TITLE.x, right - shapes.width), LINE.lift + 0.002, -(TOP[0] + COMPOSER.above)); printed.add(m);
+    const shapes = textShapes(text, { size: COMPOSER.size, letterSpacing: 0.02 }), right = titleBox.max.x; // (small solid letters, as the title)
+    titleBox.union(standing(domeOf(flat(extrude(shapes, SMALL))), Math.max(TITLE.x, right - shapes.width), TOP[0] + COMPOSER.above, SMALL.bevelThickness));
   }
   function addTitle(text) {
     if (!text) return;
@@ -2564,12 +2600,27 @@ export function buildPaper(T, tools, piece, opts = {}) {
   const raceLead = (h, t) => { let e = 0; for (const [a, k] of surges[h]) { const u = (t - a) / RACE.w; if (u > 0 && u < 1) { const s = Math.sin(Math.PI * u); e += k * s * s; } } return e; };
   let raceK = 0, raceD = 0;
   const ballGeo = new THREE.PlaneGeometry(2, 2), QSIZE = 2.3; // the square around a ball reaches 2.3 radii out
-  const ballU = looks.map((l) => ({ uSize: { value: BALL.r * QSIZE }, uQ: { value: QSIZE }, uCore: { value: l.ball }, uRim: { value: l.ballRim }, uHalo: { value: l.ballHalo }, uAlpha: { value: 1 }, uGain: { value: new THREE.Vector2(1, 1) } }));
+  const ballU = looks.map((l) => ({ uSize: { value: BALL.r * QSIZE }, uQ: { value: QSIZE }, uCore: { value: l.ball }, uRim: { value: l.ballRim }, uHalo: { value: l.ballHalo }, uAlpha: { value: 1 }, uGain: { value: new THREE.Vector2(1, 1) }, uT: { value: 0 } }));
   const balls = ballU.map((u) => {
     const m = new THREE.Mesh(ballGeo, new THREE.ShaderMaterial({ uniforms: u, vertexShader: BALL_VERT, fragmentShader: BALL_FRAG, transparent: true, blending: THREE.AdditiveBlending, depthTest: false, depthWrite: false }));
     m.visible = false; m.frustumCulled = false; m.renderOrder = 10; scene.add(m);
     return m;
   });
+  // The balls' style (DARKBALL): 'dark' compiles the dark-energy orb into their shader and draws it premultiplied (the orb
+  // hides what is behind it, the light around it adds); 'light' is the shader and the additive drawing as designed.
+  let ballStyle = 'light';
+  function setBallStyle(st) {
+    const dark = st === 'dark';
+    if ((ballStyle === 'dark') === dark) return;
+    ballStyle = dark ? 'dark' : 'light';
+    for (const b of balls) {
+      const mat = b.material;
+      if (dark) { mat.defines.DARK_BALL = ''; mat.blending = THREE.CustomBlending; mat.blendEquation = THREE.AddEquation; mat.blendSrc = THREE.OneFactor; mat.blendDst = THREE.OneMinusSrcAlphaFactor; }
+      else { delete mat.defines.DARK_BALL; mat.blending = THREE.AdditiveBlending; }
+      mat.uniforms.uSize.value = BALL.r * QSIZE * (dark ? DARKBALL.scale : 1);
+      mat.needsUpdate = true;
+    }
+  }
   // the light trails (optional), one ribbon per ball, and the light each throws on the paper (in the light map's scene);
   // the points are filled in each frame (fillTrail)
   const trailIdx = new Uint16Array((TRAIL.max - 1) * 6);
@@ -3203,6 +3254,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
   const probe = { balls: [new THREE.Vector3(), new THREE.Vector3()], shown: [false, false], corner: 'off', sparks: 0, fade: 1, ballFade: 1, tc: layout ? layout.tc : null, tEnd: layout ? layout.tEnd : null, camera: null, t: 0, glows: 0 };
   function render(t, camera, o = {}) {
     if (S) setRace(o.paths !== false ? clamp01(o.race ?? 0) : 0); probe.race = raceD; // (the race between the balls, optional, and only with the balls shown: before the camera, which follows them)
+    setBallStyle(o.ballStyle); probe.ballStyle = ballStyle; // (the balls' style: light, or dark energy)
     pickCam(o.camMove); // (a moving camera chosen on purpose moves even with the gentle movement off: that only calms Steady)
     const c = camFor(camera.aspect, o.motion !== false || cineOn), live = !!o.live || !S, L = live ? liveLayout : layout;
     if (camera.fov !== c.fov || camera.near !== NEAR || camera.far !== FAR) { camera.fov = c.fov; camera.near = NEAR; camera.far = FAR; camera.updateProjectionMatrix(); }
@@ -3269,10 +3321,11 @@ export function buildPaper(T, tools, piece, opts = {}) {
       m.visible = shown; probe.shown[hand] = shown; tr.mesh.visible = tr.pool.visible = trailOn;
       if (!shown) { pb.w = 0; continue; }
       probe.balls[hand].copy(bp); // (also where its shadow is cast from)
-      m.position.copy(bp); ballU[hand].uAlpha.value = linB; ballU[hand].uGain.value.set(bk.core, bk.halo);
+      m.position.copy(bp); ballU[hand].uAlpha.value = linB; ballU[hand].uGain.value.set(bk.core, bk.halo); ballU[hand].uT.value = t;
       pb.set(bp.x, bp.y, bp.z, BALL.r);
-      paperU.uBallColor.value[hand].copy(looks[hand].refl).lerp(WHITE, POOL.ball.pale).multiplyScalar(linB * bk.refl);
-      paperU.uPoolColor.value[hand].copy(ballTint[hand]).lerp(WHITE, POOL.ball.pale).multiplyScalar(linB * bk.refl);
+      const dk = ballStyle === 'dark' ? DARKBALL.light : 1; // (a dark orb lights the scene only with the ring of light around it)
+      paperU.uBallColor.value[hand].copy(looks[hand].refl).lerp(WHITE, POOL.ball.pale).multiplyScalar(linB * bk.refl * dk);
+      paperU.uPoolColor.value[hand].copy(ballTint[hand]).lerp(WHITE, POOL.ball.pale).multiplyScalar(linB * bk.refl * dk);
       setGlow(bp.x, bp.y, bp.z, GLINT.r.ball, paperU.uPoolColor.value[hand], GLINT.k.ball * bk.light / bk.refl); // (its pale light, as above: already faded)
       if (trailOn) {
         fillTrail(hand, t, L, c, camera.aspect);
@@ -3322,7 +3375,8 @@ export function buildPaper(T, tools, piece, opts = {}) {
     // the shadows of everything raised, in a window of the page that steps along in whole texels, and the glows' light
     // on the paper over the same window
     const mk = camera.aspect < 1 ? MASK.tall : MASK.wide, pad = cineOn && !live && c.yawAmp ? CINE.shadowPad : 1, mW = mk.W * pad, texel = mW / MASK.texels[0]; // (wider for the cinematic camera's high views, the same all through its piece)
-    drawShadows(Math.floor((p.x - mk.back * pad) / texel) * texel, mW, (paperTone.dark ? DARK[paperTone.dark].ball : SHADE.ball) * linB, probe.balls, probe.shown);
+    const ballHold = paperTone.dark ? DARK[paperTone.dark].ball : SHADE.ball; // (a dark orb holds back more: DARKBALL.shadow)
+    drawShadows(Math.floor((p.x - mk.back * pad) / texel) * texel, mW, (ballStyle === 'dark' ? Math.max(ballHold, DARKBALL.shadow) : ballHold) * linB, probe.balls, probe.shown);
     drawLight();
     probe.fade = fS; probe.ballFade = fB; probe.camera = camera; probe.t = t;
     return out;

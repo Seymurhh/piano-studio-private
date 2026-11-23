@@ -153,6 +153,11 @@
       </div>
       <label class="slider sheet-only no-paper"><span>Glow of the notes <small>(left: matte)</small></span><input type="range" id="glow" min="0" max="1" step="0.05" value="0.45"></label>
       <label class="check sheet-only"><input type="checkbox" id="paths" checked><span>Balls of light from note to note<small>A light for each hand hops along the music and lands on every note as it is played.</small></span></label>
+      <div class="seg sheet-only paper-only" id="ballstyle" role="radiogroup" aria-label="Ball style">
+        <button type="button" role="radio" data-v="light" aria-checked="true">Balls of light</button>
+        <button type="button" role="radio" data-v="dark" aria-checked="false">Dark energy</button>
+      </div>
+      <p class="fine sheet-only paper-only" id="ballstyle-desc">Dark energy: each ball is a dark orb with a ring of light around it and a dark-red nucleus that pulses and throws sparks inside.</p>
       <label class="slider sheet-only paper-only" id="ballk-line"><span>Brightness of the balls <small>(left: soft)</small></span><input type="range" id="ballk" min="0" max="1" step="0.05" value="0.5"></label>
       <p class="fine sheet-only paper-only" id="ballk-desc">How bright the two balls are, with the light they throw on the paper and the notes. The middle is the usual brightness.</p>
       <label class="check sheet-only paper-only"><input type="checkbox" id="trails"><span>Light trails<small>Each ball leaves a soft, thin line of light along its path, fading behind it.</small></span></label>
@@ -243,6 +248,6 @@
   </aside>
 </main>
 <footer class="credits">Grand piano recordings: Salamander Grand Piano by Alexander Holm (CC BY 3.0). Electric pianos and harpsichord: FluidR3 GM by Frank Wen. Music symbols converted from Bravura by Steinberg Media Technologies, and lettering converted from Libre Baskerville by Pablo Impallari and Rodrigo Fuenzalida, both under the <a href="assets/glyphs/OFL.txt">SIL Open Font License 1.1</a> (<a href="assets/glyphs/CREDITS.txt">details</a>).</footer>
-<script type="module" src="assets/js/studio.js?v=43"></script>
+<script type="module" src="assets/js/studio.js?v=44"></script>
 </body>
 </html>
