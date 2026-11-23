@@ -104,10 +104,15 @@ export function textShapes(string, { size = 1, letterSpacing = 0, kerning = true
 // center: true centres the solid on x and y, 'x' only across (a title keeps its baseline at y = 0).
 // To lay it on the page: mesh.rotation.x = -Math.PI / 2 (the top face then looks up, the glyph's y runs away from
 // the viewer). A title takes tens of milliseconds; build each music symbol once and reuse its geometry for every note.
+// geo.userData.shape: which of the shapes each corner (vertex) comes from, by its number in the list.
 export function extrude(shapes, { depth = 0.1, bevelThickness = 0.02, bevelSize = 0.015, bevelOffset = 0, bevelSegments = 3, curveSegments = 8, smooth = 40, center = false } = {}) {
   const bevel = bevelThickness > 0 && bevelSize > 0;
   const geo = new THREE.ExtrudeGeometry(shapes, { depth, curveSegments, bevelEnabled: bevel, bevelThickness, bevelSize, bevelOffset, bevelSegments: Math.max(1, bevelSegments) });
   const groups = [0, 1].map((m) => geo.groups.filter((g) => g.materialIndex === m));
+  // (three.js adds one face group and one wall group per shape, in order: the shape each corner comes from)
+  const owner = new Uint32Array(geo.attributes.position.count);
+  { let o = 0; for (const gs of groups) gs.forEach((g, i) => { owner.fill(i, o, o + g.count); o += g.count; }); }
+  geo.userData.shape = owner;
   for (const name of Object.keys(geo.attributes)) { // faces first, then walls
     const a = geo.attributes[name], k = a.itemSize, dst = new a.array.constructor(a.array.length);
     let o = 0;

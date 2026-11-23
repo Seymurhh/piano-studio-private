@@ -1,6 +1,6 @@
 // Piano studio: play live from the piano, load or record a performance, watch it in 3D, and make a video. Everything runs in the browser.
 import { parseMidi, fromRecording, writeMidi, demoPiece, noteName } from './midi.js?v=13';
-import { createStage } from './stage.js?v=39';
+import { createStage } from './stage.js?v=40';
 import { createListener, STYLE_NAMES } from './listen.js?v=8';
 import { drawCard, OPEN, CLOSE, STYLES } from './cards.js?v=3';
 import { INSTRUMENTS, ROOMS, makeOutput, noteOn, voice, renderPiece, loadInstrument, isLoaded } from './synth.js?v=13';
@@ -64,7 +64,7 @@ function previewCard(kind) { // play a card over the picture, as it will appear 
 }
 
 const ui = Object.fromEntries(['play', 'seek', 'clock', 'speed', 'midifile', 'demo', 'record', 'savemidi', 'labels', 'effects', 'motion', 'mic', 'capture', 'vtitle', 'size', 'fps',
-  'export', 'prog', 'download', 'overlay', 'connect', 'volume', 'monitor', 'now', 'ribbon', 'library', 'dots', 'paths', 'trails', 'sparks', 'zap', 'current', 'cracks', 'cornerk', 'shine', 'ballk', 'glow', 'title3d', 'ptitle'].map((id) => [id, $('#' + id)]));
+  'export', 'prog', 'download', 'overlay', 'connect', 'volume', 'monitor', 'now', 'ribbon', 'library', 'dots', 'paths', 'trails', 'sparks', 'zap', 'current', 'cracks', 'race', 'cornerk', 'shine', 'ballk', 'glow', 'title3d', 'ptitle'].map((id) => [id, $('#' + id)]));
 const say = (id, text) => { $('#' + id).textContent = text; };
 const mmss = (s) => { s = Math.max(0, s); return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`; };
 const safeName = () => (P.name || 'piano').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'piano';
@@ -75,7 +75,7 @@ const fill = (el) => el.style.setProperty('--fill', `${((el.value - el.min) / (e
 const PHONE = matchMedia('(max-width: 640px)').matches; // a phone held upright: start with the tall picture looking along the keys, which fills the screen
 // New visitors start with the sheet music on soft paper (look) in ivory (paper), its hands in rose and ice (hands), the
 // title lettered in 3D.
-const DEFAULTS = { instrument: 'grand', room: 'hall', volume: 0.9, monitor: true, theme: 'aurora', view: 'sheet', look: 'paper', hands: 'rose', paper: 'ivory', finish: 'matte', trails: false, corner: 'off', cornerK: 0.5, sparks: 0, zap: 0, current: 0, cracks: 0, camMove: 'steady', shine: 0.5, ballK: 0.5, title3d: true, v: 9, dance: 'auto', camera: PHONE ? 'side' : 'front', shape: PHONE ? 'tall' : 'wide', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', cardOpen: true, cardOpenPaper: false, cardOpenPart: true, cardClose: true, markOn: true, part: 'whole', cardStyle: 'lumen', channel: 'Lumen Keys', message: 'Thank you for listening', labels: false, effects: true, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
+const DEFAULTS = { instrument: 'grand', room: 'hall', volume: 0.9, monitor: true, theme: 'aurora', view: 'sheet', look: 'paper', hands: 'rose', paper: 'ivory', finish: 'matte', trails: false, corner: 'off', cornerK: 0.5, sparks: 0, zap: 0, current: 0, cracks: 0, race: 0, camMove: 'steady', shine: 0.5, ballK: 0.5, title3d: true, v: 9, dance: 'auto', camera: PHONE ? 'side' : 'front', shape: PHONE ? 'tall' : 'wide', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', cardOpen: true, cardOpenPaper: false, cardOpenPart: true, cardClose: true, markOn: true, part: 'whole', cardStyle: 'lumen', channel: 'Lumen Keys', message: 'Thank you for listening', labels: false, effects: true, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
 const C = { ...DEFAULTS };
 try { // v 2: note names off unless switched on again; v 3: notes are trails of light unless changed again; v 4: the
   // picture starts as the sheet music on soft paper (choices saved by the older studio this one was copied from do not
@@ -428,7 +428,7 @@ ui.cornerk.addEventListener('input', () => { C.cornerK = Number(ui.cornerk.value
 // balls (with the light they throw; left = soft, the middle as designed). The brightness does nothing, and is shown
 // greyed, while the balls are off.
 const unit = (v, d) => (Number.isFinite(Number(v)) ? Math.max(0, Math.min(1, Number(v))) : d);
-const ballDesc = () => { const off = !C.paths; for (const k of ['ballk', 'current']) { ui[k].disabled = off; $(`#${k}-line`).classList.toggle('off', off); $(`#${k}-desc`).classList.toggle('off', off); } };
+const ballDesc = () => { const off = !C.paths; for (const k of ['ballk', 'current', 'race']) { ui[k].disabled = off; $(`#${k}-line`).classList.toggle('off', off); $(`#${k}-desc`).classList.toggle('off', off); } };
 C.shine = unit(C.shine, DEFAULTS.shine); C.ballK = unit(C.ballK, DEFAULTS.ballK);
 ui.shine.value = C.shine; fill(ui.shine); stage.setShine(C.shine);
 ui.shine.addEventListener('input', () => { C.shine = Number(ui.shine.value); remember(); stage.setShine(C.shine); fill(ui.shine); });
@@ -444,7 +444,9 @@ ui.zap.addEventListener('input', () => { C.zap = Number(ui.zap.value); remember(
 // On paper (round 6), the current with the balls (an electric tail, sparks and a leap ahead to the next note) and the
 // cracks of light in the notes (each note breaks into glowing cracks as it is played): left = none. The current goes
 // with the balls, so it is greyed while they are off.
-for (const [k, fn] of [['current', 'setCurrent'], ['cracks', 'setCracks']]) {
+// The race between the balls (round 7): they take turns running a little ahead of the music and passing each other,
+// between stretches of going level (left = none); greyed with the balls off.
+for (const [k, fn] of [['current', 'setCurrent'], ['cracks', 'setCracks'], ['race', 'setRace']]) {
   C[k] = unit(C[k], 0); ui[k].value = C[k]; fill(ui[k]); stage[fn](C[k]);
   ui[k].addEventListener('input', () => { C[k] = Number(ui[k].value); remember(); stage[fn](C[k]); fill(ui[k]); });
 }

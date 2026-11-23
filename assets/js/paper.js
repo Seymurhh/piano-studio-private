@@ -11,7 +11,8 @@
 // shiny surface mirrors (GLINT). The notation can be printed matte ink or made of polished metal, smoked glass or satin
 // gold (FINISHES), each reflecting a dim studio with one soft window. Optionally each ball leaves a thin trail of light
 // along its path (TRAIL), its touches light the open paper in its corner of the picture (CORNER: a glow, ripples or
-// electric filaments) and set off small puffs of glowing powder (SPARK). At the end the camera cranes up, the balls
+// electric filaments) and set off small puffs of glowing powder (SPARK); and now and then the two balls can race,
+// taking turns running a little ahead of the music (RACE). At the end the camera cranes up, the balls
 // fly away and the picture fades to black.
 // Everything is a pure function of the music time t, so a video export draws exactly what playback shows.
 //
@@ -32,7 +33,7 @@
 import * as THREE from '../vendor/three.min.js?v=7';
 import { engrave } from './sheet.js?v=8';
 import { SIG, speller } from './score.js?v=20';
-import { musicShapes, textShapes, extrude } from './glyphs.js?v=1';
+import { musicShapes, textShapes, extrude } from './glyphs.js?v=2';
 
 const TB = 11;                                   // page y of the treble staff's bottom line (the bass staff's is 0)
 const MID = [TB + 2, 2], TOP = [TB + 4, 4], BOTTOM = [TB, 0];
@@ -255,6 +256,16 @@ const ZAP = { notes: 3, bolts: 4, life: 0.42, reach: 9, r0: 0.72, len: [1.1, 2.6
 // last note it rises to `hover` ss and keeps its place in the picture; when the camera cranes up it flies away from
 // the camera (away ss/s, easing in over awayT s) and a little upward (rise ss/s).
 const BALL = { r: 0.17, z0: 0.3, k: 1.25, p: 0.7, hMax: 4.5, inH: 6.5, inT: 1.6, inP: 1.7, inA: 0.2, hover: 1.3, hoverT: 0.45, away: 26, awayT: 0.35, rise: 1.0 };
+// The race between the balls (round 7; the "Race between the balls" slider, K from 0 to 1, 0 = none). The two balls
+// go level with the music for `together` [shortest, longest] s, then race: `surges` [fewest, most] surges, the hands
+// taking turns. In a surge one ball runs ahead of the music, smoothly out and back over `w` s (sin^2), by up to `lead` ss
+// at K 1 (times a share `vary` of it, each surge its own) but never more than `maxT` s ahead of the music; each surge
+// starts `step` of the way along the one before, so the other ball catches it, draws level and passes it as it falls
+// back. A ball only ever runs ahead (it lands early), never behind, and each note lights as its ball touches it. The
+// first race comes `first` s after both hands have begun, the last ends `end` s before either hand's last note, and
+// a race goes only where each hand lands at least `busy` times a surge (else it waits a second and tries again).
+// Seeded by the piece, so it is the same every time (and in the video).
+const RACE = { together: [10, 15], first: [7, 10], surges: [3, 5], w: 4, step: 0.5, vary: [0.8, 1], lead: 6, maxT: 0.33, end: 3, busy: 1 };
 // The semi-gloss paper mirrors the balls: gloss = the spread of the reflection (radians of the half
 // vector; broad, so a ball 1 ss up leaves a soft streak ~2-3 ss long), k = how bright it is (the ball is a light: its
 // reflection peaks ~+40% over the paper at 1 ss up), narrow = how much narrower it is sideways (a vertical streak);
@@ -556,10 +567,11 @@ varying vec3 vW; varying vec4 vClip; varying vec2 vP;
 void main() { vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vP = w.xz - uOrigin; vClip = projectionMatrix * viewMatrix * w; gl_Position = vClip; }`;
 // The cracks of light (CRACK) for the ink and the lit heads: uCrK = (strength, cells per ss, flickers a second, the
 // picture's fade), uCrT = the music time, uCrC = each hand's crack colour (linear), uCrL = (the layout's t0, its start x,
-// its speed in ss/s, the page height between the staves).
+// its speed in ss/s, the page height between the staves), uCrE = how far ahead of the music each hand's ball runs now
+// (s; the race, RACE: what it lights, lights that much sooner).
 const CRACK_GLSL = `
 #ifdef CRACKS
-uniform vec4 uCrK, uCrL; uniform float uCrT; uniform vec3 uCrC[2]; varying vec3 vCrW;
+uniform vec4 uCrK, uCrL; uniform vec2 uCrE; uniform float uCrT; uniform vec3 uCrC[2]; varying vec3 vCrW;
 vec2 crH(vec2 p) { vec3 a = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973)); a += dot(a, a.yzx + 33.33); return fract((a.xx + a.yz) * a.zy); }
 vec2 crCells(vec2 p) { // (the distance to the nearest edge of a cell, the nearest cell's id 0..1)
   vec2 n = floor(p), f = fract(p), mg = vec2(0.0), mr = vec2(0.0); float md = 8.0;
@@ -1524,7 +1536,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
   const FRES = `vec3 nn = normalize(normal); float nv = clamp(dot(nn, normalize(vViewPosition)), 0.0, 1.0), f5 = pow(1.0 - nv, 5.0);
           float up = dot(nn, normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz)), fm = 0.04 + 0.96 * f5 * clamp(1.0 - up, 0.0, 1.0);`;
   const shadeMats = []; // (all that the corner shade compiles into: see shadeOn)
-  const crackU = { uCrK: { value: new THREE.Vector4(0, CRACK.cells, CRACK.hz, 1) }, uCrT: { value: 0 }, uCrC: { value: [new THREE.Vector3(1, 1, 1), new THREE.Vector3(1, 1, 1)] }, uCrL: { value: new THREE.Vector4(0, 0, 1, (TOP[1] + BOTTOM[0]) / 2) } };
+  const crackU = { uCrK: { value: new THREE.Vector4(0, CRACK.cells, CRACK.hz, 1) }, uCrT: { value: 0 }, uCrC: { value: [new THREE.Vector3(1, 1, 1), new THREE.Vector3(1, 1, 1)] }, uCrL: { value: new THREE.Vector4(0, 0, 1, (TOP[1] + BOTTOM[0]) / 2) }, uCrE: { value: new THREE.Vector2() } };
   const crackMats = []; // (the materials the cracks compile into: see crackOn)
   const hook = (m, key, { glints = null, lit = false, crack = false } = {}) => {
     if (crack) crackMats.push(m);
@@ -1534,7 +1546,9 @@ export function buildPaper(T, tools, piece, opts = {}) {
       Object.assign(sh.uniforms, glU, csU, lampU, shineU);
       if (crack) { // (CRACKS: the world place, for the cracks)
         Object.assign(sh.uniforms, crackU);
-        sh.vertexShader = '#ifdef CRACKS\nvarying vec3 vCrW;\n#endif\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n#ifdef CRACKS\n { vec4 cw = vec4(transformed, 1.0);\n#ifdef USE_INSTANCING\n cw = instanceMatrix * cw;\n#endif\n vCrW = (modelMatrix * cw).xyz; }\n#endif');
+        // (and on the ink, the hand its piece belongs to, aCrH: 0 right, 1 left, -1 none; the lit heads have their own)
+        const hd = lit ? '' : ' vCrH = aCrH;';
+        sh.vertexShader = '#ifdef CRACKS\nvarying vec3 vCrW;' + (lit ? '' : ' attribute float aCrH; varying float vCrH;') + '\n#endif\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n#ifdef CRACKS\n { vec4 cw = vec4(transformed, 1.0);\n#ifdef USE_INSTANCING\n cw = instanceMatrix * cw;\n#endif\n vCrW = (modelMatrix * cw).xyz;' + hd + ' }\n#endif');
       }
       sh.vertexShader = 'attribute vec3 aDome; varying vec3 vDome;\n' + sh.vertexShader.replace('#include <defaultnormal_vertex>',
         '#include <defaultnormal_vertex>\n { vec3 dn = aDome;\n#ifdef USE_INSTANCING\n dn = mat3(instanceMatrix) * dn;\n#endif\n vDome = normalMatrix * dn; }'); // (the dome's tilt, for the shine: see domeOf)
@@ -1557,9 +1571,9 @@ export function buildPaper(T, tools, piece, opts = {}) {
       // (the cracks: a lit head cracks from its own play time instead of turning white-hot; the rest of a note, from the
       // time the music reaches its place on the page, and only where it stands up from the page)
       const cracked = !crack ? '' : lit ? '\n#ifdef CRACKS\n if (vLit > 0.5) gl_FragColor.rgb = crackShade(gl_FragColor.rgb, vCrW, uCrT - vLitT, vHand);\n#endif'
-        : '\n#ifdef CRACKS\n if (vCrW.y > 0.015 && vCrW.x > uCrL.y - 1.0) { float crAge = uCrT - (uCrL.x + (vCrW.x - uCrL.y) / uCrL.z); if (crAge >= 0.0) gl_FragColor.rgb = crackShade(gl_FragColor.rgb, vCrW, crAge, step(-vCrW.z, uCrL.w)); }\n#endif';
+        : '\n#ifdef CRACKS\n if (vCrW.y > 0.015 && vCrW.x > uCrL.y - 1.0) { float crHd = vCrH < -0.5 ? step(-vCrW.z, uCrL.w) : vCrH, crAge = uCrT + mix(uCrE.x, uCrE.y, crHd) - (uCrL.x + (vCrW.x - uCrL.y) / uCrL.z); if (crAge >= 0.0) gl_FragColor.rgb = crackShade(gl_FragColor.rgb, vCrW, crAge, crHd); }\n#endif';
       const white = lit ? '\n if (vLit > 0.5) gl_FragColor.rgb = (vHand < 0.5 ? uCore[0] : uCore[1]) * uFade;' + (T != null ? '\n if (vLit > 0.5) gl_FragColor.a = 1.0;' : '') : '';
-      sh.fragmentShader = GL_DECL + SHADE_DECL + (crack ? CRACK_GLSL : '') + (lit ? 'uniform vec3 uCore[2]; uniform float uFade; varying float vLit; varying float vHand; varying float vLitT;\n' : '') +
+      sh.fragmentShader = GL_DECL + SHADE_DECL + (crack ? CRACK_GLSL : '') + (crack && !lit ? '#ifdef CRACKS\nvarying float vCrH;\n#endif\n' : '') + (lit ? 'uniform vec3 uCore[2]; uniform float uFade; varying float vLit; varying float vHand; varying float vLitT;\n' : '') +
         sh.fragmentShader.replace('#include <lights_fragment_end>', end).replace('#include <dithering_fragment>', glass + cap +
           (crack && lit ? '\n#ifndef CRACKS' + white + '\n#endif' : white) + (lit && T != null ? '\n#ifdef CRACKS\n if (vLit > 0.5) gl_FragColor.a = 1.0;\n#endif' : '') + cracked + '\n#include <dithering_fragment>');
     };
@@ -1576,6 +1590,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
   const headMat = hook(ink.clone(), 'paper-head-' + fid, { lit: true, crack: true, glints: F ? F.glints : null });
   const restMat = hook(ink.clone(), 'paper-rest-' + fid, { glints: F ? F.glints : null }); // (the rests: as the ink, but they never crack)
   hook(ink, 'paper-ink-' + fid, { crack: true, glints: F ? F.glints : null });
+  ink.defaultAttributeValues = { aCrH: [-1] }; // (ink with no hand of its own, the flat lettering: by its side of the page, were it ever to crack)
   // The cracks (CRACK) compile into the ink and the heads (CRACKS) only while they are on, as the dark paper does.
   let crackIn = false;
   const crackOn = (v) => { if (v === crackIn) return; crackIn = v; for (const m of crackMats) { if (v) m.defines.CRACKS = ''; else delete m.defines.CRACKS; m.needsUpdate = true; } }; hook(face, 'paper-face-' + fid, { glints: F ? F.glints : null });
@@ -1682,16 +1697,17 @@ export function buildPaper(T, tools, piece, opts = {}) {
   const put = (k, x, y, sx = 1, sy = 1, tag = null) => k.list.push([x, y, sx, sy, tag]);
   const line = (x0, y0, x1, y1, w) => lines.push([x0, y0, x1, y1, w]);
   // a stem: raised like the ink (round 5; a printed line before, which looked flat beside the raised heads and beams),
-  // w ss wide over all, its outline inset by the bevel's growth
-  const stem = (x, y0, y1, w) => {
+  // w ss wide over all, its outline inset by the bevel's growth; staff: its note's (0 right hand, 1 left), for the
+  // colour of its cracks (CRACK)
+  const stem = (x, y0, y1, w, staff = -1) => {
     const s = new THREE.Shape(), h = Math.max(0.012, w / 2 - grow), a = Math.min(y0, y1), b = Math.max(y0, y1);
     s.moveTo(x - h, a); s.lineTo(x + h, a); s.lineTo(x + h, b); s.lineTo(x - h, b); s.lineTo(x - h, a);
-    stems.push([x, s]);
+    stems.push([x, s, staff]);
   };
-  const slab = (x0, y0, x1, y1, thick) => { // a beam or thick bar line: a parallelogram with vertical ends, raised like the ink
+  const slab = (x0, y0, x1, y1, thick, staff = -1) => { // a beam or thick bar line: a parallelogram with vertical ends, raised like the ink (staff: as a stem's)
     const s = new THREE.Shape(), h = thick / 2 - grow;
     s.moveTo(x0, y0 - h); s.lineTo(x1, y1 - h); s.lineTo(x1, y1 + h); s.lineTo(x0, y0 + h); s.lineTo(x0, y0 - h);
-    slabs.push([(x0 + x1) / 2, s]);
+    slabs.push([(x0 + x1) / 2, s, staff]);
   };
   const raisedSmall = [face, fleck];
   const raisedPut = (name, x, y, size = 1, sx = 1, small = false) => {
@@ -1745,7 +1761,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
       for (const h of [...c.heads].reverse()) {
         const hx = c.x + h.dx, tag = { kind: name, t: c.t, staff: c.staff, x: hx, y: h.y, chord: c, mesh: null, index: -1 };
         heads.push(tag); put(k, hx, h.y, 1, 1, tag);
-        if (dotted) put(kind('dot', inkGlyph('augmentationDot', -0.2), ink), c.x + hw + 0.45 + Math.max(0, ...c.heads.map((q) => q.dx)), Number.isInteger(h.y) ? h.y + 0.5 : h.y);
+        if (dotted) put(kind('dot', inkGlyph('augmentationDot', -0.2), ink), c.x + hw + 0.45 + Math.max(0, ...c.heads.map((q) => q.dx)), Number.isInteger(h.y) ? h.y + 0.5 : h.y, 1, 1, { staff: c.staff });
         const ext = hw + 0.38;
         for (let ly = BOTTOM[c.staff] - 1; ly >= h.y - 0.01; ly--) line(hx - ext, ly, hx + ext, ly, LINE.ledger);
         for (let ly = TOP[c.staff] + 1; ly <= h.y + 0.01; ly++) line(hx - ext, ly, hx + ext, ly, LINE.ledger);
@@ -1772,8 +1788,8 @@ export function buildPaper(T, tools, piece, opts = {}) {
         let end = near(c) + d * (3.5 + extra);
         end = d > 0 ? Math.max(end, MID[c.staff]) : Math.min(end, MID[c.staff]);
         const sx = stemX(c, d);
-        stem(sx, far(c) + d * STEM_DY, end, LINE.stem);
-        if (c.v < 1) { const f = FLAG[Math.min(2, lv[0] - 1)] + (d > 0 ? 'Up' : 'Down'); put(kind('flag:' + f, inkGlyph(f), ink), sx - LINE.stem / 2, end); }
+        stem(sx, far(c) + d * STEM_DY, end, LINE.stem, c.staff);
+        if (c.v < 1) { const f = FLAG[Math.min(2, lv[0] - 1)] + (d > 0 ? 'Up' : 'Down'); put(kind('flag:' + f, inkGlyph(f), ink), sx - LINE.stem / 2, end, 1, 1, { staff: c.staff }); }
         continue;
       }
       const deep = Math.max(...lv), xs = g.map((c) => stemX(c, d)), f = g[0], l = g[g.length - 1];
@@ -1781,9 +1797,9 @@ export function buildPaper(T, tools, piece, opts = {}) {
       let base = y0;
       g.forEach((c, i) => { const need = near(c) + d * (3.0 + (deep - 1) * 0.75), at = base + slope * (xs[i] - xs[0]); if ((need - at) * d > 0) base += need - at; });
       const at = (x) => base + slope * (x - xs[0]);
-      g.forEach((c, i) => stem(xs[i], far(c) + d * STEM_DY, at(xs[i]), LINE.stem));
+      g.forEach((c, i) => stem(xs[i], far(c) + d * STEM_DY, at(xs[i]), LINE.stem, c.staff));
       for (let L = 1; L <= deep; L++) {
-        const off = -d * ((L - 1) * 0.75 + 0.25), seg = (xa, xb) => slab(xa, at(xa) + off, xb, at(xb) + off, 0.5);
+        const off = -d * ((L - 1) * 0.75 + 0.25), seg = (xa, xb) => slab(xa, at(xa) + off, xb, at(xb) + off, 0.5, f.staff);
         if (L === 1) { seg(xs[0] - LINE.stem / 2, xs[xs.length - 1] + LINE.stem / 2); continue; }
         for (let i = 0; i < g.length; i++) {
           if (lv[i] < L) continue;
@@ -1870,12 +1886,14 @@ export function buildPaper(T, tools, piece, opts = {}) {
     const isPin = name.startsWith('pin:'), lift = RAISED.lift;
     for (const items of byChunk.values()) {
       let geo = isPin ? pinGeo : k.geo;
-      if (k.colors) { // noteheads: the shape is shared, and each piece of the music adds when and in which hand each head lights
+      if (k.colors || k.mat === ink) { // the shape is shared; each piece of the music adds, per instance, the hand
         const g = new THREE.BufferGeometry();
         g.setIndex(geo.index);
         for (const [n, a] of Object.entries(geo.attributes)) g.setAttribute(n, a);
-        g.setAttribute('aLitT', new THREE.InstancedBufferAttribute(Float32Array.from(items, (it) => it[4].t), 1));
-        g.setAttribute('aHand', new THREE.InstancedBufferAttribute(Float32Array.from(items, (it) => it[4].staff), 1));
+        if (k.colors) { // noteheads: when and in which hand each head lights
+          g.setAttribute('aLitT', new THREE.InstancedBufferAttribute(Float32Array.from(items, (it) => it[4].t), 1));
+          g.setAttribute('aHand', new THREE.InstancedBufferAttribute(Float32Array.from(items, (it) => it[4].staff), 1));
+        } else g.setAttribute('aCrH', new THREE.InstancedBufferAttribute(Float32Array.from(items, (it) => (it[4] && it[4].staff >= 0 ? it[4].staff : -1)), 1)); // (the ink: the hand of the note a dot or flag belongs to, for its cracks; -1 none)
         geo = g;
       }
       const m = new THREE.InstancedMesh(geo, k.mat, items.length);
@@ -1903,12 +1921,12 @@ export function buildPaper(T, tools, piece, opts = {}) {
     const byChunk = new Map();
     for (const s of pieces) { const c = Math.floor((s[0] + s[2]) / 2 / CHUNK); if (!byChunk.has(c)) byChunk.set(c, []); byChunk.get(c).push(s); }
     for (const segs of byChunk.values()) { const m = new THREE.Mesh(lineGeometry(segs), lineMat); m.renderOrder = 2; printed.add(m); }
-    const slabChunks = new Map();
-    for (const [x, s] of slabs) { const c = Math.floor(x / CHUNK); if (!slabChunks.has(c)) slabChunks.set(c, []); slabChunks.get(c).push(s); }
-    for (const shapes of slabChunks.values()) { const g = domeOf(flat(extrude(shapes, { ...IP, curveSegments: 1, smooth: 30 })), 'ridge'); printed.add(cast(new THREE.Mesh(g, ink))); }
-    const stemChunks = new Map();
-    for (const [x, s] of stems) { const c = Math.floor(x / CHUNK); if (!stemChunks.has(c)) stemChunks.set(c, []); stemChunks.get(c).push(s); }
-    for (const shapes of stemChunks.values()) { const g = domeOf(flat(extrude(shapes, { ...IP, curveSegments: 1, smooth: 30 }))); printed.add(cast(new THREE.Mesh(g, ink))); }
+    // beams and stems, merged per piece of the music; each corner carries the hand of the note it belongs to (aCrH,
+    // from the shape it comes from), so a note's stem and beam crack in its own hand's colour wherever they reach
+    const chunked = (list) => { const m = new Map(); for (const [x, s, staff] of list) { const c = Math.floor(x / CHUNK); if (!m.has(c)) m.set(c, { shapes: [], staff: [] }); m.get(c).shapes.push(s); m.get(c).staff.push(staff); } return m.values(); };
+    const handOf = (g, staff) => g.setAttribute('aCrH', new THREE.BufferAttribute(Float32Array.from(g.userData.shape, (i) => staff[i]), 1));
+    for (const { shapes, staff } of chunked(slabs)) { const g = handOf(domeOf(flat(extrude(shapes, { ...IP, curveSegments: 1, smooth: 30 })), 'ridge'), staff); printed.add(cast(new THREE.Mesh(g, ink))); }
+    for (const { shapes, staff } of chunked(stems)) { const g = handOf(domeOf(flat(extrude(shapes, { ...IP, curveSegments: 1, smooth: 30 }))), staff); printed.add(cast(new THREE.Mesh(g, ink))); }
   }
 
   // ---- the halos of the lit notes: one square per notehead, all in one draw; a note's square appears when it is played ----
@@ -2523,7 +2541,28 @@ export function buildPaper(T, tools, piece, opts = {}) {
   // longer and higher); it touches each note for an instant. A chord is landed on at its outer note (the top in the
   // right hand, the bottom in the left), on that note's own head.
   const headX = new Map(heads.map((h) => [`${h.staff}|${h.t}|${h.y}`, h.x]));
-  const paths = [0, 1].map((hand) => (S ? S.landings[hand].map((l) => ({ t: l.t, x: headX.get(`${hand}|${l.t}|${l.y}`) ?? l.x, y: l.y })) : []));
+  // (t: when the ball touches it, s: when it is played; the same unless the balls race: see setRace)
+  const paths = [0, 1].map((hand) => (S ? S.landings[hand].map((l) => ({ t: l.t, s: l.t, x: headX.get(`${hand}|${l.t}|${l.y}`) ?? l.x, y: l.y })) : []));
+  // The race (RACE, optional): the surges, planned once for the piece, per hand [start, height share]. raceLead(h, t):
+  // how far ahead of the music (as a share of the full lead) hand h's ball runs at music time t. raceD: the full lead
+  // now (s, 0 = no race); setRace(K) moves every touch of the balls, and when each note lights, to match.
+  const surges = [[], []];
+  if (S && paths[0].length && paths[1].length) {
+    const from = Math.max(paths[0][0].s, paths[1][0].s), to = Math.min(paths[0][paths[0].length - 1].s, paths[1][paths[1].length - 1].s) - RACE.end;
+    let n = 0;
+    const rnd = () => hash01(0x7ace, (paths[0].length * 7919 + paths[1].length * 104729 + n++ * 2654435761) >>> 0), pick = (r) => r[0] + (r[1] - r[0]) * rnd();
+    const busy = (h, a, b) => paths[h].reduce((k, l) => k + (l.s >= a && l.s < b ? 1 : 0), 0);
+    let a = from + pick(RACE.first), hand = rnd() < 0.5 ? 0 : 1;
+    for (let guard = 0; guard < 10000; guard++) {
+      const m = RACE.surges[0] + Math.floor(rnd() * (RACE.surges[1] - RACE.surges[0] + 1)), len = RACE.w * (1 + (m - 1) * RACE.step);
+      if (a + len > to) break;
+      if (busy(0, a, a + len) < RACE.busy * m || busy(1, a, a + len) < RACE.busy * m) { a += 1; continue; }
+      for (let k = 0; k < m; k++) surges[(hand + k) % 2].push([a + k * RACE.w * RACE.step, pick(RACE.vary)]);
+      hand = 1 - hand; a += len + pick(RACE.together);
+    }
+  }
+  const raceLead = (h, t) => { let e = 0; for (const [a, k] of surges[h]) { const u = (t - a) / RACE.w; if (u > 0 && u < 1) { const s = Math.sin(Math.PI * u); e += k * s * s; } } return e; };
+  let raceK = 0, raceD = 0;
   const ballGeo = new THREE.PlaneGeometry(2, 2), QSIZE = 2.3; // the square around a ball reaches 2.3 radii out
   const ballU = looks.map((l) => ({ uSize: { value: BALL.r * QSIZE }, uQ: { value: QSIZE }, uCore: { value: l.ball }, uRim: { value: l.ballRim }, uHalo: { value: l.ballHalo }, uAlpha: { value: 1 }, uGain: { value: new THREE.Vector2(1, 1) } }));
   const balls = ballU.map((u) => {
@@ -2629,7 +2668,26 @@ export function buildPaper(T, tools, piece, opts = {}) {
   // The touches, each frame: per hand the newest SPARK.slots (for the sparks) and the newest corner triggers. For a
   // piece they are the balls' landings (the corner triggers chosen once: each landing at least CORNER.gap s after the
   // last one kept); played live, the chords as played (see drawLive). Seeds: the landing's number, or its time.
-  const trig = paths.map((list) => { const keep = []; let last = -1e9; list.forEach((l, i) => { if (l.t - last >= CORNER.gap) { keep.push(i); last = l.t; } }); return Int32Array.from(keep); });
+  const trigOf = () => paths.map((list) => { const keep = []; let last = -1e9; list.forEach((l, i) => { if (l.t - last >= CORNER.gap) { keep.push(i); last = l.t; } }); return Int32Array.from(keep); });
+  let trig = trigOf();
+  // The race (RACE) at strength K (0..1): every touch of a ball moves to t = s - lead (its music time, less how far
+  // ahead its ball runs then), and every note lights with it (the halos, the light map, the white-hot or cracked heads);
+  // the corner triggers are chosen again, and the planned cameras, which follow the balls, plan again.
+  function setRace(K) {
+    if (K === raceK || !S) return;
+    raceK = K; raceD = K * Math.min(RACE.lead / S.speed, RACE.maxT);
+    for (let h = 0; h < 2; h++) for (const l of paths[h]) l.t = l.s - raceD * raceLead(h, l.s);
+    const lit = new Set(), ah = haloGeo ? haloGeo.attributes.aHead : null;
+    heads.forEach((hd, i) => {
+      const lt = hd.t - raceD * raceLead(hd.staff, hd.t), at = hd.mesh ? hd.mesh.geometry.attributes.aLitT : null;
+      if (ah) ah.array[4 * i + 2] = lt;
+      if (at) { at.array[hd.index] = lt; lit.add(at); }
+    });
+    if (ah) ah.needsUpdate = true;
+    for (const at of lit) at.needsUpdate = true;
+    trig = trigOf();
+    for (const pl of Object.values(plans)) pl.pose = null;
+  }
   const lastAt = (list, t) => { let lo = 0, hi = list.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (list[m].t <= t) lo = m; else hi = m - 1; } return lo; };
   const NT = 4, TR = [0, 1].map(() => ({ n: 0, x: new Float32Array(NT), y: new Float32Array(NT), tau: new Float32Array(NT), seed: new Uint32Array(NT) }));
   const sparkU = { uPuff: { value: Array.from({ length: 2 * SPARK.slots }, () => new THREE.Vector4()) }, uPuffK: { value: Array.from({ length: 2 * SPARK.slots }, () => new THREE.Vector4()) },
@@ -3144,6 +3202,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
   // what the last frame drew, for checking it from outside: the balls' centres (world), whether each is shown, the fades
   const probe = { balls: [new THREE.Vector3(), new THREE.Vector3()], shown: [false, false], corner: 'off', sparks: 0, fade: 1, ballFade: 1, tc: layout ? layout.tc : null, tEnd: layout ? layout.tEnd : null, camera: null, t: 0, glows: 0 };
   function render(t, camera, o = {}) {
+    if (S) setRace(o.paths !== false ? clamp01(o.race ?? 0) : 0); probe.race = raceD; // (the race between the balls, optional, and only with the balls shown: before the camera, which follows them)
     pickCam(o.camMove); // (a moving camera chosen on purpose moves even with the gentle movement off: that only calms Steady)
     const c = camFor(camera.aspect, o.motion !== false || cineOn), live = !!o.live || !S, L = live ? liveLayout : layout;
     if (camera.fov !== c.fov || camera.near !== NEAR || camera.far !== FAR) { camera.fov = c.fov; camera.near = NEAR; camera.far = FAR; camera.updateProjectionMatrix(); }
@@ -3250,6 +3309,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
     crackOn(crk > 0 && !!S);
     if (crk > 0 && S) {
       crackU.uCrK.value.set(crk, CRACK.cells, CRACK.hz, linS); crackU.uCrT.value = live ? 1e9 : t; crackU.uCrL.value.set(S.t0, S.start, S.speed, (TOP[1] + BOTTOM[0]) / 2);
+      crackU.uCrE.value.set(raceD * raceLead(0, t), raceD * raceLead(1, t));
       for (let h = 0; h < 2; h++) full(crackU.uCrC.value[h], looks[h].halo).multiplyScalar(CRACK.gain);
     }
     probe.cracks = crk;
@@ -3276,7 +3336,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
   const setPaper = (id) => applyPaper(paperOf(id));
 
   return { scene, render, setHands, setPaper, paperId: () => paperTone.id, finish: fid, bloom: { get pass() { return paperTone.dark ? DARK[paperTone.dark].bloom : GLOW.bloom; }, mips: GLOW.bloomMips }, layout: S, heads, hands, balls, paths, ballAt: (hand, t, aspect = 16 / 9, p = new THREE.Vector3(), motion = true) => (layout && ballAt(hand, t, layout, camFor(aspect, motion), aspect, p) ? p : null),
-    pose, probe, framing: frm, get cine() { return cine; }, plans,
+    pose, probe, framing: frm, get cine() { return cine; }, plans, race: { surges, lead: raceLead, set: setRace, get D() { return raceD; } },
     // the camera's pose at music time t for a picture shape, without drawing (for checking the motion from outside)
     poseOf: (t, aspect, pos, quat, camMove = 'steady', motion = true) => { const keep = cineOn, keepPlan = cine; pickCam(camMove); const r = layout ? poseAt(layout, t, camFor(aspect, motion || cineOn), aspect, poseV, poseR, poseQ) : null; cineOn = keep; cine = keepPlan; if (r) { pos.x = poseV.x; pos.y = poseV.y; pos.z = poseV.z; quat.x = poseR.x; quat.y = poseR.y; quat.z = poseR.z; quat.w = poseR.w; } return r; }, uniforms: { paper: paperU, line: lineU, glow: glowU, halo: haloU, glows: glU, pool: poolU, balls: ballU }, lights: { key, edge, ambient }, trails,
     materials: { ink, head: headMat, face, chrome, fleck, pin: pinMat, paper: paperMat, line: lineMat }, printed, camX: (t) => camX(layout || liveLayout, t), timing: layout };

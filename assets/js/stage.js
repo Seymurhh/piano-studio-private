@@ -6,8 +6,8 @@ import { buildFlight, voicesFromPiece } from './flight.js?v=14';
 import { buildDancer } from './dancer.js?v=9';
 import { buildScore } from './score.js?v=20';
 import { buildSheet } from './sheet.js?v=8';
-import { buildPaper, HAND_PAIRS, PAPERS, PAPER_DEFAULT, FINISHES, FINISH_DEFAULT, CORNER_STYLES, CAM_MOVES, SHINE_DEFAULT } from './paper.js?v=15';
-import { loadGlyphs } from './glyphs.js?v=1';
+import { buildPaper, HAND_PAIRS, PAPERS, PAPER_DEFAULT, FINISHES, FINISH_DEFAULT, CORNER_STYLES, CAM_MOVES, SHINE_DEFAULT } from './paper.js?v=16';
+import { loadGlyphs } from './glyphs.js?v=2';
 
 const THEMES = {
   aurora: { bg: ['#000000', '#01030a'], fog: '#000103', runway: '#020304', trim: '#3dffa0', led: '#35ff8a', ledLight: 1.1, dim: 0.3, felt: '#06301c', white: '#eef5f1', black: '#050607',
@@ -143,7 +143,7 @@ export function createStage(canvas) {
   const clip = [new THREE.Plane(new THREE.Vector3(0, 0, -1), 0)]; // hide the part of a note that has passed the keys
   const dot = canvasTex(64, 64, (g) => { const r = g.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, '#fff'); r.addColorStop(0.35, 'rgba(255,255,255,.55)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); });
   const beamTex = canvasTex(32, 128, (g, w, h) => { const r = g.createLinearGradient(0, h, 0, 0); r.addColorStop(0, 'rgba(255,255,255,.95)'); r.addColorStop(0.25, 'rgba(255,255,255,.35)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, w, h); });
-  const S = { look: 'paper', title: null, composer: '', mark: '', glyphs: null, hands: 'rose', paperTone: PAPER_DEFAULT, finish: FINISH_DEFAULT, trails: false, corner: 'off', cornerK: 0.5, sparks: 0, zap: 0, current: 0, cracks: 0, camMove: 'steady', shine: SHINE_DEFAULT, ballK: 0.5, notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheet: null, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', score: null, theme: 'aurora', camera: 'front', trail: null, pool: [], labels: true, effects: true, motion: true, piece: null, view: 'piano', voices: [], mic: null, flight: null, scene: null, keys: [], items: [], beams: [], live: new Map(), far: 60, cam: null };
+  const S = { look: 'paper', title: null, composer: '', mark: '', glyphs: null, hands: 'rose', paperTone: PAPER_DEFAULT, finish: FINISH_DEFAULT, trails: false, corner: 'off', cornerK: 0.5, sparks: 0, zap: 0, current: 0, cracks: 0, race: 0, camMove: 'steady', shine: SHINE_DEFAULT, ballK: 0.5, notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheet: null, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', score: null, theme: 'aurora', camera: 'front', trail: null, pool: [], labels: true, effects: true, motion: true, piece: null, view: 'piano', voices: [], mic: null, flight: null, scene: null, keys: [], items: [], beams: [], live: new Map(), far: 60, cam: null };
   const labelMats = new Map(), ray = new THREE.Raycaster(), point = new THREE.Vector2(), bufSize = new THREE.Vector2();
   const paperLook = () => S.view === 'sheet' && S.look === 'paper';
   // The paper look's 3D lettering needs the glyph outlines, which load in the background. Until they arrive the paper
@@ -360,7 +360,7 @@ export function createStage(canvas) {
     if (S.view === 'dancer') { S.dancer.render(camera, S.music, { effects: S.effects, motion: S.motion, style: S.dance }); composer.render(); return; }
     if (paperLook()) {
       renderer.getDrawingBufferSize(bufSize);
-      const view = S.paper.render(t, camera, { live: live ? S.trail || [] : null, res: bufSize, pr: renderer.getPixelRatio(), paths: S.paths, trails: S.trails, corner: S.corner, cornerK: S.cornerK, sparks: S.sparks, zap: S.zap, current: S.current, cracks: S.cracks, shine: S.shine, ballK: S.ballK, glow: S.glow, effects: S.effects, motion: S.motion, camMove: S.camMove });
+      const view = S.paper.render(t, camera, { live: live ? S.trail || [] : null, res: bufSize, pr: renderer.getPixelRatio(), paths: S.paths, trails: S.trails, corner: S.corner, cornerK: S.cornerK, sparks: S.sparks, zap: S.zap, current: S.current, cracks: S.cracks, race: S.race, shine: S.shine, ballK: S.ballK, glow: S.glow, effects: S.effects, motion: S.motion, camMove: S.camMove });
       // the cinematic camera's lens: sharp where the music is being played, the paper softening nearer and further off
       // (the Steady camera has none)
       dof.enabled = S.effects && view.dof > 0.001;
@@ -587,6 +587,9 @@ export function createStage(canvas) {
     // each 0 (none) to 1 (strongest). No rebuild (the cracks compile into the notes' shaders while they are on).
     setCurrent(v) { S.current = Math.max(0, Math.min(1, Number(v) || 0)); },
     setCracks(v) { S.cracks = Math.max(0, Math.min(1, Number(v) || 0)); },
+    // The paper look's race between the balls: how far ahead of the music a ball runs as they take turns passing each
+    // other, 0 (none: always level, in time) to 1. No rebuild (the touches and the notes' lighting move with it).
+    setRace(v) { S.race = Math.max(0, Math.min(1, Number(v) || 0)); },
     // The paper look's camera: 'steady' (the default) or 'cinematic' (moves with the music, planned from the piece).
     setCamMove(v) { S.camMove = CAM_MOVES.some((c) => c.id === v) ? v : 'steady'; },
     camMoves: () => CAM_MOVES.map(({ id, name, desc }) => ({ id, name, desc })),
