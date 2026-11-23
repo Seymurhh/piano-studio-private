@@ -1,7 +1,7 @@
 Pieces in the studio's library
 
 All the music is in the public domain (the composers died between 1750 and 1943).
-The MIDI files were made from the free editions of the Mutopia Project (https://www.mutopiaproject.org; the Passacaglia from IMSLP)
+The MIDI files were made from the free editions of the Mutopia Project (https://www.mutopiaproject.org; the two Passacaglias from IMSLP)
 with LilyPond 2.24; each edition's own licence is given below and still applies to the file made from it.
 
 satie-gnossienne-1.smf
@@ -31,6 +31,15 @@ handel-passacaglia-g-minor.smf
   theme) to 70 with a short breath at the end of each and a broadening to 42 on the last chord, and a legato sustain pedal
   on the half-bars that hold one chord and on the last chord. Bar 24's falling triplets are on the bass staff, as the
   edition prints them.
+
+handel-halvorsen-passacaglia.smf
+  Handel / Halvorsen: Passacaglia, piano arrangement by Lumen Keys (2026)
+  Arranged from Johan Halvorsen's Passacaglia for violin and viola (1894), itself after the Passacaille of Handel's
+  Suite No. 7 in G minor, HWV 432 (1720). Source: the first edition (Wilhelm Hansen, Copenhagen, n.d. [1896], plate
+  11808), IMSLP #72041, public domain. Every note of the 54 bars used was read twice, independently, from the scan and
+  the two readings compared note by note. The arrangement (the choice of variations, the piano writing, Handel's ground
+  bass added under the theme and the first variation, and the performance: tempo, dynamics, voicing and pedal) is
+  Lumen Keys' own.
 
 mozart-rondo-alla-turca.smf
   Wolfgang Amadeus Mozart: Rondo alla Turca
@@ -116,9 +125,9 @@ Changes made here: a tempo was set where the edition's file had none or an unsui
 Prelude in C 70, Moonlight Sonata first movement 54 and third movement 160, Gymnopédie 66, Arabesque 104). The sustain
 pedal was added by a simple rule (change the pedal when the bass note changes) to: Prelude in C, Moonlight Sonata first
 movement, Nocturne, Clair de lune, Gymnopédie, Träumerei, Arabesque, Pathétique second movement, Revolutionary Étude,
-Wedding Day at Troldhaugen, Prelude in G minor, Fantasia in D minor. The Gnossienne and the Passacaglia were entered by
-hand from their editions (the Passacaglia's from IMSLP, not the Mutopia Project); the Passacaglia's dynamics, tempo
-and pedal were shaped by hand for it (see above), not by the simple rule.
+Wedding Day at Troldhaugen, Prelude in G minor, Fantasia in D minor. The Gnossienne and the two Passacaglias were entered
+by hand from their editions (the Passacaglias' from IMSLP, not the Mutopia Project); the Passacaglias' dynamics, tempo
+and pedal were shaped by hand (see above), not by the simple rule.
 
 The files end in .smf (Standard MIDI File) instead of .mid: they are ordinary MIDI files, renamed because this site
 never publishes .mid files, so that her own recordings cannot be published by accident.
