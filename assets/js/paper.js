@@ -210,6 +210,15 @@ const CORNER = {
     grow: 0.05, decay: 0.17, life: 0.62, w: 0.05, sRef: 10, minPx: 1.6, halo: 0.95, haloPx: 9,
     lum: 1.9, white: 0.82, dim: 0.5, haloDim: 0.36, haloLum: 0.6, k: 0.6, flick: [0.35, 0.3], edge: [[[-1.04, 0.2], [-1.04, 1.04], [-0.75, 1.04]], [[1.04, -0.2], [1.04, -1.04], [0.3, -1.04]]] },
 };
+// Darkness of the room (the "Darkness of the room" slider, K from 0 to 1, 0 by default, when nothing changes): the lamp
+// dimmed, as in a darker room, and the two open corners (top left, bottom right) falling into deep shade. It uses the
+// corner shade (CORNER.shade, on even with the corner light off), so it holds back only the lamp's light on the paper
+// and on the raised pieces, never the glows, the balls, the lit notes or the corner light, which stand out the more.
+// amb: the share of the lamp's light held back everywhere [over the music, away from it] at K 1; music: the page
+// heights (ss) of the music [from where it starts to fade, where it is full, ..., where it is gone], so the notes stay
+// readable; depth: each corner's shade at K 1 (the deeper of this and the corner light's own); reach: how much further
+// the corner shade reaches at K 1 (its R x (1 + reach K)).
+const DARKNESS = { amb: [0.24, 0.55], music: [-7, -1, 16, 22], depth: [0.93, 0.95], reach: 0.65 };
 // The corner light's styles as the Look tab offers them (one line each, plain words).
 export const CORNER_STYLES = [
   { id: 'off', name: 'Off', desc: 'No light in the corners: only the music, the balls and the lit notes.' },
@@ -548,15 +557,21 @@ const CS = CORNER.shade, glf = (v) => v.toFixed(4);
 const srgbLin = (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)); // one sRGB channel as linear light
 const SHADE_GLSL = `
 #ifdef CORNER_SHADE
-uniform vec4 uCS, uCSA;
+uniform vec4 uCS, uCSA, uCSD;
 float cornerShade(vec2 uv, float py) {
   vec2 q = (uv - 0.5) * uCSA.xy, hc = 0.5 * uCSA.xy, a = uCSA.zw, n = vec2(-a.y, a.x);
   vec2 d0 = q - vec2(-hc.x, hc.y), d1 = q - vec2(hc.x, -hc.y);
-  float x0 = min(length(vec2(dot(d0, a) / ${glf(CS.R[0][0])}, dot(d0, n) / ${glf(CS.R[0][1])})), 1.0);
-  float x1 = min(length(vec2(dot(d1, a) / ${glf(CS.R[1][0])}, dot(d1, n) / ${glf(CS.R[1][1])})), 1.0);
+  float g = uCSD.w > 0.5 ? uCSD.z : 1.0; // (the darkness of the room reaches further: DARKNESS.reach)
+  float x0 = min(length(vec2(dot(d0, a) / (${glf(CS.R[0][0])} * g), dot(d0, n) / (${glf(CS.R[0][1])} * g))), 1.0);
+  float x1 = min(length(vec2(dot(d1, a) / (${glf(CS.R[1][0])} * g), dot(d1, n) / (${glf(CS.R[1][1])} * g))), 1.0);
   float m0 = clamp((py - ${glf(CS.band[0][0])}) / ${glf(CS.band[0][1] - CS.band[0][0])}, 0.0, 1.0), m1 = clamp((py - ${glf(CS.band[1][0])}) / ${glf(CS.band[1][1] - CS.band[1][0])}, 0.0, 1.0);
   m0 *= m0 * (3.0 - 2.0 * m0); m1 *= m1 * (3.0 - 2.0 * m1);
-  return uCS.y * pow(1.0 - x0, ${glf(CS.p)}) * m0 + uCS.z * pow(1.0 - x1, ${glf(CS.p)}) * m1;
+  float c = uCS.y * pow(1.0 - x0, ${glf(CS.p)}) * m0 + uCS.z * pow(1.0 - x1, ${glf(CS.p)}) * m1;
+  if (uCSD.w > 0.5) { // the darkness of the room (DARKNESS): the lamp dimmed everywhere, less over the music
+    float on = smoothstep(${glf(DARKNESS.music[0])}, ${glf(DARKNESS.music[1])}, py) * (1.0 - smoothstep(${glf(DARKNESS.music[2])}, ${glf(DARKNESS.music[3])}, py));
+    c = 1.0 - (1.0 - min(c, 0.97)) * (1.0 - mix(uCSD.y, uCSD.x, on));
+  }
+  return c;
 }
 vec3 shadeLeft(float s) { return pow(vec3(max(1.0 - s, 1e-4)), vec3(${glf(1 - CS.warm)}, 1.0, ${glf(1 + 1.5 * CS.warm)})); }
 #endif
@@ -1562,7 +1577,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
   // the hand's white-hot core colour from the moment it is played (aLitT = that time, aHand = 0 right, 1 left; set per
   // instance), so no work is needed per frame but setting the time.
   // The corner shade's uniforms (see SHADE_GLSL), shared by the paper and the 3D pieces.
-  const csU = { uCS: { value: new THREE.Vector4() }, uCSA: { value: new THREE.Vector4(16 / 9, 1, 1, 0) }, uCSR: { value: new THREE.Vector2(1 / 1280, 1 / 720) }, uCSV: { value: new THREE.Matrix4() } };
+  const csU = { uCS: { value: new THREE.Vector4() }, uCSD: { value: new THREE.Vector4(0, 0, 1, 0) }, uCSA: { value: new THREE.Vector4(16 / 9, 1, 1, 0) }, uCSR: { value: new THREE.Vector2(1 / 1280, 1 / 720) }, uCSV: { value: new THREE.Matrix4() } };
   // dark paper (DARK): the lamp's pool (see LAMP_GLSL), shared by the paper, the lines and the 3D pieces
   const lampU = { uLamp: { value: new THREE.Vector3() }, uLampA: { value: new THREE.Vector4(1, 40, 38, 1) }, uSpot: { value: new THREE.Vector4(0, 0, 0, 1) }, uSpotB: { value: 1 } };
   const glU = { uGL: { value: Array.from({ length: GLOWS }, () => new THREE.Vector4()) }, uGLC: { value: Array.from({ length: GLOWS }, () => new THREE.Vector3()) } };
@@ -2924,21 +2939,29 @@ export function buildPaper(T, tools, piece, opts = {}) {
   }
   // The corner light at time t (style: an index into CORNER.ids, 0 = off): its uniforms and filaments.
   // K: its strength, 0..1 (CORNER.strength: kb scales the brightness of each style, kr its size and reach).
-  const cornerOff = () => { paperU.uAccOn.value = 0; shadeOn(false); for (const a of arcs) a.halo.visible = a.core.visible = false; };
-  const sdA = new THREE.Vector3(), sdB = new THREE.Vector3(), accCol = [new THREE.Vector3(), new THREE.Vector3()], arcCol = [new THREE.Vector3(), new THREE.Vector3()];
-  function corner(style, camera, pr, fade, K) {
-    const id = CORNER.ids[style], th = Math.tan((camera.fov * DEG) / 2), AP = paperU.uAccP.value, RG = paperU.uRing.value;
-    const ST = CORNER.strength, kb = ST.light[0] + (ST.light[1] - ST.light[0]) * K, kr = ST.reach[0] + (ST.reach[1] - ST.reach[0]) * K;
-    paperU.uAccOn.value = 1; shadeOn(true);
+  // dk: the darkness of the room (DARKNESS, 0..1), which keeps the corner shade on by itself.
+  const cornerOff = (dk = 0) => { paperU.uAccOn.value = 0; shadeOn(dk > 0); if (dk > 0) shadeAt(camera0, 0, dk, false); for (const a of arcs) a.halo.visible = a.core.visible = false; };
+  let camera0 = null; // (the camera of the frame being drawn, for cornerOff)
+  // The corner shade's uniforms for this frame: K = the corner light's strength (with light = it is on), dk = the darkness.
+  function shadeAt(camera, K, dk, light) {
     // the shade in the two corners: its depth for this strength, the picture in its shorter side and the direction the
     // staves run across it (from the page under the middle of the picture, one staff space along x)
     const D = CORNER.shade.depth, saX = Math.max(camera.aspect, 1), saY = Math.max(1 / camera.aspect, 1);
     onPaper(camera, 0, 0);
     sdA.set(cp.x, 0, cp.z).project(camera); sdB.set(cp.x + 1, 0, cp.z).project(camera);
     let sx = (sdB.x - sdA.x) * saX, sy = (sdB.y - sdA.y) * saY; const sl = Math.hypot(sx, sy) || 1; sx /= sl; sy /= sl;
-    csU.uCS.value.set(1, D[0][0] + (D[0][1] - D[0][0]) * K, D[1][0] + (D[1][1] - D[1][0]) * K, CORNER.shade.dither);
+    const d0 = light ? D[0][0] + (D[0][1] - D[0][0]) * K : 0, d1 = light ? D[1][0] + (D[1][1] - D[1][0]) * K : 0;
+    csU.uCS.value.set(1, dk > 0 ? Math.max(d0, DARKNESS.depth[0] * dk) : d0, dk > 0 ? Math.max(d1, DARKNESS.depth[1] * dk) : d1, CORNER.shade.dither);
+    csU.uCSD.value.set(DARKNESS.amb[0] * dk, DARKNESS.amb[1] * dk, 1 + DARKNESS.reach * dk, dk > 0 ? 1 : 0);
     csU.uCSA.value.set(saX, saY, sx, sy); csU.uCSV.value.copy(camera.matrixWorld);
     csU.uCSR.value.set(1 / lineU.uRes.value.x, 1 / lineU.uRes.value.y);
+  }
+  const sdA = new THREE.Vector3(), sdB = new THREE.Vector3(), accCol = [new THREE.Vector3(), new THREE.Vector3()], arcCol = [new THREE.Vector3(), new THREE.Vector3()];
+  function corner(style, camera, pr, fade, K, dk = 0) {
+    const id = CORNER.ids[style], th = Math.tan((camera.fov * DEG) / 2), AP = paperU.uAccP.value, RG = paperU.uRing.value;
+    const ST = CORNER.strength, kb = ST.light[0] + (ST.light[1] - ST.light[0]) * K, kr = ST.reach[0] + (ST.reach[1] - ST.reach[0]) * K;
+    paperU.uAccOn.value = 1; shadeOn(true);
+    shadeAt(camera, K, dk, true);
     arcInvPV.value.multiplyMatrices(camera.matrixWorld, camera.projectionMatrixInverse);
     for (let h = 0; h < 2; h++) {
       const tr = TR[h], d = onPaper(camera, CORNER.at[h][0], CORNER.at[h][1]), S = d * th, ax = cp.x, az = cp.z, kh = CORNER.k[h];
@@ -3350,7 +3373,8 @@ export function buildPaper(T, tools, piece, opts = {}) {
     // the corner light and the powder sparks (both optional), set off by the touches
     const cs = Math.max(0, CORNER.ids.indexOf(o.corner)), np = Math.round(Math.min(1, Math.max(0, Number(o.sparks) || 0)) * SPARK.max);
     if (cs || np) touches(t, live, np, linB);
-    if (cs) corner(cs, camera, o.pr || 1, linS, Math.min(1, Math.max(0, o.cornerK ?? 0.5))); else cornerOff();
+    const dk = clamp01(o.dark ?? 0); camera0 = camera; probe.dark = dk; // the darkness of the room (optional: DARKNESS)
+    if (cs) corner(cs, camera, o.pr || 1, linS, Math.min(1, Math.max(0, o.cornerK ?? 0.5)), dk); else cornerOff(dk);
     const zk = clamp01(o.zap ?? 0); // the electric notes (optional)
     if (zk > 0 && linB > 0) zap(t, live, camera, o.pr || 1, linB, zk); else zapOff();
     probe.zap = zk;

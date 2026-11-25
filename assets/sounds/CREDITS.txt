@@ -15,5 +15,11 @@ electric_grand_piano.pack, electric_piano_1.pack, harpsichord.pack
   soundfont-for-samplers. Every third note is included; the notes between are played by
   shifting the nearest one.
 
+violin.pack, viola.pack, cello.pack, contrabass.pack, strings.pack
+  The same FluidR3 GM SoundFont by Frank Wen (MIT licence), from the same npm package (soundfont-for-samplers 0.0.3:
+  violin, viola, cello, contrabass and string_ensemble_1). Every third note is included, copied unchanged
+  (tools/make-pack.py). Each recording is a steady bowed note about three seconds long; the studio plays it as a seamless
+  loop for as long as a note lasts. "Piano and strings" plays the grand with strings.pack underneath.
+
 File format of a .pack: 4 bytes (length of the index, little-endian), a JSON index
 {files:[{p: MIDI pitch, l: loudness layer, o: offset, n: bytes}]}, then the MP3 files end to end.

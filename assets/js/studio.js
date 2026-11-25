@@ -1,9 +1,9 @@
 // Piano studio: play live from the piano, load or record a performance, watch it in 3D, and make a video. Everything runs in the browser.
 import { parseMidi, fromRecording, writeMidi, demoPiece, noteName } from './midi.js?v=13';
-import { createStage } from './stage.js?v=41';
+import { createStage } from './stage.js?v=42';
 import { createListener, STYLE_NAMES } from './listen.js?v=8';
 import { drawCard, OPEN, CLOSE, STYLES } from './cards.js?v=3';
-import { INSTRUMENTS, ROOMS, makeOutput, noteOn, voice, renderPiece, loadInstrument, isLoaded } from './synth.js?v=13';
+import { INSTRUMENTS, ROOMS, makeOutput, noteOn, voice, renderPiece, loadInstrument, isLoaded, heldFor } from './synth.js?v=14';
 
 const $ = (s, r = document) => r.querySelector(s);
 async function fetchJSON(path) { // null when the file is missing or not JSON
@@ -35,12 +35,17 @@ function fillCard(meta) {
   $('#card-title').value = $('#ptitle').value = meta.title || ''; $('#card-composer').value = meta.composer || '';
   $('#card-subtitle').value = meta.subtitle || ''; $('#card-credits').value = (meta.credits || []).join('\n');
 }
-const soundCredit = () => ((INSTRUMENTS.find((i) => i.id === C.instrument) || {}).pack === 'grand'
-  ? 'Piano sound: Salamander Grand Piano by Alexander Holm (CC BY 3.0)' : 'Instrument sound: FluidR3 GM by Frank Wen (MIT)');
+const soundCredit = () => { // (the licences ask for credit: the grand's recordings, and FluidR3's for every other sound)
+  const i = INSTRUMENTS.find((x) => x.id === C.instrument) || {}, out = [];
+  if (i.pack === 'grand') out.push('Piano sound: Salamander Grand Piano by Alexander Holm (CC BY 3.0)');
+  if (i.layer) out.push('String sound: FluidR3 GM by Frank Wen (MIT)');
+  else if (i.pack && i.pack !== 'grand') out.push('Instrument sound: FluidR3 GM by Frank Wen (MIT)');
+  return out;
+};
 function cardInfo() {
   const v = (id) => $(id).value.trim();
   return { title: v('#card-title'), composer: v('#card-composer'), subtitle: v('#card-subtitle'), channel: C.channel, message: C.message,
-    credits: [...v('#card-credits').split('\n').map((s) => s.trim()).filter(Boolean), soundCredit()] }; // the sound's licence asks for credit, so it is always there
+    credits: [...v('#card-credits').split('\n').map((s) => s.trim()).filter(Boolean), ...soundCredit()] }; // the sound's licence asks for credit, so it is always there
 }
 // The colour that leads: on paper the right hand's, otherwise the light strip of the chosen colours. The page's accent
 // and the opening and closing cards take it.
@@ -64,7 +69,7 @@ function previewCard(kind) { // play a card over the picture, as it will appear 
 }
 
 const ui = Object.fromEntries(['play', 'seek', 'clock', 'speed', 'midifile', 'demo', 'record', 'savemidi', 'labels', 'effects', 'motion', 'mic', 'capture', 'vtitle', 'size', 'fps',
-  'export', 'prog', 'download', 'overlay', 'connect', 'volume', 'monitor', 'now', 'ribbon', 'library', 'dots', 'paths', 'trails', 'sparks', 'zap', 'current', 'cracks', 'race', 'cornerk', 'shine', 'ballk', 'glow', 'title3d', 'ptitle'].map((id) => [id, $('#' + id)]));
+  'export', 'prog', 'download', 'overlay', 'connect', 'volume', 'monitor', 'now', 'ribbon', 'library', 'dots', 'paths', 'trails', 'sparks', 'zap', 'current', 'cracks', 'race', 'cornerk', 'dark', 'shine', 'ballk', 'glow', 'title3d', 'ptitle'].map((id) => [id, $('#' + id)]));
 const say = (id, text) => { $('#' + id).textContent = text; };
 const mmss = (s) => { s = Math.max(0, s); return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`; };
 const safeName = () => (P.name || 'piano').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'piano';
@@ -75,7 +80,7 @@ const fill = (el) => el.style.setProperty('--fill', `${((el.value - el.min) / (e
 const PHONE = matchMedia('(max-width: 640px)').matches; // a phone held upright: start with the tall picture looking along the keys, which fills the screen
 // New visitors start with the sheet music on soft paper (look) in ivory (paper), its hands in rose and ice (hands), the
 // title lettered in 3D.
-const DEFAULTS = { instrument: 'grand', room: 'hall', volume: 0.9, monitor: true, theme: 'aurora', view: 'sheet', look: 'paper', hands: 'rose', paper: 'ivory', finish: 'matte', trails: false, corner: 'off', cornerK: 0.5, sparks: 0, zap: 0, current: 0, cracks: 0, race: 0, ballStyle: 'light', camMove: 'steady', shine: 0.5, ballK: 0.5, title3d: true, v: 9, dance: 'auto', camera: PHONE ? 'side' : 'front', shape: PHONE ? 'tall' : 'wide', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', cardOpen: true, cardOpenPaper: false, cardOpenPart: true, cardClose: true, markOn: true, part: 'whole', cardStyle: 'lumen', channel: 'Lumen Keys', message: 'Thank you for listening', labels: false, effects: true, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
+const DEFAULTS = { instrument: 'grand', room: 'hall', volume: 0.9, monitor: true, theme: 'aurora', view: 'sheet', look: 'paper', hands: 'rose', paper: 'ivory', finish: 'matte', trails: false, corner: 'off', cornerK: 0.5, dark: 0, sparks: 0, zap: 0, current: 0, cracks: 0, race: 0, ballStyle: 'light', camMove: 'steady', shine: 0.5, ballK: 0.5, title3d: true, v: 9, dance: 'auto', camera: PHONE ? 'side' : 'front', shape: PHONE ? 'tall' : 'wide', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', cardOpen: true, cardOpenPaper: false, cardOpenPart: true, cardClose: true, markOn: true, part: 'whole', cardStyle: 'lumen', channel: 'Lumen Keys', message: 'Thank you for listening', labels: false, effects: true, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
 const C = { ...DEFAULTS };
 try { // v 2: note names off unless switched on again; v 3: notes are trails of light unless changed again; v 4: the
   // picture starts as the sheet music on soft paper (choices saved by the older studio this one was copied from do not
@@ -215,7 +220,7 @@ function schedule() {
   const t = now(), notes = P.piece.notes;
   while (P.next < notes.length && notes[P.next].onset < t + 0.25) {
     const n = notes[P.next++];
-    voice(A.ctx, P.bus, n.pitch, n.vel, P.t0 + (n.onset - P.p0) / P.rate, (n.end - n.onset) / P.rate);
+    voice(A.ctx, P.bus, n.pitch, n.vel, P.t0 + (n.onset - P.p0) / P.rate, heldFor(P.bus.instrument, n) / P.rate);
   }
 }
 function frame() {
@@ -427,6 +432,11 @@ stage.setCorner(C.corner); cornerDesc();
 C.cornerK = Number.isFinite(Number(C.cornerK)) ? Math.max(0, Math.min(1, Number(C.cornerK))) : 0.5;
 ui.cornerk.value = C.cornerK; fill(ui.cornerk); stage.setCornerStrength(C.cornerK);
 ui.cornerk.addEventListener('input', () => { C.cornerK = Number(ui.cornerk.value); remember(); stage.setCornerStrength(C.cornerK); fill(ui.cornerk); });
+// On paper, the darkness of the room (left = as lit): the lamp dimmed and the top-left and bottom-right corners in deep
+// shade, while the balls, the glows and the lit notes keep their light.
+C.dark = Number.isFinite(Number(C.dark)) ? Math.max(0, Math.min(1, Number(C.dark))) : 0;
+ui.dark.value = C.dark; fill(ui.dark); stage.setDarkness(C.dark);
+ui.dark.addEventListener('input', () => { C.dark = Number(ui.dark.value); remember(); stage.setDarkness(C.dark); fill(ui.dark); });
 // On paper, the shine of the notes (how strongly the notation mirrors the balls; left = quiet) and the brightness of the
 // balls (with the light they throw; left = soft, the middle as designed). The brightness does nothing, and is shown
 // greyed, while the balls are off.
@@ -544,7 +554,7 @@ function liveOff(pitch, restrike = false) {
   for (let i = L.trail.length - 1; i >= 0; i--) if (L.trail[i].pitch === pitch && L.trail[i].t1 == null) { L.trail[i].t1 = t; break; }
   if (R.on) R.events.push({ t: t - R.start, off: pitch });
   const h = L.voices.get(pitch);
-  if (h) { L.voices.delete(pitch); if (L.pedal && !restrike) L.sustained.push(h); else h.release(A.ctx.currentTime); }
+  if (h) { L.voices.delete(pitch); if (L.pedal && !restrike && !A.out.instrument.bowed) L.sustained.push(h); else h.release(A.ctx.currentTime); } // (bowed strings: no pedal)
   showHeld();
 }
 function livePedal(down) {

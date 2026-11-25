@@ -1,7 +1,8 @@
 // The studio's instruments. Most are real recordings (sample packs in assets/sounds/) played back at the right pitch and
 // loudness; "Simple synth" needs no files. The same code makes the live sound, playback, and the sound in exported videos.
 // Credits: grand piano = Salamander Grand Piano V3 by Alexander Holm (CC BY 3.0), recordings of a Yamaha C5 grand.
-// Electric grand, electric piano and harpsichord = FluidR3 GM by Frank Wen (MIT). See assets/sounds/CREDITS.txt.
+// Electric grand, electric piano, harpsichord and the bowed strings = FluidR3 GM by Frank Wen (MIT). See
+// assets/sounds/CREDITS.txt.
 
 const V = '?v=7';
 // Phones have little memory, and a browser tab that uses too much is closed without warning. On a phone each instrument
@@ -24,6 +25,15 @@ export const INSTRUMENTS = [
   { id: 'egrand', name: 'Electric Grand', about: 'The stage piano of the 1970s and 80s: strings with pickups, bright and glassy.', pack: 'electric_grand_piano', gain: 3.6, lp: [2500, 14000], release: 0.1 },
   { id: 'epiano', name: 'Electric Piano', about: 'A warm, bell-like electric piano in the style of a Rhodes. Jazz and soul.', pack: 'electric_piano_1', gain: 2.2, lp: [1800, 12000], release: 0.09 },
   { id: 'harpsi', name: 'Harpsichord', about: 'Plucked strings, the keyboard Bach wrote for. Every note is the same loudness, as on the real thing.', pack: 'harpsichord', gain: 2.8, flat: 0.75, release: 0.05 },
+  // Bowed strings: each recording is a steady bowed note about three seconds long, played as a seamless loop (LOOP) for
+  // as long as the note lasts. bowed: no sustain pedal, as on a real string instrument (a note sounds for its written
+  // length, see heldFor); lp: soft notes darker, loud ones brighter; release: how quickly the bow leaves the string.
+  { id: 'violin', name: 'Violin', about: 'A bowed violin: long, singing notes that last as long as the key is held. The sustain pedal is not used.', pack: 'violin', gain: 2.5, bowed: true, lp: [1800, 11000], release: 0.12 },
+  { id: 'viola', name: 'Viola', about: 'The violin\'s larger, darker sister: a warm, veiled voice in the middle. The sustain pedal is not used.', pack: 'viola', gain: 2.7, bowed: true, lp: [1500, 9000], release: 0.14 },
+  { id: 'cello', name: 'Cello', about: 'A bowed cello: deep, rich and singing, closest to the human voice. The sustain pedal is not used.', pack: 'cello', gain: 2.6, bowed: true, lp: [1200, 8000], release: 0.16 },
+  { id: 'bass', name: 'Double bass', about: 'The deepest of the bowed strings: a dark, soft foundation. Best for low parts. The sustain pedal is not used.', pack: 'contrabass', gain: 2.3, bowed: true, lp: [900, 5000], release: 0.2 },
+  { id: 'strings', name: 'String orchestra', about: 'A whole string section playing together: broad, warm and cinematic. The sustain pedal is not used.', pack: 'strings', gain: 3.0, bowed: true, lp: [1600, 10000], release: 0.3 },
+  { id: 'pianostr', name: 'Piano and strings', about: 'The Concert Grand with a soft string orchestra underneath, for film music: the piano\'s touch with a long, warm glow.', pack: 'grand', gain: 1, layer: { id: 'strings', gain: 0.38 } },
   { id: 'synth', name: 'Simple Synth', about: 'A plain electronic tone. Loads instantly and needs no sound files.', pack: null, gain: 1 },
 ];
 export const ROOMS = [
@@ -32,6 +42,11 @@ export const ROOMS = [
   { id: 'hall', name: 'Concert hall', seconds: 2.6, wet: 0.6 },
 ];
 export const instrument = (id) => INSTRUMENTS.find((i) => i.id === id) || INSTRUMENTS[0];
+// A layered instrument's second sound (inst.layer: another instrument's id and its share), and a note's sounding length:
+// its written length for bowed strings (no sustain pedal), else as long as the pedal holds it (n.end).
+const layerCache = new Map();
+const layerOf = (inst) => { if (!layerCache.has(inst.id)) { const l = instrument(inst.layer.id); layerCache.set(inst.id, { ...l, gain: l.gain * inst.layer.gain }); } return layerCache.get(inst.id); };
+export const heldFor = (inst, n) => (inst.bowed ? n.dur : n.end - n.onset);
 export const room = (id) => ROOMS.find((r) => r.id === id) || ROOMS[0];
 
 // ---------- sample packs: [uint32 header length][JSON {files:[{p: pitch, l: layer, o: offset, n: bytes}]}][mp3 data] ----------
@@ -68,6 +83,19 @@ function prepare(buf) {
   return Math.max(0, i / buf.sampleRate - 0.002);
 }
 
+// The bowed strings' recordings hold one steady note to their end: each is played as a loop from LOOP.from to LOOP.to
+// (s), its last LOOP.fade s blended (equal power) into the sound just before LOOP.from, so the loop has no seam.
+const LOOP = { packs: new Set(['violin', 'viola', 'cello', 'contrabass', 'strings']), from: 1.1, to: 2.8, fade: 0.4 };
+function loopify(buf) {
+  const r = buf.sampleRate, a = Math.round(LOOP.from * r), b = Math.min(Math.round(LOOP.to * r), buf.length), n = Math.round(LOOP.fade * r);
+  if (b - a < n || a < n) return null;
+  for (let c = 0; c < buf.numberOfChannels; c++) {
+    const d = buf.getChannelData(c);
+    for (let i = 0; i < n; i++) { const k = (i / n) * Math.PI / 2; d[b - n + i] = d[b - n + i] * Math.cos(k) + d[a - n + i] * Math.sin(k); }
+  }
+  return [a / r, b / r];
+}
+
 function loadPack(name, onProgress) {
   if (!packs.has(name)) {
     packs.set(name, (async () => {
@@ -82,8 +110,9 @@ function loadPack(name, onProgress) {
         let buf = await decoder.decodeAudioData(bytes.slice(base + f.o, base + f.o + f.n).buffer);
         const start = prepare(buf);
         if (LITE) buf = slim(buf);
+        const loop = LOOP.packs.has(name) ? loopify(buf) : null;
         const l = LITE ? 0 : f.l;
-        (layers[l] = layers[l] || []).push({ p: f.p, buf, start });
+        (layers[l] = layers[l] || []).push({ p: f.p, buf, start, loop });
         onProgress?.(0.6 + 0.4 * ++done / files.length);
       };
       if (LITE) for (const f of files) await one(f); // one at a time, so the full-size recordings are never all in memory together
@@ -98,12 +127,12 @@ function loadPack(name, onProgress) {
 
 const ready = new Map(); // pack name -> decoded pack, once loaded
 export async function loadInstrument(id, onProgress) {
-  const inst = instrument(id);
-  if (inst.pack && !ready.has(inst.pack)) ready.set(inst.pack, await loadPack(inst.pack, onProgress));
+  const inst = instrument(id), packs = [inst.pack, inst.layer && instrument(inst.layer.id).pack].filter(Boolean);
+  for (const [k, pk] of packs.entries()) if (!ready.has(pk)) ready.set(pk, await loadPack(pk, onProgress && ((x) => onProgress((k + x) / packs.length))));
   onProgress?.(1);
   return inst;
 }
-export const isLoaded = (id) => { const i = instrument(id); return !i.pack || ready.has(i.pack); };
+export const isLoaded = (id) => { const i = instrument(id); return (!i.pack || ready.has(i.pack)) && (!i.layer || ready.has(instrument(i.layer.id).pack)); };
 
 // ---------- the room: a reverb made from shaped noise, the same every time so a video sounds exactly like playback ----------
 function impulse(ctx, seconds) {
@@ -152,7 +181,13 @@ const smooth = (u) => { u = Math.min(1, Math.max(0, u)); return u * u * (3 - 2 *
 // Start a note at context time `when`. Returns { release(at) }: call it when the key (or the pedal) lets go. After release,
 // `end` is the time it falls silent and free() takes it out of the sound graph (used when rendering a whole piece).
 export function noteOn(ctx, out, pitch, vel, when = 0) {
-  const inst = out.instrument, set = inst.pack && ready.get(inst.pack);
+  const inst = out.instrument, a = playOne(ctx, out, inst, pitch, vel, when);
+  if (!inst.layer || !ready.get(layerOf(inst).pack)) return a;
+  const b = playOne(ctx, out, layerOf(inst), pitch, vel, when); // (a layered instrument: both sounds, released together)
+  return { release(at) { a.release(at); b.release(at); this.end = Math.max(a.end, b.end); }, free() { a.free(); b.free(); } };
+}
+function playOne(ctx, out, inst, pitch, vel, when) {
+  const set = inst.pack && ready.get(inst.pack);
   when = Math.max(when, ctx.currentTime);
   if (!set) return synthNote(ctx, out.input, pitch, vel, when);
   const v = inst.flat ?? vel, amp = (0.03 + 0.97 * v ** 1.7) * inst.gain;
@@ -169,6 +204,7 @@ export function noteOn(ctx, out, pitch, vel, when = 0) {
   const add = (layer, gain, cents) => {
     const s = set.pick[layer][pitch], src = ctx.createBufferSource(), g = ctx.createGain();
     src.buffer = s.buf; src.playbackRate.value = 2 ** ((pitch - s.p + cents / 100) / 12); g.gain.value = gain;
+    if (s.loop) { src.loop = true; src.loopStart = s.loop[0]; src.loopEnd = s.loop[1]; }
     src.connect(g); g.connect(dest); src.start(when, s.start); sources.push(src);
   };
   const spread = inst.detune ? [-inst.detune * (0.7 + ((pitch * 7) % 5) * 0.12), inst.detune * (0.8 + ((pitch * 3) % 4) * 0.1)] : [0];
@@ -238,7 +274,7 @@ export async function renderPiece(piece, lead, tail, opts = {}, rate = 48000, on
     for (let i = live.length - 1; i >= 0; i--) if (live[i].end < ctx.currentTime) { live[i].free(); live[i] = live[live.length - 1]; live.pop(); }
     for (; next < notes.length && lead + notes[next].onset < upto; next++) {
       const n = notes[next];
-      live.push(voice(ctx, out, n.pitch, n.vel, lead + n.onset, n.end - n.onset));
+      live.push(voice(ctx, out, n.pitch, n.vel, lead + n.onset, heldFor(out.instrument, n)));
     }
   };
   if (typeof ctx.suspend !== 'function') feed(Infinity); // (very old browsers: all at once, as before)
