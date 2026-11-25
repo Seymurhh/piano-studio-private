@@ -76,6 +76,14 @@ select, input[type=text], textarea { background: var(--raise); border: 1px solid
 
 /* side panel */
 .side { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+/* Side by side (wide screens): the settings scroll on their own, inside a panel as tall as the window, so the picture
+   stays in view while a setting is changed; the tabs stay at the top of the panel. */
+@media (min-width: 1021px) {
+  .side { position: sticky; top: 12px; display: flex; flex-direction: column; max-height: calc(100vh - 96px); max-height: calc(100dvh - 96px); } /* (the window less the bar above and the margins: the whole panel shows without scrolling the page) */
+  .side .tabs { flex: none; }
+  .side .panel { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+  .left { position: sticky; top: 12px; } /* (the picture stops beside the panel; a column taller than the window scrolls as before) */
+}
 .tabs { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid var(--line); }
 .tabs button { padding: 13px 0; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--soft); cursor: pointer; font-weight: 600; letter-spacing: .02em; }
 .tabs button[aria-selected=true] { color: var(--ink); border-bottom-color: var(--accent); }
