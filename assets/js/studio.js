@@ -1,6 +1,6 @@
 // Piano studio: play live from the piano, load or record a performance, watch it in 3D, and make a video. Everything runs in the browser.
 import { parseMidi, fromRecording, writeMidi, demoPiece, noteName } from './midi.js?v=13';
-import { createStage } from './stage.js?v=43';
+import { createStage } from './stage.js?v=44';
 import { createListener, STYLE_NAMES } from './listen.js?v=8';
 import { drawCard, OPEN, CLOSE, STYLES } from './cards.js?v=3';
 import { INSTRUMENTS, ROOMS, makeOutput, noteOn, voice, renderPiece, loadInstrument, isLoaded, heldFor } from './synth.js?v=14';
@@ -338,11 +338,22 @@ radios($('#papers'), PAPERS.map((p) => ({ id: p.id, build(b) {
   b.append(sheet, label);
 } })), C.paper, (id) => { C.paper = id; remember(); stage.setPaper(id); paperDesc(); finishDesc(); });
 paperDesc();
-// On paper: what the notes are made of (matte ink, polished metal, smoked glass, satin gold), each shown as a small
-// notehead of it; the line below describes the one chosen. Changing it builds the picture again.
-const FINISHES = stage.finishes(), finishDesc = () => { // (on a dark paper each finish takes its light version)
-  const dark = PAPERS.find((p) => p.id === C.paper)?.dark;
-  $('#finish-desc').textContent = (FINISHES.find((f) => f.id === C.finish) || FINISHES[0]).desc + (dark ? ' (on dark paper: pearl, silver, opal glass, gold)' : '');
+// On paper: what the notes are made of (matte ink, polished metal, smoked glass, satin gold, and since round 12 piano
+// lacquer, sapphire enamel, wine velvet, rose gold, pearl and jade), each shown as a small notehead of it; the line
+// below describes the one chosen. On a dark paper a finish may take its own version there (f.dark: its name, words and
+// button), and the buttons show it; a finish made for one kind of paper (f.best) says so. Changing it builds the
+// picture again.
+const FINISHES = stage.finishes(), onDark = () => !!PAPERS.find((p) => p.id === C.paper)?.dark;
+const BEST = { light: 'Made for light paper.', dark: 'Made for dark paper and marble.' };
+const finishDesc = () => {
+  const f = FINISHES.find((x) => x.id === C.finish) || FINISHES[0], dark = onDark(), v = dark && f.dark ? f.dark : f;
+  $('#finish-desc').textContent = v.desc + (f.best ? ' ' + BEST[f.best] : ''); // (each version's words name it)
+  for (const x of FINISHES) { // (the buttons: each finish as it looks on this paper)
+    const b = $('#finishes').querySelector(`[data-v="${x.id}"]`), w = dark && x.dark ? x.dark : x;
+    if (!b) continue;
+    b.querySelector('i.note').style.background = w.chip || x.chip;
+    b.title = (dark && x.dark ? x.dark.name : x.name) + (x.best ? ' · ' + BEST[x.best] : '');
+  }
 };
 if (!FINISHES.some((f) => f.id === C.finish)) C.finish = FINISHES[0].id;
 radios($('#finishes'), FINISHES.map((f) => ({ id: f.id, build(b) {

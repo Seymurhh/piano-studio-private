@@ -119,7 +119,7 @@ const GLOWS = 2 + 2 * GLINT.notes;               // how many lights that makes
 // grow by line[0] x s in brightness and line[1] x s in sharpness, up to lineCap; tint: how much of the finish's own
 // colour the highlight takes.
 const SHINE = { def: 0.5, k: 2, p: 1.3, rough: [0.2, 0.09], lamp: 0.2, aa: 0.12, dome: 1.8, haze: [0.45, 0.1], sat: 0.6, note: 0.35, noteIn: 0.15, cap: 0.9, line: [1.6, 0.5], lineCap: 0.88,
-  tint: { matte: 0, metal: 0.25, glass: 0.1, gold: 0.6 } };
+  tint: { matte: 0, metal: 0.25, glass: 0.1, gold: 0.6, lacquer: 0, sapphire: 0.1, velvet: 1, rose: 0.4, pearl: 0.15, jade: 0.15 } };
 // The balls' brightness (the app's "Brightness of the balls", b = 0..1, 0.5 = as designed): the light they throw (its
 // pool on the paper, its reflection, its glints and shine on the notation) is scaled by `light` (exponentially from
 // light[0] at 0 to 1 at 0.5 to light[1] at 1); the ball itself by the same factor below 0.5, and above it its core by
@@ -496,10 +496,27 @@ const MARK = { cap: 4, gap: 4.5, clear: 1.5, depth: 0.4, bevel: 0.6, spacing: 0.
 const MIRROR = { k: 0.25, fall: 0.45, cap: 0.045 };
 // ---- what the notation is made of (the app's "Notes made of" choice) ----
 export const FINISHES = [
-  { id: 'matte', name: 'Matte ink', desc: 'Printed ink with lacquered signs and chrome rims: quiet, with only a soft sheen where the lights pass. (Default.)', chip: 'radial-gradient(75% 75% at 32% 28%, #77716a, #2a2620 62%)' },
-  { id: 'metal', name: 'Polished metal', desc: 'Polished steel: dark close by, with bright rounded edges, a slow gleam in the distance and the coloured lights caught in its shine.', chip: 'radial-gradient(80% 80% at 30% 25%, #f4f6fa, #9aa0aa 42%, #33373f 80%)' },
-  { id: 'glass', name: 'Smoked glass', desc: 'Dark tinted glass: the staff shows faintly through, with crisp highlights on the rims.', chip: 'radial-gradient(70% 70% at 30% 25%, #aab3c8, #1d2030 38%, #07080d 75%)' },
+  { id: 'matte', name: 'Matte ink', desc: 'Printed ink with lacquered signs and chrome rims: quiet, with only a soft sheen where the lights pass. (Default.)', chip: 'radial-gradient(75% 75% at 32% 28%, #77716a, #2a2620 62%)',
+    dark: { name: 'Pale ink', desc: 'Pale printed ink with pearl-lacquered signs and chrome rims: quiet, with only a soft sheen where the lights pass.', chip: 'radial-gradient(75% 75% at 32% 28%, #fbf7ef, #c9c1b4 62%)' } },
+  { id: 'metal', name: 'Polished metal', desc: 'Polished steel: dark close by, with bright rounded edges, a slow gleam in the distance and the coloured lights caught in its shine.', chip: 'radial-gradient(80% 80% at 30% 25%, #f4f6fa, #9aa0aa 42%, #33373f 80%)',
+    dark: { name: 'Bright silver', desc: 'Bright polished silver, with the lit room in its tops and the coloured lights caught in its shine.', chip: 'radial-gradient(80% 80% at 30% 25%, #ffffff, #dde1e8 45%, #8f949d 85%)' } },
+  { id: 'glass', name: 'Smoked glass', desc: 'Dark tinted glass: the staff shows faintly through, with crisp highlights on the rims.', chip: 'radial-gradient(70% 70% at 30% 25%, #aab3c8, #1d2030 38%, #07080d 75%)',
+    dark: { name: 'Opal glass', desc: 'Pale opal glass: the staff shows faintly through, with crisp highlights on the rims.', chip: 'radial-gradient(70% 70% at 30% 25%, #ffffff, #a9b6c6 40%, #5d6b7c 85%)' } },
   { id: 'gold', name: 'Satin gold', desc: 'Softly brushed gold with a warm sheen on its edges.', chip: 'radial-gradient(80% 80% at 30% 25%, #fff0c4, #d6ae68 45%, #6b4e1c 85%)' },
+  // (round 12) best: the paper it is made for ('light' or 'dark'; none = both); dark: its version on a dark paper (DARK),
+  // its name, words and button, when it changes there
+  { id: 'lacquer', name: 'Piano lacquer', best: 'light', desc: 'Deep black lacquer, as on a grand piano: glossy, with crisp highlights along the rounded notes and soft reflections gliding over them.', chip: 'radial-gradient(16% 11% at 32% 28%, #ffffff 35%, rgba(255,255,255,0) 100%), radial-gradient(110% 110% at 68% 92%, #4a4a50 0%, #141417 32%, #050506 55%)',
+    dark: { name: 'White lacquer', desc: 'White lacquer, as on a white grand piano: clean and glossy, with crisp highlights along the rounded notes.', chip: 'radial-gradient(15% 10% at 32% 28%, #ffffff 40%, rgba(255,255,255,0) 100%), radial-gradient(95% 95% at 40% 34%, #eeede9 0%, #dcdad5 42%, #b5b2ac 78%, #8f8c86 100%)' } },
+  { id: 'sapphire', name: 'Sapphire enamel', best: 'light', desc: 'Deep sapphire-blue enamel under a clear glaze: rich colour, with crisp glossy highlights on the rounded edges.', chip: 'radial-gradient(70% 70% at 30% 24%, #f4f7ff 0%, #5378d2 9%, #173b9c 28%, #0c2a80 58%, #05123c 96%)',
+    dark: { name: 'Pale sapphire', desc: 'Pale cornflower-blue enamel under a clear glaze: soft and bright, with gentle glossy highlights.', chip: 'radial-gradient(70% 70% at 30% 24%, #ffffff 0%, #d2e2ff 12%, #8aa8e6 36%, #5f80c4 68%, #48649f 98%)' } },
+  { id: 'velvet', name: 'Wine velvet', best: 'light', desc: 'Deep wine-red velvet: soft and matte, with no glare at all, only a soft lighter glow along its edges.', chip: 'radial-gradient(85% 85% at 50% 50%, #4a0c1b 20%, #681728 44%, #86263b 58%)',
+    dark: { name: 'Garnet velvet', desc: 'Garnet-red velvet: soft and matte, with no glare at all, only a soft lighter glow along its edges.', chip: 'radial-gradient(85% 85% at 50% 50%, #6a1828 20%, #86283b 44%, #a8475a 58%)' } },
+  { id: 'rose', name: 'Rose gold', best: 'dark', desc: 'Polished rose gold: soft pink metal with bright rounded edges and the coloured lights caught in its shine.', chip: 'radial-gradient(80% 80% at 30% 25%, #fff1ec, #e9b5aa 38%, #93625a 72%, #553632 95%)',
+    dark: { name: 'Rose gold', desc: 'Bright polished rose gold: warm pink metal with the lit room in its tops and the coloured lights caught in its shine.', chip: 'radial-gradient(80% 80% at 30% 25%, #fff4f0, #e8b4ac 35%, #c08a82 68%, #7e4e4a 95%)' } },
+  { id: 'pearl', name: 'Pearl', best: 'dark', desc: 'Black pearl: deep charcoal with a soft sheen of green and aubergine that shifts as the light moves over it.', chip: 'radial-gradient(75% 75% at 30% 25%, #e2ebe8 0%, #7f918d 12%, #3e4b4b 34%, #2b2d31 60%, #392c38 86%, #5b3b4f 100%)',
+    dark: { name: 'White pearl', desc: 'Lustrous white pearl: a soft blush on its tops and a faint cream-green on its sides, shifting as the light moves over it.', chip: 'radial-gradient(75% 75% at 30% 25%, #ffffff 0%, #fbf6f2 18%, #f0e1e1 50%, #e4d8d5 76%, #d0ddd4 100%)' } },
+  { id: 'jade', name: 'Jade', best: 'dark', desc: 'Polished deep green jade: softly glossy, glowing a little from within where the lights pass.', chip: 'radial-gradient(75% 75% at 32% 26%, #e6f3ea 0%, #3f9a6a 12%, #1d5a3a 38%, #0f3a24 72%, #2a7a52 100%)',
+    dark: { name: 'Pale jade', desc: 'Pale celadon jade: soft and waxy, glowing a little from within where the lights pass.', chip: 'radial-gradient(75% 75% at 32% 26%, #fbfdf7 0%, #cfe2cb 16%, #a9c6a4 45%, #7fa684 80%, #93bd9b 100%)' } },
 ];  // (chip: how its button shows it)
 export const FINISH_DEFAULT = 'matte';
 // The finishes other than matte ink round every symbol off (a deeper bevel, cut into the outline so the symbol keeps
@@ -547,6 +564,52 @@ FINISH.metal.dark = { ink: { color: '#dde1e8', roughness: 0.27 }, face: { color:
 FINISH.glass.dark = { ink: { color: '#8fa2b8', roughness: 0.04 }, face: { color: '#8899af', roughness: 0.03 }, wall: { color: '#c5d0de', roughness: 0.03 }, fleck: { color: '#a9b6c6', roughness: 0.04 },
   line: '#8e98a6', win: 1.1, room: 0.55 };
 FINISH.gold.dark = { ink: { roughness: 0.3 }, face: { roughness: 0.24 }, line: '#a5844a', win: 0.8, room: 0.6 };
+// Round 12: six more. ccr = the clear coat's roughness, sheen/sheenColor/sheenRough = velvet's soft edge glow, iri/iriIOR/
+// iriRange = a pearl's play of colour, spec = a dielectric's own reflection (see physical). Each has its own version on a
+// dark paper, which may change any of these per part, and its limit there (max) and the room's share (env).
+// Piano lacquer: black under a mirror-sharp clear coat, the window faint so it stays deep black; on dark paper white
+// lacquer, its base a little glossy too and its reflection of the room stronger (env), so its highlights show on the white.
+FINISH.lacquer = { ink: { color: '#040405', roughness: 0.25, spec: 0.6, cc: 1, ccr: 0.03, env: 1.2, max: 0.6 }, face: { color: '#040405', roughness: 0.25, spec: 0.6, cc: 1, ccr: 0.02, env: 1.2, max: 0.62 },
+  wall: { color: '#060607', roughness: 0.25, spec: 0.6, cc: 1, ccr: 0.02, env: 1.2, max: 0.64 }, fleck: { color: '#050506', roughness: 0.25, spec: 0.6, cc: 1, ccr: 0.03, env: 1.2, max: 0.6 },
+  glints: 1, glow: [1, 2.2], line: '#0e0e10', lineGlow: [1.8, 70], dome: 'round', win: 0.45, room: 0.05 };
+FINISH.lacquer.dark = { ink: { color: '#d4d4d1', roughness: 0.18, spec: 1, ccr: 0.04, env: 3.5, max: 0.72 }, face: { color: '#d4d4d1', roughness: 0.18, spec: 1, ccr: 0.04, env: 3.5, max: 0.72 },
+  wall: { color: '#d4d4d1', roughness: 0.18, spec: 1, ccr: 0.04, env: 3.5, max: 0.72 }, fleck: { color: '#d4d4d1', roughness: 0.18, spec: 1, ccr: 0.04, env: 3.5, max: 0.72 }, line: '#a39e95', win: 1.8, room: 0.05 };
+// Sapphire enamel: a deep blue under a clear glaze (its own reflection faint, spec: the glaze gives the crisp highlights);
+// on dark paper a pale cornflower blue, its faint blue sheen keeping it blue under the warm lamp.
+FINISH.sapphire = { ink: { color: '#0b2e8e', roughness: 0.35, spec: 0.15, cc: 1, ccr: 0.02, env: 0.85, max: 0.6 }, face: { color: '#0a2c8a', roughness: 0.3, spec: 0.15, cc: 1, ccr: 0.02, env: 0.85, max: 0.62 },
+  wall: { color: '#1541ac', roughness: 0.3, spec: 0.15, cc: 1, ccr: 0.02, env: 0.85, max: 0.64 }, fleck: { color: '#0e369c', roughness: 0.35, spec: 0.15, cc: 1, ccr: 0.02, env: 0.85, max: 0.6 },
+  glints: 0.85, glow: [1, 1.8], line: '#1b2c62', lineGlow: [1.6, 60], dome: 'round', win: 1.2, room: 0.06 };
+FINISH.sapphire.dark = { ink: { color: '#7eaaff', roughness: 0.25, spec: 0.5, env: 1.2, sheen: 0.4, sheenColor: '#acccff', sheenRough: 0.45, max: 0.66 }, face: { color: '#84b0ff', roughness: 0.25, spec: 0.5, env: 1.2, sheen: 0.4, sheenColor: '#acccff', sheenRough: 0.45, max: 0.66 },
+  wall: { color: '#a8c6ff', roughness: 0.25, spec: 0.5, env: 1.2, sheen: 0.4, sheenColor: '#c2d8ff', sheenRough: 0.45, max: 0.7 }, fleck: { color: '#76a2f8', roughness: 0.25, spec: 0.5, env: 1.2, sheen: 0.4, sheenColor: '#acccff', sheenRough: 0.45, max: 0.66 },
+  line: '#7592cc', win: 1.1, room: 0 };
+// Wine velvet: no reflection at all (spec 0; SHINE.tint 1 keeps the balls' shine off it too), only a soft red sheen at grazing angles; on dark paper a
+// brighter garnet red (not dusty rose, which sat too close to rose gold there).
+FINISH.velvet = { ink: { color: '#2c0613', roughness: 1, spec: 0, sheen: 1, sheenColor: '#b8304a', sheenRough: 0.3, max: 0.55 }, face: { color: '#2c0613', roughness: 1, spec: 0, sheen: 1, sheenColor: '#b8304a', sheenRough: 0.3, max: 0.55 },
+  wall: { color: '#3a0a1a', roughness: 1, spec: 0, sheen: 1, sheenColor: '#b8304a', sheenRough: 0.3, max: 0.55 }, fleck: { color: '#2c0613', roughness: 1, spec: 0, sheen: 1, sheenColor: '#b8304a', sheenRough: 0.3, max: 0.55 },
+  glints: 0, glow: [1.2, 0], line: '#3a1018', lineGlow: [0.5, 16], dome: 'round', win: 0.3, room: 0.3 };
+FINISH.velvet.dark = { ink: { color: '#7a1f33', sheenColor: '#ff8fa0', sheenRough: 0.4, env: 1.3, max: 0.6 }, face: { color: '#7a1f33', sheenColor: '#ff8fa0', sheenRough: 0.4, env: 1.3, max: 0.6 },
+  wall: { color: '#7a1f33', sheenColor: '#ff8fa0', sheenRough: 0.4, env: 1.3, max: 0.6 }, fleck: { color: '#7a1f33', sheenColor: '#ff8fa0', sheenRough: 0.4, env: 1.3, max: 0.6 }, line: '#8a4a55', win: 0.5, room: 0.4 };
+// Rose gold: polished pink metal, pinker and sharper than satin gold; on dark paper a paler, brighter rose in a brighter room.
+FINISH.rose = { ink: { color: '#f0b4b4', metalness: 1, roughness: 0.16, max: 0.6 }, face: { color: '#ecacae', metalness: 1, roughness: 0.12, env: 1.5, max: 0.62 },
+  wall: { color: '#f8d6d4', metalness: 1, roughness: 0.08, max: 0.66 }, fleck: { color: '#eaacac', metalness: 1, roughness: 0.14, max: 0.6 },
+  pin: { color: '#f4ccca', metalness: 1, roughness: 0.1, max: 0.64 }, glints: 0.6, glow: [1, 2.4], haze: 0.5, line: '#3a2423', lineGlow: [2.2, 50], dome: 'round', win: 1.05, room: 0.3 };
+FINISH.rose.dark = { ink: { color: '#f7bab6', roughness: 0.15, env: 1.45, max: 0.68 }, face: { color: '#f5b4b2', roughness: 0.11, env: 2.4, max: 0.7 }, wall: { color: '#fcdad6', roughness: 0.08, env: 1.2, max: 0.72 }, fleck: { color: '#f2b2ae', roughness: 0.14, env: 1.35, max: 0.68 },
+  line: '#9c7a74', win: 1.6, room: 0.7 };
+// Pearl: black (Tahitian) pearl, charcoal with a play of green and aubergine (iridescence); on dark paper white pearl in blush and cream-green.
+FINISH.pearl = { ink: { color: '#323237', roughness: 0.26, cc: 0.3, ccr: 0.15, spec: 0.6, iri: 0.5, iriIOR: 2, iriRange: [100, 540], max: 0.6 }, face: { color: '#303035', roughness: 0.24, cc: 0.3, ccr: 0.15, spec: 0.6, iri: 0.5, iriIOR: 2, iriRange: [100, 540], max: 0.62 },
+  wall: { color: '#38383e', roughness: 0.24, cc: 0.3, ccr: 0.15, spec: 0.6, iri: 0.5, iriIOR: 2, iriRange: [100, 540], max: 0.64 }, fleck: { color: '#343439', roughness: 0.26, cc: 0.3, ccr: 0.15, spec: 0.6, iri: 0.5, iriIOR: 2, iriRange: [100, 540], max: 0.6 },
+  glints: 0.35, glow: [1, 1.4], line: '#26282c', lineGlow: [1.4, 40], dome: 'round', win: 0.9, room: 0.15 };
+FINISH.pearl.dark = { ink: { color: '#f6f1ea', metalness: 0.65, roughness: 0.32, cc: 0.5, ccr: 0.08, iri: 0.9, iriIOR: 1.8, iriRange: [100, 455], env: 2, max: 0.66 }, face: { color: '#f2ede6', metalness: 0.65, roughness: 0.3, cc: 0.5, ccr: 0.08, iri: 0.9, iriIOR: 1.8, iriRange: [100, 455], env: 2, max: 0.66 },
+  wall: { color: '#f8f4ef', metalness: 0.65, roughness: 0.3, cc: 0.5, ccr: 0.08, iri: 0.9, iriIOR: 1.8, iriRange: [100, 455], env: 2, sheen: 0.7, sheenColor: '#bfe8de', sheenRough: 0.35, max: 0.7 }, fleck: { color: '#ede8e1', metalness: 0.65, roughness: 0.32, cc: 0.5, ccr: 0.08, iri: 0.9, iriIOR: 1.8, iriRange: [100, 455], env: 2, max: 0.66 },
+  line: '#a39d95', win: 1.2, room: 2 };
+// Jade: deep green stone under a thin, crisp polish; its glow from within is a paler green sheen, brighter walls and a
+// strong diffuse take of the glows' light (glow); on dark paper pale celadon, its shaded sides a richer green.
+FINISH.jade = { ink: { color: '#0f4426', roughness: 0.55, spec: 0.3, cc: 0.45, ccr: 0.12, sheen: 0.5, sheenColor: '#3fae6e', sheenRough: 0.45, env: 1.3, max: 0.58 }, face: { color: '#0e4124', roughness: 0.52, spec: 0.3, cc: 0.45, ccr: 0.12, sheen: 0.5, sheenColor: '#3fae6e', sheenRough: 0.45, env: 1.3, max: 0.6 },
+  wall: { color: '#18683a', roughness: 0.5, spec: 0.3, cc: 0.45, ccr: 0.12, sheen: 0.8, sheenColor: '#3fbf7a', sheenRough: 0.5, env: 1.8, max: 0.62 }, fleck: { color: '#124c2c', roughness: 0.55, spec: 0.3, cc: 0.45, ccr: 0.12, sheen: 0.5, sheenColor: '#3fae6e', sheenRough: 0.45, env: 1.3, max: 0.58 },
+  glints: 0.6, glow: [2.4, 0.7], line: '#14301f', lineGlow: [1.2, 40], dome: 'round', win: 0.6, room: 0.12 };
+FINISH.jade.dark = { ink: { color: '#729e6c', roughness: 0.45, spec: 0.45, cc: 0.45, ccr: 0.28, sheen: 0.7, sheenColor: '#e4ebd4', sheenRough: 0.65, env: 1.3, max: 0.7 }, face: { color: '#6f9b69', roughness: 0.45, spec: 0.45, cc: 0.45, ccr: 0.28, sheen: 0.7, sheenColor: '#e4ebd4', sheenRough: 0.65, env: 1.3, max: 0.7 },
+  wall: { color: '#6ea56e', roughness: 0.45, spec: 0.45, cc: 0.45, ccr: 0.28, sheen: 0.7, sheenColor: '#dcebcc', sheenRough: 0.65, env: 2, max: 0.72 }, fleck: { color: '#6e9a68', roughness: 0.45, spec: 0.45, cc: 0.45, ccr: 0.28, sheen: 0.7, sheenColor: '#e4ebd4', sheenRough: 0.65, env: 1.3, max: 0.7 },
+  line: '#7f8f7c', win: 1, room: 0.8 };
 const LINE ={ staff: 0.1, stem: 0.11, ledger: 0.13, bar: 0.14, system: 0.16, lift: 0.004 };
 const HEAD_W = 1.18, STEM_DX = 0.53, STEM_DY = 0.168; // Bravura notehead width; stem centre and start relative to the head centre
 
@@ -980,6 +1043,9 @@ const SHADE_HOOK = `
 #ifdef USE_CLEARCOAT
    clearcoatSpecularDirect *= ks; clearcoatSpecularIndirect *= ks;
 #endif
+#ifdef USE_SHEEN
+   sheenSpecularDirect *= ks; sheenSpecularIndirect *= ks; // (velvet's and jade's sheen too, round 12)
+#endif
  }
 #endif
 #ifdef DARK_PAPER
@@ -988,6 +1054,9 @@ const SHADE_HOOK = `
    reflectedLight.directDiffuse *= lk; reflectedLight.directSpecular *= lk; reflectedLight.indirectDiffuse *= li; reflectedLight.indirectSpecular *= li;
 #ifdef USE_CLEARCOAT
    clearcoatSpecularDirect *= lk; clearcoatSpecularIndirect *= li;
+#endif
+#ifdef USE_SHEEN
+   sheenSpecularDirect *= lk; sheenSpecularIndirect *= li;
 #endif
  }
 #endif`;
@@ -1566,8 +1635,13 @@ export function buildPaper(T, tools, piece, opts = {}) {
   const fenv = F ? paperEnv(renderer, paperTone, F.win, F.room) : env;
   // A finish's material (see FINISH): physically based, reflecting the room; smoked glass is drawn over what lies below
   // it (custom blending: its own reflection plus what it lets through, T x (1 - Fresnel)).
+  // (round 12: a clear coat's own roughness, ccr; a velvet's sheen, sheen/sheenColor/sheenRough; a pearl's
+  // iridescence, iri/iriIOR/iriRange (nm); spec = the strength of a dielectric's own reflection, for the polished stones)
   const physical = (p) => {
-    const m = new THREE.MeshPhysicalMaterial({ color: p.color, metalness: p.metalness ?? 0, roughness: p.roughness, ior: 1.5, clearcoat: p.cc || 0, clearcoatRoughness: 0.03, envMap: fenv, envMapIntensity: p.env || 1 });
+    const m = new THREE.MeshPhysicalMaterial({ color: p.color, metalness: p.metalness ?? 0, roughness: p.roughness, ior: 1.5, clearcoat: p.cc || 0, clearcoatRoughness: p.ccr ?? 0.03, envMap: fenv, envMapIntensity: p.env || 1 });
+    if (p.sheen) { m.sheen = p.sheen; m.sheenColor.set(p.sheenColor || '#ffffff'); m.sheenRoughness = p.sheenRough ?? 0.5; }
+    if (p.iri) { m.iridescence = p.iri; m.iridescenceIOR = p.iriIOR ?? 1.3; [m.iridescenceThicknessMinimum, m.iridescenceThicknessMaximum] = p.iriRange || [100, 400]; }
+    if (p.spec != null) m.specularIntensity = p.spec;
     if (p.T != null) Object.assign(m, { transparent: true, blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor, depthWrite: true });
     Object.assign(m.userData, { env: p.env || 1, max: p.max, win: F.win });
     if (p.T != null) m.userData.T = p.T;
@@ -1599,8 +1673,9 @@ export function buildPaper(T, tools, piece, opts = {}) {
   const hook = (m, key, { glints = null, lit = false, crack = false } = {}) => {
     if (crack) crackMats.push(m);
     shadeMats.push(m);
-    const T = m.userData.T, max = m.userData.max ?? FX.max ?? FINISH.matte.max;
+    const T = m.userData.T, maxOf = () => m.userData.max ?? FX.max ?? FINISH.matte.max; // (read when compiled: a dark paper may change it)
     m.onBeforeCompile = (sh) => {
+      const max = maxOf();
       Object.assign(sh.uniforms, glU, csU, lampU, shineU);
       if (crack) { // (CRACKS: the world place, for the cracks)
         Object.assign(sh.uniforms, crackU);
@@ -1635,7 +1710,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
         sh.fragmentShader.replace('#include <lights_fragment_end>', end).replace('#include <dithering_fragment>', glass + cap +
           (crack && lit ? '\n#ifndef CRACKS' + white + '\n#endif' : white) + (lit && T != null ? '\n#ifdef CRACKS\n if (vLit > 0.5) gl_FragColor.a = 1.0;\n#endif' : '') + cracked + '\n#include <dithering_fragment>');
     };
-    m.customProgramCacheKey = () => key;
+    m.customProgramCacheKey = () => key + ':' + maxOf();
     return m;
   };
   // Polished chrome (the matte ink's rims and pins): a sharp reflection of the room (dark walls with bright streaks, a
@@ -1685,7 +1760,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
     uFar0: { value: 70 }, uFar1: { value: 130 }, uFarFade: { value: 0.35 }, uOpacity: { value: 1 }, uMax: { value: F ? F.wall.max : FX.max },
     uGW: { value: Array.from({ length: GLOWS }, () => new THREE.Vector4()) }, uGC: glU.uGLC, uGlint: { value: new THREE.Vector2(...FX.lineGlow) }, ...lampU };
   Object.assign(paperU, { uGW: lineU.uGW, uGC: glU.uGLC }); // (the paper's satin sheen mirrors the glows on dark paper)
-  const lineMax = lineU.uMax.value; // (the lines' own soft limit; the notes' shine may raise it toward SHINE.lineCap)
+  let lineMax = lineU.uMax.value; // (the lines' own soft limit; the notes' shine may raise it toward SHINE.lineCap; a dark paper's version of the finish may change it)
   const lineMat = new THREE.ShaderMaterial({ uniforms: lineU, vertexShader: LINE_VERT, fragmentShader: LINE_FRAG, transparent: true, depthWrite: false, side: THREE.DoubleSide });
   // A dark paper compiles its few extra lines into these programs (DARK_PAPER), once, when it is chosen: with a light
   // paper every shader is exactly as it was.
@@ -3241,7 +3316,8 @@ export function buildPaper(T, tools, piece, opts = {}) {
   // (the finish's own settings for each of its parts, kept so that a light paper brings them back after a dark one)
   const parts = F ? [[ink, 'ink'], [headMat, 'ink'], [restMat, 'ink'], [face, 'face'], [chrome, 'wall'], [fleck, 'fleck']] : [];
   if (F && pinMat !== chrome && !parts.some(([m]) => m === pinMat) && F.pin !== 'chrome') parts.push([pinMat, 'pin']);
-  const own = parts.map(([m]) => ({ color: m.color.clone(), roughness: m.roughness, metalness: m.metalness }));
+  const own = parts.map(([m]) => ({ color: m.color.clone(), roughness: m.roughness, metalness: m.metalness, sheenColor: m.sheenColor.clone(), sheen: m.sheen, sheenRough: m.sheenRoughness, cc: m.clearcoat, ccr: m.clearcoatRoughness,
+    iri: m.iridescence, iriIOR: m.iridescenceIOR, iriRange: [m.iridescenceThicknessMinimum, m.iridescenceThicknessMaximum], spec: m.specularIntensity, env: m.userData.env, max: m.userData.max }));
   function applyPaper(pt) {
     paperTone = pt;
     const dk = pt.dark ? DARK[pt.dark] : null, FD = F && dk ? F.dark || {} : null;
@@ -3268,10 +3344,22 @@ export function buildPaper(T, tools, piece, opts = {}) {
       ink.color.set(pt.ink); headMat.color.set(pt.ink); restMat.color.set(pt.ink); inkLinear.set(dk ? dk.line : pt.ink);
       face.color.set(dk ? dk.face : PAL.face); face.roughness = dk ? dk.faceRough : 0.1;
     } else {
-      parts.forEach(([m, k], i) => { const o = own[i], d = (FD && FD[k]) || {}; if (d.color) m.color.set(d.color); else m.color.copy(o.color); m.roughness = d.roughness ?? o.roughness; m.metalness = d.metalness ?? o.metalness; });
+      parts.forEach(([m, k], i) => {
+        const o = own[i], d = (FD && FD[k]) || {}; if (d.color) m.color.set(d.color); else m.color.copy(o.color); m.roughness = d.roughness ?? o.roughness; m.metalness = d.metalness ?? o.metalness;
+        if (d.sheenColor) m.sheenColor.set(d.sheenColor); else m.sheenColor.copy(o.sheenColor); // (and the newer finishes' sheen, clear coat, iridescence, room and limit)
+        m.sheen = d.sheen ?? o.sheen; m.sheenRoughness = d.sheenRough ?? o.sheenRough; m.clearcoat = d.cc ?? o.cc; m.clearcoatRoughness = d.ccr ?? o.ccr; m.specularIntensity = d.spec ?? o.spec;
+        m.iridescence = d.iri ?? o.iri; m.iridescenceIOR = d.iriIOR ?? o.iriIOR; [m.iridescenceThicknessMinimum, m.iridescenceThicknessMaximum] = d.iriRange || o.iriRange; m.userData.env = d.env ?? o.env;
+        const mx = d.max ?? o.max; if (m.userData.max !== mx) { m.userData.max = mx; m.needsUpdate = true; }
+      });
       inkLinear.set((FD && FD.line) || F.line);
+      lineMax = (FD && FD.wall && FD.wall.max) ?? F.wall.max;
     }
-    mirrored[0].color.copy(face.color); mirrored[0].roughness = Math.max(0.45, face.roughness);
+    // (the paper's mirror of the title: its tops' and, since round 12, its walls' material as this paper has them)
+    for (const [mm, base] of [[mirrored[0], face], [mirrored[1], chrome]]) {
+      mm.color.copy(base.color); mm.roughness = Math.max(0.45, base.roughness);
+      if (F) Object.assign(mm, { metalness: base.metalness, sheen: base.sheen, sheenRoughness: base.sheenRoughness, clearcoat: base.clearcoat, iridescence: base.iridescence, specularIntensity: base.specularIntensity });
+      if (F) { mm.sheenColor.copy(base.sheenColor); mm.userData.env = base.userData.env; }
+    }
     const win = FD && FD.win != null ? FD.win : F && F.win, room = FD && FD.room != null ? FD.room : F && F.room;
     const e0 = paperEnv(renderer, pt), e1 = F ? paperEnv(renderer, pt, win, room) : e0;
     if (e0) for (const m of faded) { const e = m.userData.win ? e1 : e0; if (m.envMap !== e) { m.envMap = e; m.needsUpdate = true; } }

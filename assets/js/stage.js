@@ -6,7 +6,7 @@ import { buildFlight, voicesFromPiece } from './flight.js?v=14';
 import { buildDancer } from './dancer.js?v=9';
 import { buildScore } from './score.js?v=20';
 import { buildSheet } from './sheet.js?v=9';
-import { buildPaper, HAND_PAIRS, PAPERS, PAPER_DEFAULT, FINISHES, FINISH_DEFAULT, CORNER_STYLES, CAM_MOVES, SHINE_DEFAULT } from './paper.js?v=19';
+import { buildPaper, HAND_PAIRS, PAPERS, PAPER_DEFAULT, FINISHES, FINISH_DEFAULT, CORNER_STYLES, CAM_MOVES, SHINE_DEFAULT } from './paper.js?v=20';
 import { loadGlyphs } from './glyphs.js?v=2';
 
 const THEMES = {
@@ -565,7 +565,7 @@ export function createStage(canvas) {
     papers: () => PAPERS.map(({ id, name, desc, swatch, dark, css }) => ({ id, name, desc, swatch, dark: !!dark, css })),
     // What the paper look's notation is made of: the id of one of the finishes finishes() lists (the scene is built again).
     setFinish(id) { const v = FINISHES.some((f) => f.id === id) ? id : FINISH_DEFAULT; if (v !== S.finish) { S.finish = v; if (paperLook()) S.scene = null; } },
-    finishes: () => FINISHES.map(({ id, name, desc, chip }) => ({ id, name, desc, chip })),
+    finishes: () => FINISHES.map(({ id, name, desc, chip, best, dark }) => ({ id, name, desc, chip, best, dark })),
     // The paper look's light trails behind the balls (on or off).
     setTrails(on) { S.trails = !!on; },
     // The paper look's corner light: the id of one of the styles corners() lists ('off' by default).

@@ -130,7 +130,7 @@ body:not(.paper) .paper-only { display: none; }
 .swatch i.sheet.dark { box-shadow: 0 0 0 1px rgba(255,255,255,.28), 0 1px 3px rgba(0,0,0,.5); } /* a dark paper: a thin light outline, so it shows against the panel */
 .seg.off { opacity: .45; } .seg.off button { cursor: default; } /* a choice that does nothing until another is made */
 /* finishes: each button shows a small notehead of that material */
-.swatches.finishes { grid-template-columns: repeat(4, 1fr); }
+.swatches.finishes { grid-template-columns: repeat(5, 1fr); } /* ten finishes: two rows of five */
 .swatch i.note { width: 26px; height: 18px; border-radius: 50%; display: block; transform: rotate(-22deg); margin: 3px 0; box-shadow: 0 0 0 1px rgba(255,255,255,.14), 0 1px 3px rgba(0,0,0,.5); }
 .cardview { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 textarea { resize: vertical; font: inherit; line-height: 1.4; }
