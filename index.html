@@ -108,8 +108,10 @@
       <p class="fine paper-only" id="finish-desc"></p>
       <label class="slider paper-only"><span>Shine of the notes <small>(left: quiet)</small></span><input type="range" id="shine" min="0" max="1" step="0.05" value="0.5"></label>
       <p class="fine paper-only">How brightly the notes catch the balls of light as they come near, like polished metal.</p>
-      <label class="slider paper-only"><span>Darkness of the room <small>(left: as lit)</small></span><input type="range" id="dark" min="0" max="1" step="0.05" value="0"></label>
-      <p class="fine paper-only">Dims the lamp for a darker, moodier picture, deepest in the top-left and bottom-right corners. The balls, the glows and the lit notes keep their full light, so they stand out more.</p>
+      <label class="slider paper-only"><span>Darkness of the room <small>(left: as lit)</small></span><input type="range" id="dark" min="0" max="1" step="0.05" value="0.5"></label>
+      <p class="fine paper-only">Dims the lamp for a darker, moodier picture, a little less over the music so it stays easy to read. The balls, the glows and the lit notes keep their full light, so they stand out more.</p>
+      <label class="slider paper-only"><span>Shadow in the corners <small>(left: none)</small></span><input type="range" id="cornerdark" min="0" max="1" step="0.05" value="0.75"></label>
+      <p class="fine paper-only">Deep shade in the top-left and bottom-right corners, reaching further in as it grows.</p>
       <h2 class="keys-only">Notes</h2>
       <div class="seg keys-only" id="notes" role="radiogroup" aria-label="Notes">
         <button type="button" role="radio" data-v="trails" aria-checked="true">Trails of light</button>
@@ -250,6 +252,6 @@
   </aside>
 </main>
 <footer class="credits">Grand piano recordings: Salamander Grand Piano by Alexander Holm (CC BY 3.0). Electric pianos and harpsichord: FluidR3 GM by Frank Wen. Music symbols converted from Bravura by Steinberg Media Technologies, and lettering converted from Libre Baskerville by Pablo Impallari and Rodrigo Fuenzalida, both under the <a href="assets/glyphs/OFL.txt">SIL Open Font License 1.1</a> (<a href="assets/glyphs/CREDITS.txt">details</a>).</footer>
-<script type="module" src="assets/js/studio.js?v=45"></script>
+<script type="module" src="assets/js/studio.js?v=46"></script>
 </body>
 </html>
