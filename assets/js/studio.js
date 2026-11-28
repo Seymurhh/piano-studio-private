@@ -80,7 +80,7 @@ const fill = (el) => el.style.setProperty('--fill', `${((el.value - el.min) / (e
 const PHONE = matchMedia('(max-width: 640px)').matches; // a phone held upright: start with the tall picture looking along the keys, which fills the screen
 // New visitors start with the sheet music on soft paper (look) in ivory (paper), its hands in rose and ice (hands), the
 // title lettered in 3D.
-const DEFAULTS = { instrument: 'grand', room: 'hall', volume: 0.9, monitor: true, theme: 'aurora', view: 'sheet', look: 'paper', hands: 'rose', paper: 'ivory', finish: 'matte', trails: false, corner: 'off', cornerK: 0.5, dark: 0.5, cornerDark: 0.75, sparks: 0, zap: 0, current: 0, cracks: 0, race: 0, ballStyle: 'light', camMove: 'steady', shine: 0.5, ballK: 0.5, title3d: true, appear: false, darkNotes: false, sleeves: true, handPosture: 'auto', keyLayout: 'piano', powder: 0.55, flash: 0.55, v: 16, dance: 'auto', camera: PHONE ? 'side' : 'front', shape: PHONE ? 'tall' : 'wide', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', cardOpen: true, cardOpenPaper: false, cardOpenPart: true, cardClose: true, markOn: true, part: 'whole', cardStyle: 'lumen', channel: 'Lumen Keys', message: 'Thank you for listening', labels: false, effects: true, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
+const DEFAULTS = { instrument: 'grand', room: 'hall', volume: 0.9, monitor: true, theme: 'aurora', view: 'sheet', look: 'paper', hands: 'rose', paper: 'ivory', finish: 'matte', trails: false, corner: 'off', cornerK: 0.5, dark: 0.5, cornerDark: 0.75, sparks: 0, zap: 0, current: 0, cracks: 0, race: 0, ballStyle: 'light', camMove: 'steady', shine: 0.5, ballK: 0.5, title3d: true, appear: false, darkNotes: false, sleeves: true, handPosture: 'auto', keyLayout: 'piano', powder: 0.55, flash: 0.55, v: 16, dance: 'auto', camera: PHONE ? 'side' : 'front', shape: PHONE ? 'tall' : 'wide', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', cardOpen: true, cardOpenPaper: false, cardOpenPart: true, cardClose: true, markOn: true, part: 'whole', cardStyle: 'lumen', channel: 'Cepiano', message: 'Thank you for listening', labels: false, effects: true, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
 const C = { ...DEFAULTS };
 try { // v 2: note names off unless switched on again; v 3: notes are trails of light unless changed again; v 4: the
   // picture starts as the sheet music on soft paper (choices saved by the older studio this one was copied from do not
@@ -110,6 +110,7 @@ try { // v 2: note names off unless switched on again; v 3: notes are trails of 
   if (!(saved.v >= 11)) delete saved.appear;
   if (!['auto', 'lyrical', 'classical'].includes(saved.handPosture)) delete saved.handPosture;
   if (!['piano', 'even'].includes(saved.keyLayout)) delete saved.keyLayout;
+  if (saved.channel === 'Lumen Keys') delete saved.channel; // (the channel was renamed Cepiano on 28 Nov 2026: the old default gives way; a name typed in is kept)
   Object.assign(C, saved, { v: 16 });
 } catch {}
 const remember = () => { try { localStorage.setItem('studio', JSON.stringify(C)); } catch {} };
