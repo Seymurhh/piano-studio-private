@@ -131,3 +131,8 @@ and pedal were shaped by hand (see above), not by the simple rule.
 
 The files end in .smf (Standard MIDI File) instead of .mid: they are ordinary MIDI files, renamed because this site
 never publishes .mid files, so that her own recordings cannot be published by accident.
+
+
+original-neon-heartline.smf
+  Neon Heartline: an original Euro-disco piano piece in D minor (with a key change to E minor), written for Seymur
+  in November 2026. Not based on any existing song; free to use, including in videos.
