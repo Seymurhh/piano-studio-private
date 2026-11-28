@@ -33,13 +33,13 @@ handel-passacaglia-g-minor.smf
   edition prints them.
 
 handel-halvorsen-passacaglia.smf
-  Handel / Halvorsen: Passacaglia, piano arrangement by Lumen Keys (2026)
+  Handel / Halvorsen: Passacaglia, piano arrangement by Cepiano (2026)
   Arranged from Johan Halvorsen's Passacaglia for violin and viola (1894), itself after the Passacaille of Handel's
   Suite No. 7 in G minor, HWV 432 (1720). Source: the first edition (Wilhelm Hansen, Copenhagen, n.d. [1896], plate
   11808), IMSLP #72041, public domain. Every note of the 54 bars used was read twice, independently, from the scan and
   the two readings compared note by note. The arrangement (the choice of variations, the piano writing, Handel's ground
   bass added under the theme and the first variation, and the performance: tempo, dynamics, voicing and pedal) is
-  Lumen Keys' own.
+  Cepiano's own.
 
 mozart-rondo-alla-turca.smf
   Wolfgang Amadeus Mozart: Rondo alla Turca

@@ -3,7 +3,7 @@
 // preview on the page and every exported frame match. Three looks: Lumen (centred, gold line), Minimal (a quiet
 // block at the lower left) and Cinematic (wide spaced capitals revealed by a sweep of light).
 export const OPEN = 5, CLOSE = 7; // seconds each card lasts
-export const STYLES = { lumen: 'Lumen', minimal: 'Minimal', cinema: 'Cinematic' };
+export const STYLES = { lumen: 'Cepiano', minimal: 'Minimal', cinema: 'Cinematic' };
 
 const clamp01 = (u) => Math.min(1, Math.max(0, u));
 const ease = (u) => { u = clamp01(u); return u * u * (3 - 2 * u); };

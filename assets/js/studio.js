@@ -2,7 +2,7 @@
 import { parseMidi, fromRecording, writeMidi, demoPiece, noteName } from './midi.js?v=13';
 import { createStage } from './stage.js?v=184';
 import { createListener, STYLE_NAMES } from './listen.js?v=8';
-import { drawCard, OPEN, CLOSE, STYLES } from './cards.js?v=3';
+import { drawCard, OPEN, CLOSE, STYLES } from './cards.js?v=4';
 import { INSTRUMENTS, ROOMS, makeOutput, noteOn, voice, renderPiece, loadInstrument, isLoaded, heldFor } from './synth.js?v=20';
 
 const $ = (s, r = document) => r.querySelector(s);
