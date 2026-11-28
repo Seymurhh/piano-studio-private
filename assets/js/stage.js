@@ -6,8 +6,10 @@ import { buildFlight, voicesFromPiece } from './flight.js?v=14';
 import { buildDancer } from './dancer.js?v=9';
 import { buildScore } from './score.js?v=20';
 import { buildSheet } from './sheet.js?v=9';
-import { buildPaper, HAND_PAIRS, PAPERS, PAPER_DEFAULT, FINISHES, FINISH_DEFAULT, CORNER_STYLES, CAM_MOVES, SHINE_DEFAULT } from './paper.js?v=20';
+import { buildPaper, HAND_PAIRS, PAPERS, PAPER_DEFAULT, FINISHES, FINISH_DEFAULT, CORNER_STYLES, CAM_MOVES, SHINE_DEFAULT, CAM, stillFit } from './paper.js?v=80'; // v80: the play point past the middle (openAt glide, centred shadow window)
 import { loadGlyphs } from './glyphs.js?v=2';
+import { buildKeys } from './keys.js?v=84';   // v84: curl fix (the curl limit kept on near the keys and in fast passages: a free finger never curls more than it plays; fingertips no longer dip into each black key as the hand slides across them); v83: curl round (a curl limit: free fingers a gentle arch, never a claw; strikes and holds not hooked); v82: fingers round 2 (the hand leans toward a key out of reach at the strike, no snap as a finger lets go, fingers never fold under the hand); v81: fingers round 1 (a held note let go early instead of a finger stretched straight, free fingers within their spread, strikes out of reach moved to the key's front); v80: posture fixes (fingers only as deep between the black keys as they fit), the Black keys setting; v79: hand posture (lyrical, classical, auto), black keys as on a real piano; v78: hand proportions (longer, slimmer fingers, a smaller palm); v77: S5 review fixes (no finger snaps, hand-over-hand crossings); v76: hand motion S5 (two hands); v75: S0-S4 + all the view work (framing, dark notes, appear, play point, hands look, piano side)
+import { buildBeams } from './beams.js?v=45'; // v45: the bursts at the keys in their own sprites, the puff's core capped
 
 const THEMES = {
   aurora: { bg: ['#000000', '#01030a'], fog: '#000103', runway: '#020304', trim: '#3dffa0', led: '#35ff8a', ledLight: 1.1, dim: 0.3, felt: '#06301c', white: '#eef5f1', black: '#050607',
@@ -138,17 +140,117 @@ export function createStage(canvas) {
   const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(960, 540), 0.6, 0.5, 0.8);
   const dof = depthOfField();
   composer.addPass(renderPass); composer.addPass(dof); composer.addPass(bloom); composer.addPass(new THREE.OutputPass());
-  const bloomMips = [...bloom.compositeMaterial.uniforms.bloomFactors.value]; // how much each blur size adds (the paper look keeps only the small ones)
+  const bloomMips = [...bloom.compositeMaterial.uniforms.bloomFactors.value];
+  // The "Sheet music + hands" picture: the paper's sheet music in the top part, the keyboard and hands in the bottom part
+  // (on a backdrop of the same paper), and the light between them over the whole picture. One pass draws all three.
+  const camKeys = new THREE.PerspectiveCamera(30, 1, 0.5, 600), camPaper = new THREE.PerspectiveCamera(42, 1, 0.5, 600);
+  // top: the share of the picture's height the sheet music is framed in, per picture shape (the paper carries on below
+  // it, behind the keys); overlap: how far the keys' part reaches up into it; drop: how far that part is lowered from
+  // the top edge (shares of the height; 0 since the music was moved up again, with FLAT.margin, so the glass bubbles
+  // rise further below it; the opening shot keeps it clear of the keys, see OPEN)
+  const SPLIT = { wide: 0.6, tall: 0.5, overlap: 0.1, drop: { wide: 0, tall: 0 } };
+  // how far the glass bubbles rise, per picture shape: where they start to fade and where they are gone, as shares of
+  // the way from the keys up to just under the lowest music near the picture (beams.js; near: see riseTo; min: at
+  // least this far above the line of light, share of the height).
+  const RISE = { wide: [0.4, 0.92], tall: [0.35, 0.88], near: { reach: 16, k: 0.5, gap: 0.015, min: 0.03 } };
+  // The opening shot over the music (paper.js openFit, openBox): from the first picture until the shot has eased into
+  // the steady framing, the title and all the printed music in the picture's width stay above the keyboard, at least
+  // `m` of the picture's height clear of its top edge (highest over the opening, as the tall picture's keys follow the
+  // hands); the title may rise to the picture's top edge (paper.js keeps its usual margin there).
+  const OPEN = { m: 0.025 };
+  // The sheet music above the keys: the camera looks down on the page from nearly overhead, so the staves run level and
+  // the music travels from left to right (the place being played a little past the middle, `at` 57% of the way in, so
+  // more of what has just been played shows; the opening starts it at openAt, a third of the way in, and glides it out,
+  // see paper.js openAtW; titleHold: the opening's title stays under the picture's top edge until that many seconds
+  // after the first note, as the shot eases out to the music now standing higher, see paper.js openFit). It
+  // keeps one height and centres on one page height for the whole piece (stillFit, from how low and high the piece's
+  // music reaches, its channel name included), so nothing is ever cut at the top and the page never drifts. h: the
+  // height for the size wanted (wide: about 19 px a staff space at 1080p; tall: about 24 at 1080 wide), higher when a
+  // piece's music would not fit; margin: [top, bottom] room kept in the music's part (shares of its height: less above
+  // than below, so the music stands high in the picture, its highest note about 4-5% of the height under the top edge);
+  // lampH: the lamp stays where the designed camera has it, so standing higher does not dim the paper; far: the thin
+  // lines fade only further off than the camera's own distance; mask: the shadows' window (ss), centred on the picture
+  // whatever `at` is, and as wide as the widest opening shot;
+  // inkLift: the ink's shadow cast from nearer its real height, so that seen from overhead a shadow stays a thin soft
+  // edge beside its note instead of a grey copy of each stem and beam (a steeper key light would shorten it too, but
+  // its highlight then turns the noteheads grey).
+  const FLAT_BASE = { ...CAM.tall, yaw: 90, yawAmp: 0, hAmp: 0, tilt: 80, fov: 36, at: [0.57, 0.5], openAt: 0.34, titleHold: 2, lampH: 24, far: [140, 220], mask: { centre: true, W: 180 }, inkLift: 1 };
+  const FLAT = { wide: { ...FLAT_BASE, h: 54.8, margin: [0.045, 0.075] }, tall: { ...FLAT_BASE, h: 55, margin: [0.06, 0.05] } };
+  let flat = { ...FLAT }; // (fitted to the piece when its scene is built)
+  // Over the music, under this level overhead camera: the paper's corner shade kept to its corner (its reach halved),
+  // and the room's darkness away from the music starting only above the picture's top (paper.js DARKNESS), so neither
+  // lies as a dark band across the top; the light trails leave out the leaps, whose hops lie flat from overhead and
+  // would draw straight lines across the staves (paper.js TRAIL.leap).
+  const FLAT_SHADE = { reach: 2, music: [-7, -1, 26, 40] };
+  const TALL_TITLE_W = 46; // (ss: the 3D title's widest line in the tall picture)
+  // The powder and the flash at a struck key in the hand pictures (the Look tab's "Powder at the keys" and "Flash at the
+  // keys"): a slider's value s (0 .. 1) as a multiple of their usual strength: 0 none, `usual` the strength they had
+  // before the sliders, rising to `max` times it at 1; the default, `def`, a little stronger than usual (1.5 times).
+  // Above `usual` it eases off (1 - (1 - v)^ease of the way up, v the share of the way along the slider; `ease` keeps
+  // the default at 1.5 times), so each step adds less than the one before: 0.7 is 1.92 times, 0.85 is 2.23 times and
+  // 1 is 2.4 times (a straight line to 3 times made the step from 0.8 to 1 a big jump into a clipped white cloud).
+  const AT_KEYS = { usual: 0.4, max: 2.4, def: 0.55, ease: 1.536 };
+  const atKeys = (s) => (s <= AT_KEYS.usual ? s / AT_KEYS.usual
+    : 1 + (AT_KEYS.max - 1) * (1 - (1 - (s - AT_KEYS.usual) / (1 - AT_KEYS.usual)) ** AT_KEYS.ease));
+  // the camera over the music for this picture shape, with its openBox (see OPEN): worked out once per shape and scene,
+  // from the shares in SPLIT (not the rounded pixels), so every size of one shape frames the opening alike
+  let openCam = { key: '', flat: null, keys: null, cam: null };
+  const camPeek = new THREE.PerspectiveCamera(30, 1, 0.5, 600), edgeV = new THREE.Vector3();
+  function flatCam(tall, W, H) {
+    const key = (W / H).toFixed(6);
+    if (openCam.key === key && openCam.flat === flat && openCam.keys === S.keysView) return openCam.cam;
+    const top = tall ? SPLIT.tall : SPLIT.wide, drop = tall ? SPLIT.drop.tall : SPLIT.drop.wide, kb = 1 - top + SPLIT.overlap;
+    camPeek.aspect = W / (H * kb); camPeek.updateProjectionMatrix();
+    const t1 = S.paper.timing ? S.paper.timing.t1 : 0;
+    let yk = 0; // (the keyboard's top edge, share of the height from the bottom)
+    for (let t = Math.min(-1.5, t1 - 1.5); t <= t1 + 6; t += 0.5) { S.keysView.place(t, camPeek); S.keysView.topEdge(edgeV).project(camPeek); yk = Math.max(yk, (edgeV.y * 0.5 + 0.5) * kb); }
+    const ndc = (y) => (2 * (y - (1 - drop - top))) / top - 1; // (a height in the picture, share from the bottom, in the music's part: -1 its bottom, 1 its top)
+    const cam = { ...(tall ? flat.tall : flat.wide), openBox: { floor: ndc(yk + OPEN.m), top: ndc(1) - 0.1 } };
+    openCam = { key, flat, keys: S.keysView, cam };
+    return cam;
+  }
+  const splitPass = { enabled: true, needsSwap: false, clear: false, renderToScreen: false, t: 0, opts: null,
+    setSize() {}, dispose() {},
+    render(r, writeBuffer, readBuffer) {
+      const W = readBuffer.width, H = readBuffer.height, tall = W < H;
+      const top = tall ? SPLIT.tall : SPLIT.wide, hb = Math.round(H * (1 - top + SPLIT.overlap)), ht = Math.round(H * top), dy = Math.round(H * (tall ? SPLIT.drop.tall : SPLIT.drop.wide));
+      const keepAuto = r.autoClear;
+      r.setRenderTarget(readBuffer); r.setClearColor(0x000000, 1); r.clear();
+      readBuffer.scissorTest = true;
+      // the sheet music
+      // the paper fills the whole picture: its camera frames the music in the top part, and the same page simply
+      // carries on down behind the keys (the same grain and fibres; only the darkness over it differs)
+      camPaper.aspect = W / ht; camPaper.clearViewOffset();
+      // (each note lit whole as it is played, unless the cracks of light are chosen; the thin lines, trails and the
+      // corner shade sized for the whole picture as drawn; drawn at full light, the whole picture faded at the end)
+      S.paper.render(this.t, camPaper, { ...this.opts, res: bufSize.set(W, H), fade: false, cam: flatCam(tall, W, H), camMove: 'steady', cracks: S.cracks > 0 ? S.cracks : 0.85, crackSolid: !(S.cracks > 0), shadeFit: FLAT_SHADE, trailLeap: true });
+      camPaper.setViewOffset(W, ht, 0, -dy, W, H);
+      readBuffer.viewport.set(0, 0, W, H); readBuffer.scissor.set(0, 0, W, H); r.setRenderTarget(readBuffer);
+      r.render(S.paper.scene, camPaper);
+      // the keys and hands
+      r.autoClear = false;
+      camKeys.aspect = W / hb; camKeys.updateProjectionMatrix();
+      S.keysView.render(this.t, camKeys, { effects: S.effects, motion: S.motion, powder: atKeys(S.powder), flash: atKeys(S.flash) });
+      readBuffer.viewport.set(0, 0, W, hb); readBuffer.scissor.set(0, 0, W, hb); r.setRenderTarget(readBuffer);
+      r.clearDepth(); r.render(S.keysView.scene, camKeys);
+      // the light between them
+      readBuffer.viewport.set(0, 0, W, H); readBuffer.scissor.set(0, 0, W, H); readBuffer.scissorTest = false; r.setRenderTarget(readBuffer);
+      // (and the fade in at the start and out at the end, over everything: smooth to the eye, as linear light ^2.2)
+      S.beamFeed(this.t, { W, H, ht, hb, dy, fade: Math.pow(S.paper.probe.fade, 2.2) });
+      r.clearDepth(); r.render(S.beams.scene, S.beams.cam);
+      r.autoClear = keepAuto;
+    } }; // how much each blur size adds (the paper look keeps only the small ones)
 
   const clip = [new THREE.Plane(new THREE.Vector3(0, 0, -1), 0)]; // hide the part of a note that has passed the keys
   const dot = canvasTex(64, 64, (g) => { const r = g.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, '#fff'); r.addColorStop(0.35, 'rgba(255,255,255,.55)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 64, 64); });
   const beamTex = canvasTex(32, 128, (g, w, h) => { const r = g.createLinearGradient(0, h, 0, 0); r.addColorStop(0, 'rgba(255,255,255,.95)'); r.addColorStop(0.25, 'rgba(255,255,255,.35)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, w, h); });
-  const S = { look: 'paper', title: null, composer: '', mark: '', glyphs: null, hands: 'rose', paperTone: PAPER_DEFAULT, finish: FINISH_DEFAULT, trails: false, corner: 'off', cornerK: 0.5, dark: 0, cornerDark: 0, sparks: 0, zap: 0, current: 0, cracks: 0, race: 0, ballStyle: 'light', camMove: 'steady', shine: SHINE_DEFAULT, ballK: 0.5, notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheet: null, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', score: null, theme: 'aurora', camera: 'front', trail: null, pool: [], labels: true, effects: true, motion: true, piece: null, view: 'piano', voices: [], mic: null, flight: null, scene: null, keys: [], items: [], beams: [], live: new Map(), far: 60, cam: null };
+  const S = { sleeves: true, powder: AT_KEYS.def, flash: AT_KEYS.def, look: 'paper', title: null, composer: '', mark: '', glyphs: null, hands: 'rose', paperTone: PAPER_DEFAULT, finish: FINISH_DEFAULT, trails: false, corner: 'off', cornerK: 0.5, dark: 0, cornerDark: 0, sparks: 0, zap: 0, current: 0, cracks: 0, race: 0, ballStyle: 'light', camMove: 'steady', shine: SHINE_DEFAULT, ballK: 0.5, notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheet: null, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', score: null, theme: 'aurora', camera: 'front', trail: null, pool: [], labels: true, effects: true, motion: true, piece: null, view: 'piano', voices: [], mic: null, flight: null, scene: null, keys: [], items: [], beams: [], live: new Map(), far: 60, cam: null };
   const labelMats = new Map(), ray = new THREE.Raycaster(), point = new THREE.Vector2(), bufSize = new THREE.Vector2();
   const paperLook = () => S.view === 'sheet' && S.look === 'paper';
+  const paperIn = () => paperLook() || S.view === 'sheetkeys'; // (the pictures with the paper in them)
   // The paper look's 3D lettering needs the glyph outlines, which load in the background. Until they arrive the paper
   // is drawn plain; then the scene is built again. ready() resolves once they are in and the current scene is built.
-  const glyphsLoaded = loadGlyphs().then((g) => { S.glyphs = g; if (paperLook()) S.scene = null; }).catch((e) => { console.warn(e); });
+  const glyphsLoaded = loadGlyphs().then((g) => { S.glyphs = g; if (paperLook() || S.view === 'sheetkeys') S.scene = null; }).catch((e) => { console.warn(e); });
 
   function labelMaterial(pitch, T) {
     const k = S.theme + pitch;
@@ -179,6 +281,71 @@ export function createStage(canvas) {
       bloom.compositeMaterial.uniforms.bloomFactors.value = S.paper.bloom.mips;
       renderer.toneMappingExposure = 1;
       renderPass.scene = S.scene = S.old = S.paper.scene;
+      return;
+    }
+    if (composer.passes[0] !== renderPass) composer.passes[0] = renderPass;
+    if (S.view === 'sheetkeys') {
+      // (the tall picture is narrow: its 3D title is set narrower, on two lines when it is long)
+      const tallPic = renderer.getSize(bufSize).x < bufSize.y;
+      S.paper = buildPaper(THEMES[S.theme], { renderer }, S.piece, { title: S.title ?? (S.piece && S.piece.label) ?? '', composer: S.title === '' ? '' : S.composer, mark: S.mark, glyphs: S.glyphs, hands: S.hands, paper: S.paperTone, finish: S.finish, titleW: tallPic ? TALL_TITLE_W : 0 });
+      // the camera over the music, fitted to this piece for each picture shape (see FLAT)
+      const [lo, hi] = S.paper.musicSpan();
+      flat = Object.fromEntries(Object.entries(FLAT).map(([k, c]) => [k, stillFit(c, lo, hi, c.margin[0], c.margin[1])]));
+      const handColors = S.paper.hands.map((c) => c.clone());
+      const tone = (PAPERS.find((p) => p.id === S.paperTone) || PAPERS[0]).swatch;
+      S.keysView = buildKeys(THEMES[S.theme], { canvasTex, dot, env }, S.piece, { style: S.glass, handLook: S.handLook, handPosture: S.handPosture, keyLayout: S.keyLayout, sleeves: S.sleeves, combined: true, bars: S.combBars, keyRange: S.keyRange || 'piano', noBackdrop: true, handColors, floor: tone[0] });
+      S.beams = buildBeams({ dot });
+      // every note: the light leaves its head on the paper and its key at the same moment
+      const heads = new Map();
+      for (const h of S.paper.heads) { const hd = h.chord && h.chord.heads.find((q) => q.y === h.y); if (hd) heads.set(`${hd.pitch}@${h.t.toFixed(3)}`, h); }
+      const proj = new THREE.Vector3(), kp = new THREE.Vector3(), kq = new THREE.Vector3(), kl = new THREE.Vector3();
+      const evs = (S.piece ? S.piece.notes : []).map((n, i) => {
+        const head = heads.get(`${n.pitch}@${n.onset.toFixed(3)}`);
+        const pl = S.keysView.played(n);             // only what a finger plays, for as long as it holds the key
+        return pl ? { id: i, on: n.onset, dur: pl.off - pl.on, vel: n.vel ?? 0.7, pitch: n.pitch, color: handColors[S.keysView.handOf(n)], head } : null;
+      }).filter((e) => e && e.head).sort((a, b) => a.on - b.on);
+      let G = null;
+      for (const e of evs) {
+        e.from = () => { proj.set(e.head.x, 0.05, -e.head.y).project(camPaper); return { x: proj.x * 0.5 + 0.5, y: proj.y * 0.5 + 0.5 }; };
+        e.to = () => {
+          S.keysView.keyPoint(e.pitch, kp); kq.copy(kp).setX(kp.x + 0.45).project(camKeys); kp.project(camKeys);
+          return { x: kp.x * 0.5 + 0.5, y: ((kp.y * 0.5 + 0.5) * G.hb) / G.H, w: Math.abs(kq.x - kp.x) };
+        };
+      }
+      // (ss: a staff space where the music is played, as a share of the picture's width)
+      const sa = new THREE.Vector3(), sb = new THREE.Vector3(), ray = new THREE.Raycaster(), page = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit = new THREE.Vector3(), ndc = new THREE.Vector2();
+      // How high the bubbles may rise (RISE.near): to just under the lowest printed music near the picture, rather than
+      // under the whole piece's lowest note, which the music's framing leaves room for. Each page x within the
+      // picture's width counts as it is, one further off as k ss higher for every ss outside (so the line glides as
+      // the music travels, never jumps); share of the height from the bottom.
+      const pageX = (sx, y) => { ndc.set(sx, 2 * y - 1); ray.setFromCamera(ndc, camPaper); return ray.ray.intersectPlane(page, hit) ? hit.x : null; };
+      const riseTo = (y0) => { // (y0: the least, see RISE.near.min)
+        const xl = pageX(-1, y0), xr = pageX(1, y0), N = RISE.near;
+        if (xl == null || xr == null) return y0;
+        let lo = Infinity;
+        for (let x = Math.floor(xl - N.reach); x <= xr + N.reach; x++) lo = Math.min(lo, S.paper.musicReach(x, x + 0.5)[0] + N.k * Math.max(0, xl - x, x - xr));
+        if (!Number.isFinite(lo)) return y0;
+        proj.set((xl + xr) / 2, 0, -lo).project(camPaper);
+        return Math.max(y0, proj.y * 0.5 + 0.5 - N.gap);
+      };
+      S.beamFeed = (t, g) => { G = g; const lo = t - 4; let a = 0, b = evs.length; while (a < b) { const m = (a + b) >> 1; if (evs[m].on < lo) a = m + 1; else b = m; } const list = []; for (let i = a; i < evs.length && evs[i].on <= t; i++) list.push(evs[i]); S.keysView.keyPoint(60, kl).project(camKeys);
+        const c = g.W < g.H ? flat.tall : flat.wide, x = S.paper.camX(t); sa.set(x, 0, -c.y).project(camPaper); sb.set(x + 1, 0, -c.y).project(camPaper);
+        const paperY = (g.H - g.ht - g.dy) / g.H + 0.03, lineY = ((kl.y * 0.5 + 0.5) * g.hb) / g.H;
+        S.beams.update(t, list, { aspect: g.W / g.H, W: g.W, H: g.H, tone: (PAPERS.find((p) => p.id === S.paperTone) || PAPERS[0]).swatch, lineY, paperY,
+          ss: Math.abs(sb.x - sa.x) / 2, fade: g.fade ?? 1, rise: g.W < g.H ? RISE.tall : RISE.wide, riseY: riseTo(lineY + RISE.near.min), powder: atKeys(S.powder), flash: atKeys(S.flash) }); };
+      [bloom.strength, bloom.radius, bloom.threshold] = S.paper.bloom.pass;
+      bloom.compositeMaterial.uniforms.bloomFactors.value = S.paper.bloom.mips;
+      renderer.toneMapping = THREE.NoToneMapping; renderer.toneMappingExposure = 1;
+      dof.enabled = false;
+      composer.passes[0] = splitPass;
+      S.scene = S.old = S.paper.scene;
+      return;
+    }
+    if (S.view === 'keys') {
+      S.keysView = buildKeys(THEMES[S.theme], { canvasTex, dot, env }, S.piece, { style: S.glass, handLook: S.handLook, handPosture: S.handPosture, keyLayout: S.keyLayout, sleeves: S.sleeves });
+      [bloom.strength, bloom.radius, bloom.threshold] = S.keysView.bloom;
+      renderer.toneMappingExposure = 1;
+      renderPass.scene = S.scene = S.old = S.keysView.scene;
       return;
     }
     if (S.view === 'sheet') {
@@ -360,7 +527,7 @@ export function createStage(canvas) {
     if (S.view === 'dancer') { S.dancer.render(camera, S.music, { effects: S.effects, motion: S.motion, style: S.dance }); composer.render(); return; }
     if (paperLook()) {
       renderer.getDrawingBufferSize(bufSize);
-      const view = S.paper.render(t, camera, { live: live ? S.trail || [] : null, res: bufSize, pr: renderer.getPixelRatio(), paths: S.paths, trails: S.trails, corner: S.corner, cornerK: S.cornerK, dark: S.dark, cornerDark: S.cornerDark, sparks: S.sparks, zap: S.zap, current: S.current, cracks: S.cracks, race: S.race, ballStyle: S.ballStyle, shine: S.shine, ballK: S.ballK, glow: S.glow, effects: S.effects, motion: S.motion, camMove: S.camMove });
+      const view = S.paper.render(t, camera, { live: live ? S.trail || [] : null, res: bufSize, pr: renderer.getPixelRatio(), paths: S.paths, trails: S.trails, corner: S.corner, cornerK: S.cornerK, dark: S.dark, cornerDark: S.cornerDark, sparks: S.sparks, zap: S.zap, current: S.current, cracks: S.cracks, race: S.race, ballStyle: S.ballStyle, shine: S.shine, ballK: S.ballK, glow: S.glow, effects: S.effects, motion: S.motion, camMove: S.camMove, appear: S.appear, darkNotes: S.darkNotes });
       // the cinematic camera's lens: sharp where the music is being played, the paper softening nearer and further off
       // (the Steady camera has none)
       dof.enabled = S.effects && view.dof > 0.001;
@@ -369,6 +536,17 @@ export function createStage(canvas) {
         u.uNear.value = camera.near; u.uFar.value = camera.far; u.uFocus.value = view.focusZ; u.uRange.value = view.range;
         u.uMax.value = view.dof * DOF_PAPER * Math.min(bufSize.x, bufSize.y); u.uSky.value = 1; u.uTaps.value = 16;
       }
+      composer.render();
+      return;
+    }
+    if (S.view === 'sheetkeys') {
+      splitPass.t = t;
+      splitPass.opts = { pr: renderer.getPixelRatio(), live: live ? S.trail || [] : null, paths: S.paths, trails: S.trails, corner: S.corner, cornerK: S.cornerK, dark: S.dark, cornerDark: S.cornerDark, sparks: S.sparks, zap: S.zap, current: S.current, cracks: S.cracks, race: S.race, ballStyle: S.ballStyle, shine: S.shine, ballK: S.ballK, glow: S.glow, effects: S.effects, motion: S.motion, camMove: S.camMove, appear: S.appear, darkNotes: S.darkNotes };
+      composer.render();
+      return;
+    }
+    if (S.view === 'keys') {
+      S.keysView.render(t, camera, { effects: S.effects, motion: S.motion, live: live ? S.trail || [] : null, powder: atKeys(S.powder), flash: atKeys(S.flash) });
       composer.render();
       return;
     }
@@ -547,27 +725,56 @@ export function createStage(canvas) {
       camera.aspect = w / h; camera.updateProjectionMatrix(); S.scene = null;
     },
     setPiece(piece) { S.piece = piece; S.voices = piece ? voicesFromPiece(piece) : []; S.scene = null; },
-    setView(v) { S.view = ['flight', 'dancer', 'sheet'].includes(v) ? v : 'piano'; S.scene = null; },
+    setView(v) { S.view = ['flight', 'dancer', 'sheet', 'keys', 'sheetkeys'].includes(v) ? v : 'piano'; S.scene = null; },
+    // The "Sheet music + hands" picture: the molten bars falling between the sheet and the keys as well as the light (rebuilds).
+    setKeyRange(v) { if (v !== S.keyRange) { S.keyRange = v; if (S.view === 'sheetkeys') S.scene = null; } },
+    setCombBars(on) { if (!!on !== !!S.combBars) { S.combBars = !!on; if (S.view === 'sheetkeys') S.scene = null; } },
+    // The Keys picture's style of falling notes ('molten' for now).
+    // The Keys picture's hands: 'skin', 'glass' or 'porcelain' (no rebuild).
+    setHandLook(v) { S.handLook = v; if (S.keysView) S.keysView.setHandLook(v); },
+    // The hands' posture: 'auto' (the default: lyrical in slow music, classical in fast), 'lyrical' (flat fingers, the hand
+    // further in over the keys, the wrist low), 'classical' (curved fingers), or 'legacy' (the posture before this choice,
+    // for comparison only: not in the menu). The hands are planned again (the picture is rebuilt).
+    setHandPosture(v) { const p = ['auto', 'lyrical', 'classical', 'legacy'].includes(v) ? v : 'auto'; if (p !== (S.handPosture || 'auto')) { S.handPosture = p; if (S.view === 'keys' || S.view === 'sheetkeys') S.scene = null; } },
+    // The hand pictures' black keys: 'piano' (the default: spread a little within each group as on a real piano, so that
+    // flat fingers fit between them) or 'even' (on the white keys' boundaries, as before). The keys and hands are rebuilt.
+    setKeyLayout(v) { const k = v === 'even' ? 'even' : 'piano'; if (k !== (S.keyLayout || 'piano')) { S.keyLayout = k; if (S.view === 'keys' || S.view === 'sheetkeys') S.scene = null; } },
+    // The hands' dark sleeves over the forearms, from just past the wrist (skin and porcelain; on by default; no rebuild).
+    setSleeves(on) { S.sleeves = on !== false; if (S.keysView && S.keysView.setSleeves) S.keysView.setSleeves(S.sleeves); },
+    // The hand pictures' powder and flash at a struck key: 0 (none) to 1 (2.4 times their usual strength, which is at
+    // 0.4); 0.55 by default (AT_KEYS). With the flash at 0 a played key still glows softly in its hand's colour while it
+    // is held. No rebuild.
+    setPowder(v) { const k = Number(v); S.powder = Number.isFinite(k) ? Math.max(0, Math.min(1, k)) : AT_KEYS.def; },
+    setFlash(v) { const k = Number(v); S.flash = Number.isFinite(k) ? Math.max(0, Math.min(1, k)) : AT_KEYS.def; },
+    setGlass(v) { if (v !== S.glass) { S.glass = v; if (S.view === 'keys') S.scene = null; } },
     // The sheet view's look: 'paper' (real paper in one of a few calm colours, a gliding camera; the default) or 'night'
     // (the dark glass slab under the stars).
     setLook(v) { const look = v === 'night' ? 'night' : 'paper'; if (look !== S.look) { S.look = look; S.scene = null; } },
     // The title lettered in 3D at the start of the paper look (null: the piece's own name from its file).
-    setTitle(text) { const v = text == null ? null : String(text); if (v !== S.title) { S.title = v; if (paperLook()) S.scene = null; } },
+    setTitle(text) { const v = text == null ? null : String(text); if (v !== S.title) { S.title = v; if (paperIn()) S.scene = null; } },
     // The composer's name, printed under the right end of the 3D title in the paper look ('' for none).
-    setComposer(text) { const v = String(text || '').trim(); if (v !== S.composer) { S.composer = v; if (paperLook()) S.scene = null; } },
+    setComposer(text) { const v = String(text || '').trim(); if (v !== S.composer) { S.composer = v; if (paperIn()) S.scene = null; } },
     // The channel's name, raised on the page every 30 s of music in the paper look ('' for none).
-    setMark(text) { const v = String(text || '').trim(); if (v !== S.mark) { S.mark = v; if (paperLook()) S.scene = null; } },
+    setMark(text) { const v = String(text || '').trim(); if (v !== S.mark) { S.mark = v; if (paperIn()) S.scene = null; } },
     // The paper look's colours for the two hands: the id of one of the pairs handPairs() lists (no rebuild needed).
-    setHands(id) { S.hands = HAND_PAIRS.some((p) => p.id === id) ? id : 'rose'; if (S.paper) S.paper.setHands(S.hands); },
+    setHands(id) { S.hands = HAND_PAIRS.some((p) => p.id === id) ? id : 'rose'; if (S.paper) S.paper.setHands(S.hands); if (S.view === 'sheetkeys') S.scene = null; },
     handPairs: () => HAND_PAIRS.map(({ id, name, chips }) => ({ id, name, chips })),
     // The paper look's paper colour: the id of one of the colours papers() lists (no rebuild needed).
-    setPaper(id) { S.paperTone = PAPERS.some((p) => p.id === id) ? id : PAPER_DEFAULT; if (S.paper) { S.paper.setPaper(S.paperTone); if (paperLook()) [bloom.strength, bloom.radius, bloom.threshold] = S.paper.bloom.pass; } },
+    setPaper(id) { S.paperTone = PAPERS.some((p) => p.id === id) ? id : PAPER_DEFAULT; if (S.paper) { S.paper.setPaper(S.paperTone); if (paperIn()) [bloom.strength, bloom.radius, bloom.threshold] = S.paper.bloom.pass; }
+      if (S.view === 'sheetkeys' && S.keysView && S.keysView.setFloor) S.keysView.setFloor((PAPERS.find((p) => p.id === S.paperTone) || PAPERS[0]).swatch[0]); }, // (the floor under the keys takes the paper's colour)
     papers: () => PAPERS.map(({ id, name, desc, swatch, dark, css }) => ({ id, name, desc, swatch, dark: !!dark, css })),
     // What the paper look's notation is made of: the id of one of the finishes finishes() lists (the scene is built again).
-    setFinish(id) { const v = FINISHES.some((f) => f.id === id) ? id : FINISH_DEFAULT; if (v !== S.finish) { S.finish = v; if (paperLook()) S.scene = null; } },
+    setFinish(id) { const v = FINISHES.some((f) => f.id === id) ? id : FINISH_DEFAULT; if (v !== S.finish) { S.finish = v; if (paperIn()) S.scene = null; } },
     finishes: () => FINISHES.map(({ id, name, desc, chip, best, dark }) => ({ id, name, desc, chip, best, dark })),
     // The paper look's light trails behind the balls (on or off).
     setTrails(on) { S.trails = !!on; },
+    // The paper pictures' notes appear as they are played (on or off; off by default): each note is printed only as its
+    // key is pressed (as its ball lands, in the paper look), so the music is written from left to right. No rebuild.
+    setAppear(on) { S.appear = !!on; },
+    // The paper pictures' dark notes (on or off; off by default): on a dark paper or marble the notes are printed dark
+    // (each finish as it is made for light paper), quiet on the dark page, and each lights up in its hand's colour as it
+    // is played. A light paper is unchanged. No rebuild.
+    setDarkNotes(on) { S.darkNotes = !!on; },
     // The paper look's corner light: the id of one of the styles corners() lists ('off' by default).
     setCorner(id) { S.corner = CORNER_STYLES.some((c) => c.id === id) ? id : 'off'; },
     // Its strength: 0 (faint) to 1 (strong), 0.5 by default; it changes only uniforms, so no rebuild is needed.
@@ -605,8 +812,12 @@ export function createStage(canvas) {
     // video export wait for it before drawing).
     async ready() { await glyphsLoaded; if (!S.scene) build(); },
     setMusic(features) { S.music = features; },
+    beams: () => S.beams,
+    keysView: () => S.keysView,
     dancer: () => S.dancer,
     paper: () => (paperLook() ? S.paper : null), // the paper look's scene and its last frame (for checking pictures from outside)
+    // the "Sheet music + hands" picture's parts and cameras as last drawn (for checking pictures from outside)
+    sheetKeys: () => (S.view === 'sheetkeys' && S.paper ? { paper: S.paper, keys: S.keysView, camPaper, camKeys, cams: flat, split: SPLIT } : null),
     setDance(style) { S.dance = style; },
     setMic(points) { S.mic = points; },
     // Which key is under a point of the picture? x and y run from -1 to 1 across it. Used for playing by touch or mouse.

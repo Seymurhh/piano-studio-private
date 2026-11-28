@@ -1,9 +1,9 @@
 // Piano studio: play live from the piano, load or record a performance, watch it in 3D, and make a video. Everything runs in the browser.
 import { parseMidi, fromRecording, writeMidi, demoPiece, noteName } from './midi.js?v=13';
-import { createStage } from './stage.js?v=44';
+import { createStage } from './stage.js?v=184';
 import { createListener, STYLE_NAMES } from './listen.js?v=8';
 import { drawCard, OPEN, CLOSE, STYLES } from './cards.js?v=3';
-import { INSTRUMENTS, ROOMS, makeOutput, noteOn, voice, renderPiece, loadInstrument, isLoaded, heldFor } from './synth.js?v=14';
+import { INSTRUMENTS, ROOMS, makeOutput, noteOn, voice, renderPiece, loadInstrument, isLoaded, heldFor } from './synth.js?v=20';
 
 const $ = (s, r = document) => r.querySelector(s);
 async function fetchJSON(path) { // null when the file is missing or not JSON
@@ -49,7 +49,7 @@ function cardInfo() {
 }
 // The colour that leads: on paper the right hand's, otherwise the light strip of the chosen colours. The page's accent
 // and the opening and closing cards take it.
-const paperOn = () => C.view === 'sheet' && C.look === 'paper';
+const paperOn = () => (C.view === 'sheet' && C.look === 'paper') || C.view === 'sheetkeys';
 const openKey = () => (C.part === 'part' ? 'cardOpenPart' : paperOn() ? 'cardOpenPaper' : 'cardOpen'); // the paper look has its own opening-card choice (off by default: its 3D title opens the video), and so do parts (PART)
 const accentColor = () => (paperOn() ? (stage.handPairs().find((p) => p.id === C.hands) || stage.handPairs()[0]).chips[0] : stage.themes()[C.theme]?.[0] || '#3dffa0');
 let previewRun = 0;
@@ -69,7 +69,7 @@ function previewCard(kind) { // play a card over the picture, as it will appear 
 }
 
 const ui = Object.fromEntries(['play', 'seek', 'clock', 'speed', 'midifile', 'demo', 'record', 'savemidi', 'labels', 'effects', 'motion', 'mic', 'capture', 'vtitle', 'size', 'fps',
-  'export', 'prog', 'download', 'overlay', 'connect', 'volume', 'monitor', 'now', 'ribbon', 'library', 'dots', 'paths', 'trails', 'sparks', 'zap', 'current', 'cracks', 'race', 'cornerk', 'dark', 'cornerdark', 'shine', 'ballk', 'glow', 'title3d', 'ptitle'].map((id) => [id, $('#' + id)]));
+  'export', 'prog', 'download', 'overlay', 'connect', 'volume', 'monitor', 'now', 'ribbon', 'library', 'dots', 'paths', 'trails', 'sparks', 'zap', 'current', 'cracks', 'race', 'cornerk', 'dark', 'cornerdark', 'shine', 'ballk', 'glow', 'title3d', 'ptitle', 'appear', 'darknotes', 'sleeves', 'powder', 'flash'].map((id) => [id, $('#' + id)]));
 const say = (id, text) => { $('#' + id).textContent = text; };
 const mmss = (s) => { s = Math.max(0, s); return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`; };
 const safeName = () => (P.name || 'piano').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'piano';
@@ -80,7 +80,7 @@ const fill = (el) => el.style.setProperty('--fill', `${((el.value - el.min) / (e
 const PHONE = matchMedia('(max-width: 640px)').matches; // a phone held upright: start with the tall picture looking along the keys, which fills the screen
 // New visitors start with the sheet music on soft paper (look) in ivory (paper), its hands in rose and ice (hands), the
 // title lettered in 3D.
-const DEFAULTS = { instrument: 'grand', room: 'hall', volume: 0.9, monitor: true, theme: 'aurora', view: 'sheet', look: 'paper', hands: 'rose', paper: 'ivory', finish: 'matte', trails: false, corner: 'off', cornerK: 0.5, dark: 0.5, cornerDark: 0.75, sparks: 0, zap: 0, current: 0, cracks: 0, race: 0, ballStyle: 'light', camMove: 'steady', shine: 0.5, ballK: 0.5, title3d: true, v: 10, dance: 'auto', camera: PHONE ? 'side' : 'front', shape: PHONE ? 'tall' : 'wide', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', cardOpen: true, cardOpenPaper: false, cardOpenPart: true, cardClose: true, markOn: true, part: 'whole', cardStyle: 'lumen', channel: 'Lumen Keys', message: 'Thank you for listening', labels: false, effects: true, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
+const DEFAULTS = { instrument: 'grand', room: 'hall', volume: 0.9, monitor: true, theme: 'aurora', view: 'sheet', look: 'paper', hands: 'rose', paper: 'ivory', finish: 'matte', trails: false, corner: 'off', cornerK: 0.5, dark: 0.5, cornerDark: 0.75, sparks: 0, zap: 0, current: 0, cracks: 0, race: 0, ballStyle: 'light', camMove: 'steady', shine: 0.5, ballK: 0.5, title3d: true, appear: false, darkNotes: false, sleeves: true, handPosture: 'auto', keyLayout: 'piano', powder: 0.55, flash: 0.55, v: 16, dance: 'auto', camera: PHONE ? 'side' : 'front', shape: PHONE ? 'tall' : 'wide', notes: 'trails', ribbon: true, dots: true, strip: 'notes', paths: true, sheetCam: 'side', glow: 0.45, sky: 'stars', landing: 'sparks', cardOpen: true, cardOpenPaper: false, cardOpenPart: true, cardClose: true, markOn: true, part: 'whole', cardStyle: 'lumen', channel: 'Lumen Keys', message: 'Thank you for listening', labels: false, effects: true, motion: !matchMedia('(prefers-reduced-motion: reduce)').matches };
 const C = { ...DEFAULTS };
 try { // v 2: note names off unless switched on again; v 3: notes are trails of light unless changed again; v 4: the
   // picture starts as the sheet music on soft paper (choices saved by the older studio this one was copied from do not
@@ -90,7 +90,14 @@ try { // v 2: note names off unless switched on again; v 3: notes are trails of 
   // camera choice (Steady unless chosen; every other choice is kept); v 9: the paper look has a shine of the notes and
   // a brightness of the balls (their defaults unless chosen; every other choice is kept); v 10: the paper look is darker
   // by default (the darkness of the room and the shadow in the corners at their defaults, even if a darkness of 0 was
-  // saved before; every other choice is kept)
+  // saved before; every other choice is kept); v 11: the notes can appear as they are played (off unless chosen; every
+  // other choice is kept); v 12: on a dark paper the notes can be printed dark and light up as they are played (off
+  // unless chosen; no older save has it, and every other choice is kept); v 13: the hands wear dark sleeves (on unless
+  // switched off; no older save has the choice, and every other choice is kept); v 14: the hand pictures' powder and
+  // flash at the keys have strengths (0.55, a little stronger than before, unless chosen; no older save has them, and
+  // every other choice is kept); v 15: the hands have a posture (Auto unless chosen; no older save has the choice, and
+  // every other choice is kept); v 16: the hand pictures' black keys have a layout (as on a piano unless chosen; no older
+  // save has the choice, and every other choice is kept)
   const saved = JSON.parse(localStorage.getItem('studio') || '{}');
   if (!(saved.v >= 2)) delete saved.labels;
   if (!(saved.v >= 3)) delete saved.notes;
@@ -100,7 +107,10 @@ try { // v 2: note names off unless switched on again; v 3: notes are trails of 
   if (!(saved.v >= 8)) saved.camMove = 'steady';
   if (!(saved.v >= 9)) { delete saved.shine; delete saved.ballK; }
   if (!(saved.v >= 10)) { delete saved.dark; delete saved.cornerDark; }
-  Object.assign(C, saved, { v: 10 });
+  if (!(saved.v >= 11)) delete saved.appear;
+  if (!['auto', 'lyrical', 'classical'].includes(saved.handPosture)) delete saved.handPosture;
+  if (!['piano', 'even'].includes(saved.keyLayout)) delete saved.keyLayout;
+  Object.assign(C, saved, { v: 16 });
 } catch {}
 const remember = () => { try { localStorage.setItem('studio', JSON.stringify(C)); } catch {} };
 
@@ -328,7 +338,8 @@ radios($('#hands'), stage.handPairs().map((p) => ({ id: p.id, build(b) {
   b.append(chips, label);
 } })), C.hands, (id) => { C.hands = id; remember(); stage.setHands(id); accent(); });
 // On paper: the colour of the paper (and its ink), each shown as a small lit sheet; the line below describes the one chosen.
-const PAPERS = stage.papers(), paperDesc = () => { $('#paper-desc').textContent = (PAPERS.find((p) => p.id === C.paper) || PAPERS[0]).desc; };
+// (with dark notes on, below, a dark paper's words name its ink as dark)
+const PAPERS = stage.papers(), paperDesc = () => { const p = PAPERS.find((x) => x.id === C.paper) || PAPERS[0]; $('#paper-desc').textContent = p.dark && C.darkNotes ? p.desc.replace('pearl ink', 'dark ink') : p.desc; };
 if (!PAPERS.some((p) => p.id === C.paper)) C.paper = PAPERS[0].id;
 radios($('#papers'), PAPERS.map((p) => ({ id: p.id, build(b) {
   b.className = 'swatch';
@@ -336,23 +347,25 @@ radios($('#papers'), PAPERS.map((p) => ({ id: p.id, build(b) {
   sheet.className = p.dark ? 'sheet dark' : 'sheet'; sheet.style.background = p.css || `radial-gradient(120% 95% at 45% 100%, ${p.swatch[0]} 35%, ${p.swatch[1]})`; // (marble: its veins)
   label.textContent = p.name;
   b.append(sheet, label);
-} })), C.paper, (id) => { C.paper = id; remember(); stage.setPaper(id); paperDesc(); finishDesc(); });
+} })), C.paper, (id) => { C.paper = id; remember(); stage.setPaper(id); paperDesc(); finishDesc(); darkNotesDesc(); });
 paperDesc();
 // On paper: what the notes are made of (matte ink, polished metal, smoked glass, satin gold, and since round 12 piano
 // lacquer, sapphire enamel, wine velvet, rose gold, pearl and jade), each shown as a small notehead of it; the line
 // below describes the one chosen. On a dark paper a finish may take its own version there (f.dark: its name, words and
 // button), and the buttons show it; a finish made for one kind of paper (f.best) says so. Changing it builds the
-// picture again.
+// picture again. With dark notes on a dark paper (below) every finish is printed as it is made for light paper, so the
+// buttons and words show that version, and which paper it is made for no longer matters.
 const FINISHES = stage.finishes(), onDark = () => !!PAPERS.find((p) => p.id === C.paper)?.dark;
 const BEST = { light: 'Made for light paper.', dark: 'Made for dark paper and marble.' };
 const finishDesc = () => {
-  const f = FINISHES.find((x) => x.id === C.finish) || FINISHES[0], dark = onDark(), v = dark && f.dark ? f.dark : f;
-  $('#finish-desc').textContent = v.desc + (f.best ? ' ' + BEST[f.best] : ''); // (each version's words name it)
+  const dn = onDark() && !!C.darkNotes, dark = onDark() && !dn;
+  const f = FINISHES.find((x) => x.id === C.finish) || FINISHES[0], v = dark && f.dark ? f.dark : f;
+  $('#finish-desc').textContent = v.desc + (f.best && !dn ? ' ' + BEST[f.best] : ''); // (each version's words name it)
   for (const x of FINISHES) { // (the buttons: each finish as it looks on this paper)
     const b = $('#finishes').querySelector(`[data-v="${x.id}"]`), w = dark && x.dark ? x.dark : x;
     if (!b) continue;
     b.querySelector('i.note').style.background = w.chip || x.chip;
-    b.title = (dark && x.dark ? x.dark.name : x.name) + (x.best ? ' · ' + BEST[x.best] : '');
+    b.title = (dark && x.dark ? x.dark.name : x.name) + (x.best && !dn ? ' · ' + BEST[x.best] : '');
   }
 };
 if (!FINISHES.some((f) => f.id === C.finish)) C.finish = FINISHES[0].id;
@@ -364,6 +377,14 @@ radios($('#finishes'), FINISHES.map((f) => ({ id: f.id, build(b) {
   b.append(chip, label);
 } })), C.finish, (id) => { C.finish = id; remember(); stage.setFinish(id); finishDesc(); });
 finishDesc();
+// On a dark paper or marble: dark notes that light up (off unless chosen). The notes are printed dark on the dark page
+// and each lights up in its hand's colour as it is played; the choice shows only while a dark paper is chosen (a light
+// paper's ink is dark already) and is kept for when one is chosen again.
+const darkNotesDesc = () => { $('#darknotes-line').hidden = !onDark(); };
+C.darkNotes = C.darkNotes === true;
+ui.darknotes.checked = C.darkNotes; stage.setDarkNotes(C.darkNotes);
+ui.darknotes.addEventListener('change', () => { C.darkNotes = ui.darknotes.checked; remember(); stage.setDarkNotes(C.darkNotes); paperDesc(); finishDesc(); });
+darkNotesDesc(); paperDesc(); finishDesc();
 // The title lettered on the paper is the name of the piece (Video tab), which can also be changed here; typing
 // waits half a second before the picture is built again.
 function title3d() { return C.title3d ? $('#card-title').value.trim() : ''; }
@@ -391,7 +412,9 @@ function hear() { // dancer view: tell the stage what the music is doing, and sa
 function pictureChanged() {
   $('#dance-box').hidden = C.view !== 'dancer';
   document.body.classList.toggle('no-keys', C.view !== 'piano');
-  document.body.classList.toggle('no-sheet', C.view !== 'sheet');
+  document.body.classList.toggle('no-sheet', C.view !== 'sheet' && C.view !== 'sheetkeys');
+  document.body.classList.toggle('keysview', C.view === 'keys' || C.view === 'sheetkeys');
+  document.body.classList.toggle('combview', C.view === 'sheetkeys');
   document.body.classList.toggle('paper', paperOn());
   ui.overlay.hidden = paperOn(); // the paper letters its own title; a second, flat one would only repeat it
   $('#card-open').checked = C[openKey()];
@@ -399,6 +422,22 @@ function pictureChanged() {
   if (C.view !== 'dancer') { stage.setMusic(null); if (!L.held.size) ui.now.textContent = ''; }
   else if (!A.ctx) say('rec-msg', 'The dancer is waiting for music: press "Listen with the microphone", or Play, or play the piano.');
 }
+radios($('#handlooks'), [], C.handLook || 'skin', (v) => { C.handLook = v; remember(); stage.setHandLook(v); });
+radios($('#handposture'), [], C.handPosture, (v) => { C.handPosture = v; remember(); stage.setHandPosture(v); });
+stage.setHandPosture(C.handPosture);
+radios($('#keylayout'), [], C.keyLayout, (v) => { C.keyLayout = v; remember(); stage.setKeyLayout(v); });
+stage.setKeyLayout(C.keyLayout);
+C.sleeves = C.sleeves !== false;
+ui.sleeves.checked = C.sleeves; stage.setSleeves(C.sleeves);
+ui.sleeves.addEventListener('change', () => { C.sleeves = ui.sleeves.checked; remember(); stage.setSleeves(C.sleeves); });
+// In the hand pictures, the powder and the flash at a struck key (left = none; 0.4, a little left of the middle, as
+// they were before these sliders; 0.55 by default, DEFAULTS, 1.5 times as strong; right = 2.4 times, stage.js AT_KEYS).
+for (const [k, fn] of [['powder', 'setPowder'], ['flash', 'setFlash']]) {
+  C[k] = Number.isFinite(Number(C[k])) ? Math.max(0, Math.min(1, Number(C[k]))) : DEFAULTS[k];
+  ui[k].value = C[k]; fill(ui[k]); stage[fn](C[k]);
+  ui[k].addEventListener('input', () => { C[k] = Number(ui[k].value); remember(); stage[fn](C[k]); fill(ui[k]); });
+}
+radios($('#keyrange'), [], C.keyRange || 'piano', (v) => { C.keyRange = v; remember(); stage.setKeyRange(v); });
 radios($('#views'), [], C.view, (v) => { C.view = v; remember(); stage.setView(M.on && (v === 'piano' || v === 'sheet') ? 'flight' : v); pictureChanged(); });
 radios($('#looks'), [], C.look, (v) => { C.look = v; remember(); stage.setLook(v); pictureChanged(); });
 radios($('#dances'), [], C.dance, (v) => { C.dance = v; remember(); stage.setDance(v); });
@@ -486,12 +525,12 @@ ui.glow.value = C.glow; fill(ui.glow);
 ui.glow.addEventListener('input', () => { C.glow = Number(ui.glow.value); remember(); stage.setGlow(C.glow); fill(ui.glow); });
 stage.setStrip(C.strip);
 stage.setNotes(C.notes);
-for (const [k, fn] of [['labels', 'setLabels'], ['effects', 'setEffects'], ['motion', 'setMotion'], ['ribbon', 'setRibbon'], ['dots', 'setDots'], ['paths', 'setPaths'], ['trails', 'setTrails']]) {
+for (const [k, fn] of [['labels', 'setLabels'], ['effects', 'setEffects'], ['motion', 'setMotion'], ['ribbon', 'setRibbon'], ['dots', 'setDots'], ['paths', 'setPaths'], ['trails', 'setTrails'], ['appear', 'setAppear']]) {
   ui[k].checked = C[k]; stage[fn](C[k]);
   ui[k].addEventListener('change', () => { C[k] = ui[k].checked; remember(); stage[fn](C[k]); if (k === 'motion') camDesc(); if (k === 'paths') ballDesc(); });
 }
 camDesc(); ballDesc();
-stage.setTheme(C.theme); stage.setLook(C.look); stage.setHands(C.hands); stage.setPaper(C.paper); stage.setFinish(C.finish); stage.setView(C.view); stage.setDance(C.dance); pictureChanged(); stage.setCamera(C.camera); box.classList.toggle('tall', C.shape === 'tall');
+stage.setHandLook(C.handLook || 'skin'); stage.setCombBars(false); stage.setKeyRange(C.keyRange || 'piano'); stage.setTheme(C.theme); stage.setLook(C.look); stage.setHands(C.hands); stage.setPaper(C.paper); stage.setFinish(C.finish); stage.setView(C.view); stage.setDance(C.dance); pictureChanged(); stage.setCamera(C.camera); box.classList.toggle('tall', C.shape === 'tall');
 ui.vtitle.addEventListener('input', () => { ui.overlay.textContent = ui.vtitle.value; });
 const goFull = box.requestFullscreen || box.webkitRequestFullscreen; // iPhones have no full screen for a part of a page: there the picture simply covers the page
 const unfill = () => { document.body.classList.remove('fill'); setTimeout(fit, 60); };

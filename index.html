@@ -8,7 +8,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' blob: data:; media-src blob:; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>Piano studio</title>
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="assets/css/studio.css?v=26">
+<link rel="stylesheet" href="assets/css/studio.css?v=30">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -74,10 +74,42 @@
       <h2>Picture</h2>
       <div class="seg" id="views" role="radiogroup" aria-label="Picture">
         <button type="button" role="radio" data-v="sheet" aria-checked="true">Sheet music in light</button>
+        <button type="button" role="radio" data-v="sheetkeys" aria-checked="false">Sheet music + hands (new)</button>
+        <button type="button" role="radio" data-v="keys" aria-checked="false">Keys + hands (new)</button>
         <button type="button" role="radio" data-v="piano" aria-checked="false">Piano keys</button>
         <button type="button" role="radio" data-v="flight" aria-checked="false">Flight lines</button>
         <button type="button" role="radio" data-v="dancer" aria-checked="false">Dancer</button>
       </div>
+      <h2 class="hands-only">Hands</h2>
+      <div class="seg hands-only" id="handlooks" role="radiogroup" aria-label="Hands">
+        <button type="button" role="radio" data-v="skin" aria-checked="true">Skin</button>
+        <button type="button" role="radio" data-v="glass" aria-checked="false">Glass</button>
+        <button type="button" role="radio" data-v="porcelain" aria-checked="false">Porcelain</button>
+      </div>
+      <h2 class="hands-only">Hand posture</h2>
+      <div class="seg hands-only" id="handposture" role="radiogroup" aria-label="Hand posture">
+        <button type="button" role="radio" data-v="auto" aria-checked="true">Auto</button>
+        <button type="button" role="radio" data-v="lyrical" aria-checked="false">Lyrical</button>
+        <button type="button" role="radio" data-v="classical" aria-checked="false">Classical</button>
+      </div>
+      <p class="fine hands-only">Lyrical: flat, long fingers playing deep between the black keys where they fit, the hand further in over the keys and the wrist low, as in slow, singing music. Classical: rounder fingers, nearer the keys' front, for fast passages. Auto changes between them slowly with the music: lyrical below about 4 notes a second in a hand, classical above about 8.</p>
+      <h2 class="hands-only">Black keys</h2>
+      <div class="seg hands-only" id="keylayout" role="radiogroup" aria-label="Black keys">
+        <button type="button" role="radio" data-v="piano" aria-checked="true">As on a piano</button>
+        <button type="button" role="radio" data-v="even" aria-checked="false">Evenly spaced</button>
+      </div>
+      <p class="fine hands-only">As on a piano: the black keys sit a little apart within each group and are slightly narrower, as on a real keyboard, so the white keys between them are wide enough for a fingertip. Evenly spaced: each black key on the line between its two white keys, as this picture had before.</p>
+      <label class="check hands-only"><input type="checkbox" id="sleeves" checked><span>Dark sleeves<small>Black knit sleeves over the forearms, from just past the wrist, as a pianist in dark clothes wears them (for skin and porcelain hands; glass hands stay bare).</small></span></label>
+      <label class="slider hands-only"><span>Powder at the keys <small>(left: none)</small></span><input type="range" id="powder" min="0" max="1" step="0.05" value="0.55"></label>
+      <p class="fine hands-only">The sparkling powder a key throws up as it is struck (in "Keys + hands", its embers). A little left of the middle is the amount it had before this slider; right, up to about two and a half times as much.</p>
+      <label class="slider hands-only"><span>Flash at the keys <small>(left: none)</small></span><input type="range" id="flash" min="0" max="1" step="0.05" value="0.55"></label>
+      <p class="fine hands-only">The burst of light as a key is struck: the key flaring in its hand's colour, the light it throws on the keys and hands and, in "Sheet music + hands", a white-hot flash where the key meets the line of light. A little left of the middle is the strength it had before; with none, a played key still glows softly while it is held.</p>
+      <h2 class="comb-only">Keyboard</h2>
+      <div class="seg comb-only" id="keyrange" role="radiogroup" aria-label="Keyboard">
+        <button type="button" role="radio" data-v="piano" aria-checked="true">Whole piano</button>
+        <button type="button" role="radio" data-v="piece" aria-checked="false">The piece's keys (closer)</button>
+      </div>
+      <p class="fine comb-only">In the wide picture the keyboard stays still along the bottom; in the tall picture it is shown larger and glides along with the hands. As each ball lands on its note, light falls from the note to the key the hand strikes, and the key flashes and throws up powder.</p>
       <h2 class="sheet-only">Look of the sheet music</h2>
       <div class="seg sheet-only" id="looks" role="radiogroup" aria-label="Look of the sheet music">
         <button type="button" role="radio" data-v="paper" aria-checked="true">Soft paper</button>
@@ -106,6 +138,8 @@
       <h2 class="paper-only">Notes made of</h2>
       <div class="swatches finishes paper-only" id="finishes" role="radiogroup" aria-label="Notes made of"></div>
       <p class="fine paper-only" id="finish-desc"></p>
+      <label class="check paper-only" id="darknotes-line" hidden><input type="checkbox" id="darknotes"><span>Dark notes that light up<small>For dark paper and marble: the notes are printed dark, quiet on the dark page, their shapes caught by the lamp's soft sheen. Each one lights up in its hand's colour the moment it is played, and stays lit.</small></span></label>
+      <label class="check paper-only"><input type="checkbox" id="appear"><span>Notes appear as they are played<small>Nothing is printed ahead: each note is written on the page the moment it is played (as its key is pressed, or as its ball lands), so the music appears from left to right. The staves, clefs and bar lines stay in place.</small></span></label>
       <label class="slider paper-only"><span>Shine of the notes <small>(left: quiet)</small></span><input type="range" id="shine" min="0" max="1" step="0.05" value="0.5"></label>
       <p class="fine paper-only">How brightly the notes catch the balls of light as they come near, like polished metal.</p>
       <label class="slider paper-only"><span>Darkness of the room <small>(left: as lit)</small></span><input type="range" id="dark" min="0" max="1" step="0.05" value="0.5"></label>
@@ -252,6 +286,6 @@
   </aside>
 </main>
 <footer class="credits">Grand piano recordings: Salamander Grand Piano by Alexander Holm (CC BY 3.0). Electric pianos and harpsichord: FluidR3 GM by Frank Wen. Music symbols converted from Bravura by Steinberg Media Technologies, and lettering converted from Libre Baskerville by Pablo Impallari and Rodrigo Fuenzalida, both under the <a href="assets/glyphs/OFL.txt">SIL Open Font License 1.1</a> (<a href="assets/glyphs/CREDITS.txt">details</a>).</footer>
-<script type="module" src="assets/js/studio.js?v=47"></script>
+<script type="module" src="assets/js/studio.js?v=185"></script>
 </body>
 </html>

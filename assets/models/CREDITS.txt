@@ -1,0 +1,6 @@
+hand-r.bin / hand-r.json
+  The right hand and a short piece of forearm from the MakeHuman 1.x base mesh, skinned with MakeHuman's default
+  rig and weights (makehumancommunity/makehuman on GitHub). These assets were released under CC0 1.0 Universal
+  (public domain dedication) in September 2020; no attribution is required.
+  Cut out, subdivided twice (Catmull-Clark), scaled to a man's hand (19.5 cm, wrist crease to middle fingertip) and
+  tagged (nails, knuckles, palm) by tools/build_hand.py:  python3 build_hand.py <makehuman data dir> assets/models 2

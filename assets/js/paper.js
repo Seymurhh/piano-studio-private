@@ -143,8 +143,10 @@ export const SHINE_DEFAULT = SHINE.def;
 // spread over T, plus the landings in that time exactly; w: the line's width (ss) and minPx the least it may be on
 // screen (drawing pixels; thinner, it fades instead); lum: its colour's brightness; dim: how much it dims what lies
 // behind it (so it reads as coloured light on bright paper without ever turning white); fade: how its brightness
-// falls with age (power of 1 - age / T).
-const TRAIL = { T: 0.85, n: 72, max: 96, w: 0.1, minPx: 1.5, lum: 0.55, dim: 0.45, fade: 1.6 };
+// falls with age (power of 1 - age / T). leap (only with the render option trailLeap, the "Sheet music + hands"
+// picture): seen from overhead a hop's arc lies flat, so a leap's trail is a straight line across the staves; along a
+// hop of more than leap[0] staff spaces up or down the page it fades out, and from leap[1] it is gone.
+const TRAIL = { T: 0.85, n: 72, max: 96, w: 0.1, minPx: 1.5, lum: 0.55, dim: 0.45, fade: 1.6, leap: [3, 6] };
 // Corner light (optional, off by default). The staves run diagonally, so the top left and bottom right of the picture
 // are open paper. Each touch of the right hand's ball lights the top-left paper, each touch of the left hand's the
 // bottom-right, in the hand's colour, as light on the paper itself (in the paper shader, so it has perspective),
@@ -220,6 +222,10 @@ const CORNER = {
 // K 1 (the deeper of this and the corner light's own); reach: how much further the corner shade reaches at K 1 (its
 // R x (1 + reach K)). (Round 10: two sliders, stronger at the top: before, one slider with amb 0.24 / 0.55, depth
 // 0.93 / 0.95, reach 0.65.)
+// A render may fit both to its own camera (o.shadeFit = { reach, music }: the corner shade's reach divided by `reach`,
+// and its own `music` heights): under the "Sheet music + hands" picture's level, overhead camera a page height is a
+// row of the picture, so the shade meant for a corner and the room's darkness away from the music would each lie as a
+// dark band right across its top.
 const DARKNESS = { amb: [0.3, 0.62], music: [-7, -1, 16, 22], depth: [0.96, 0.97], reach: 0.9 };
 // The corner light's styles as the Look tab offers them (one line each, plain words).
 export const CORNER_STYLES = [
@@ -267,8 +273,20 @@ const CURRENT = { n: 32, branches: 2, bn: 16, tail: 0.55, jag: [0.04, 0.38], fal
 // the shell round them darkening (to `dark` of itself at K 1) so the light shows. The heads keep their play time; the
 // rest of the note is lit as the music reaches its place on the page (the layout is proportional to time). Only what
 // stands up from the page cracks (the printed text, flat on it, does not) and rests do not. In the hand's colour (its
-// halo's, `gain` times as bright, the cracks' middles toward white).
+// halo's, `gain` times as bright, the cracks' middles toward white). With o.crackSolid (the "Sheet music + hands"
+// picture) the whole note is lit evenly instead, without the cracks.
 const CRACK = { cells: 2.3, fine: 2.4, bleed: 0.09, hz: 12, flash: 1.5, flashT: 0.22, dark: 0.38, gain: 1.6 };
+// Notes appear as they are played (o.appear, off unless chosen): nothing of a note is printed before it lights (in "Sheet
+// music + hands", the moment its key is pressed; in the paper look, the moment its ball lands). Then it grows from s0 of
+// its size to full in `dur` s (a soft overshoot of 2%), in the light it is lit by; its stem is drawn out from the head
+// over `pen` s and its flag grows from the stem's end; a beam is drawn from left to right with the music, reaching each
+// stem as that stem is drawn; dots, signs and ledger lines come with their note (the ledger lines fade in), a rest at
+// its own time. The halo, the pool of light and the shadow go with the note. The staves, clefs, key and time
+// signatures, bar lines, title and channel name stay printed. glow: [strength, time constant (s)] of the light in which
+// the parts that do not light up themselves (the signs) arrive. Compiled in only while it is on (APPEAR), as the
+// cracks are; a pure function of the music time.
+const APPEAR = { dur: 0.14, s0: 0.4, pen: 0.08, glow: [0.5, 0.22] };
+const APPEAR_FN = 'float appearScale(float age, vec4 A) { float u = clamp(age / A.y, 0.0, 1.0), v = u - 1.0; return age < 0.0 ? 0.0 : mix(A.z, 1.0, 1.0 + 2.0 * v * v * v + v * v); }\n';
 const ZAP = { notes: 3, bolts: 4, life: 0.42, reach: 9, r0: 0.72, len: [1.1, 2.6], n: 8, branches: 1, bn: 4, rough: 0.34, hz: 18, flash: 0.6, decay: 0.12,
   w: 0.042, minPx: 1.4, halo: 0.62, haloPx: 7, dim: 0.55, haloDim: 0.45, lum: 2.2, haloLum: 0.75, white: 0.8 };
 // The balls: radius (with the bloom, the clipped core is 0.40 ss across, as measured), centre height at contact, hop
@@ -327,6 +345,9 @@ export const PAPERS = [
   { id: 'beige', name: 'Warm beige', desc: 'A deeper, calmer cream, like a well-loved music book under a reading lamp.', near: '#f4e5cb', far: '#eed9b8', expo: 0.95, ink: '#1a130d', tone: [0.055, 0.04], grain: 1.05, swatch: ['#ebdcc0', '#c4ac86'] },
   { id: 'parchment', name: 'Parchment', desc: 'Slightly aged paper, a little golden, with a soft mottled tone.', near: '#f2ddb4', far: '#e8cfa3', expo: 0.94, ink: '#24180e', tone: [0.08, 0.075], grain: 1.2, swatch: ['#e8d3aa', '#b89566'] },
   { id: 'grey', name: 'Soft grey', desc: 'Cool, quiet grey card with a neutral black ink.', near: '#ecebe8', far: '#dcdde2', expo: 0.92, ink: '#111215', tone: [0.045, 0.03], grain: 0.95, swatch: ['#dddcd9', '#a6a8ae'] },
+  // Grey cotton (round 7): a mid-grey cotton rag paper whose fibres and mottling show clearly, as a real sheet does up
+  // close; a little waviness (cockle) too
+  { id: 'grey-cotton', name: 'Grey cotton', desc: 'Mid-grey cotton paper with a real, visible fibre texture and soft mottling, in near-black ink; quiet and tactile.', near: '#bdbdbf', far: '#adaeb2', expo: 0.86, ink: '#0b0b0d', tone: [0.11, 0.09], grain: 1.8, cockle: 2.0, swatch: ['#b6b6b8', '#6c6d72'] },
   { id: 'lavender', name: 'Lavender', desc: 'Lavender-slate paper in blue-black ink, as in the first video, a little brighter.', near: '#ccd3ff', far: '#b5bfff', expo: 0.8, ink: '#090a13', tone: [0.045, 0.03], grain: 0.9, swatch: ['#a9acc4', '#6b6e86'] },
   { id: 'charcoal', name: 'Charcoal', desc: 'Warm near-black paper in pearl ink under a soft lamp; the lit notes glow and shine in its satin sheen.', near: '#3f3329', far: '#382d25', expo: 0.32, ink: '#e0d8c9', tone: [0.055, 0.045], grain: 0.95, swatch: ['#3b322b', '#0f0c0a'], dark: 'charcoal' },
   { id: 'graphite', name: 'Graphite', desc: 'Deep neutral grey paper in pearl ink under a soft lamp; the hand colours look their truest.', near: '#3a3a3b', far: '#333437', expo: 0.32, ink: '#dddad3', tone: [0.05, 0.04], grain: 0.9, swatch: ['#3b3a38', '#131315'], dark: 'graphite' },
@@ -375,6 +396,27 @@ const DARK = {
 DARK.graphite = { ...DARK.charcoal, line: '#9a9893', face: '#d8d5ce' }; // the same sheet and lamp in a neutral grey
 // polished black marble: the same lamp, a sharper and stronger mirror of the balls and the lit notes, more sheen
 DARK.marble = { ...DARK.charcoal, refl: 0.85, gloss: 0.1, sheen: 0.8, room: 0.5, line: '#a49e94', face: '#e2ddd3', faceRough: 0.16 };
+// Dark notes (o.darkNotes, the app's "Dark notes that light up"; off unless chosen): on a dark paper (DARK) the notes
+// are printed dark instead of light, so the page reads dark on dark, quiet and moody, and each note lights up as it is
+// played and stays lit. The notation takes each finish as it is made for light paper (FINISH without its `dark`
+// version: black lacquer, smoked glass, black pearl and so on), its colour (and sheen colour) kept to `deep` of its
+// light (linear) where that version is a middle tone that would read light on the dark sheet (polished steel to
+// gunmetal, satin gold to old dark gold, sapphire to midnight blue, wine velvet to black cherry, rose gold to dark rose
+// bronze, jade to deep nephrite); matte ink takes `ink` (sRGB, darker than the darkest sheet) with the light paper's
+// lacquered black signs and chrome rims, and its thin lines (staff, ledger and bar lines) `line`; the other finishes'
+// lines (FINISH line) are kept to `lineK` of their light (linear), so the staff always reads a little darker than the
+// sheet. The dark paper's lamp stays as it is, so the unplayed notes show by their sheen: its highlights on their
+// rounded tops and near edges, the edge light along them, and the glows' light on them. As a note is played the whole
+// of it (head, stem, flag, beam, dots) lights from inside, evenly, as the cracks' even light does (CRACK,
+// o.crackSolid) at strength `solid`, in its hand's own colour (its halo's at full strength, not taken toward white as
+// the cracks' is): glow = [steady, flash] brightness, white = [steady, flash] share of white in it, the flash fading
+// with CRACK.flashT. So it settles to a deep, true colour (under the bloom's threshold, so a page of lit notes stays
+// calm) after flaring white-hot as it is played (over it, so it blooms for a moment); the light reaches the rest of a
+// note as the music does, so it runs along a beam with a white-hot front. In "Sheet music in light" its head turns
+// white-hot as ever, with its halo; with the cracks of light chosen the dark shell cracks open instead. A light paper
+// is unchanged.
+const DARKINK = { ink: '#0c0a09', line: '#120f0d', solid: 0.85, glow: [1.05, 0.75], white: [0.1, 0.55],
+  deep: { metal: 0.16, gold: 0.2, sapphire: 0.35, velvet: 0.32, rose: 0.15, jade: 0.5 }, lineK: 0.45 };
 export const PAPER_DEFAULT = 'ivory';
 // Layout speed (ss per second of music; see engrave()): at least the first video's 13.5, enough that the closest
 // notes (10th percentile of the gaps, ornaments left out) stand 2.6 ss apart, and at most 24, so the camera never
@@ -394,6 +436,33 @@ export const CAM = {
 };
 // "Gentle camera movement" switched off: the same lens and place, without the slow drift of height and heading.
 const still = (c) => ({ ...c, yawAmp: 0, hAmp: 0 });
+// A camera framed for the whole piece at once (the "Sheet music + hands" picture): it never rises or shifts with the
+// hands (noFrame, no drift of height), so the page keeps one place and size in the picture all through. Given the page
+// heights lo..hi the printed music reaches (the paper's musicReach()), it finds the page y the camera centres on and its
+// height: everything between lo and hi stands inside the picture, mTop of its height clear of the top edge and mBot of
+// the bottom edge (shares of the picture), centred between the two, from height c.h (the size wanted) or higher when
+// the music would not fit there. Only the lens's tilt counts (no heading or roll: c.yaw 90, the staves level), so it
+// holds for any picture width. Returns the camera with y and h set.
+export function stillFit(c, lo, hi, mTop, mBot) {
+  const th = Math.tan((c.fov * DEG) / 2), tl = c.tilt * DEG, s = Math.sin(tl), co = Math.cos(tl);
+  // the picture height (-1 bottom .. 1 top) of page height py, the camera at height h centring on page y (at c.at[1])
+  const y0 = (1 - 2 * c.at[1]) * th, dz = (h) => h * (co + y0 * s) / (s - y0 * co); // (how far the place lies ahead of the camera, along the page)
+  const ndc = (py, y, h) => { const f = dz(h) + (py - y); return (f * s - h * co) / ((h * s + f * co) * th); };
+  const top = 1 - 2 * mTop, bot = -1 + 2 * mBot;
+  const centre = (h) => { // the page y that leaves equal room above and below, and how far the music then sticks out (> 0: it does not fit)
+    let a = lo - 200, b = hi + 200;
+    for (let i = 0; i < 60; i++) { const y = (a + b) / 2; if (ndc(hi, y, h) - top > bot - ndc(lo, y, h)) a = y; else b = y; }
+    const y = (a + b) / 2;
+    return [y, Math.max(ndc(hi, y, h) - top, bot - ndc(lo, y, h))];
+  };
+  let h = c.h, [y, over] = centre(h);
+  if (over > 0) {
+    let a = c.h, b = c.h * 8;
+    for (let i = 0; i < 50; i++) { const m = (a + b) / 2; if (centre(m)[1] > 0) a = m; else b = m; }
+    h = b; [y] = centre(h);
+  }
+  return { ...c, y, h, noFrame: true, hAmp: 0, yawAmp: 0 };
+}
 // The cinematic camera, "Crane and overhead" (camMove 'cinematic'; the Steady camera above stays the default). Planned
 // once per piece and picture shape from the score: the piece is cut into phrases at bar lines (scored by a breath in
 // the notes, a held note into the bar line, a change of texture, loudness or register, and the usual 4- and 8-bar
@@ -471,7 +540,9 @@ const ENDING = { lag: 7, over: 10, crane: 12, settle: 1, lead: 0.8, land: 0.4, l
 // bass end of the brace near the bass anchor, `margin` ss before it; the lead fades from `before` s before the first
 // note to `after` s after it. The picture fades in from black over `fadeIn` s from the start of the video (`start`: the
 // app's runway, 1.5 s before music time 0).
-const OPENING = { at: 1.5, margin: 1, before: 4, after: 5, start: -1.5, fadeIn: 0.7 };
+// glide: [before, after] the first note, the window over which a camera with openAt moves the place out to its `at`
+// (see openAtW).
+const OPENING = { at: 1.5, margin: 1, before: 4, after: 5, start: -1.5, fadeIn: 0.7, glide: [6, 8] };
 
 // ---- sizes of the printing (ss) ----
 // Round 5: the printed symbols (noteheads, beams, flags, rests, dots) stand 0.2 ss high (0.11 before) with softer,
@@ -485,7 +556,7 @@ const RAISED = { depth: 0.3, bevelThickness: 0.035, bevelSize: 0.026, bevelSegme
 // over the start of the first treble staff (tempo: its size, and its baseline over the top line): small solid letters
 // standing on the paper like the title (round 8; printed flat in ink before), `depth` ss high with `bevel` of the title's bevel.
 const COMPOSER = { size: 3.1, above: 3.4, depth: 0.3, bevel: 0.5, tempo: [2.5, 2.4] };
-const TITLE = { cap: 12, maxW: 110, minScale: 0.45, rowScale: 0.7, depth: 0.95, bevelThickness: 0.07, bevelSize: 0.07, bevelSegments: 3, curveSegments: 10, gap: 8.5, x: 6 }; // solid letters standing on the paper, depth high
+const TITLE = { cap: 12, maxW: 110, minScale: 0.45, narrowRows: 0.55, rowScale: 0.7, depth: 0.95, bevelThickness: 0.07, bevelSize: 0.07, bevelSegments: 3, curveSegments: 10, gap: 8.5, x: 6 }; // solid letters standing on the paper, depth high
 // The channel's name, raised like the title but smaller (cap high), above the top staff every `every` s of music from
 // the first `every` s on (none in the last `ending` s): its baseline `gap` ss over the top staff line, or `clear` ss
 // over any higher notes there. Part of the page, so every stretch of a video carries it and it cannot be cropped away.
@@ -617,12 +688,13 @@ const HEAD_W = 1.18, STEM_DX = 0.53, STEM_DY = 0.168; // Bravura notehead width;
 // The corner shade (CORNER.shade), shared by the paper and the 3D pieces: how much of the lamp's light is held back at
 // a point of the picture (uv: 0..1 from the bottom left) whose place on the page is py (ss up the page). uCS = (on,
 // depth at the top-left corner, depth at the bottom-right corner, dither); uCSA = (the picture's width and height in
-// its shorter side, the direction the staves run in the picture, in the same units).
+// its shorter side, the direction the staves run in the picture, in the same units); uCSM = DARKNESS.music (or the
+// render's own, o.shadeFit).
 const CS = CORNER.shade, glf = (v) => v.toFixed(4);
 const srgbLin = (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)); // one sRGB channel as linear light
 const SHADE_GLSL = `
 #ifdef CORNER_SHADE
-uniform vec4 uCS, uCSA, uCSD;
+uniform vec4 uCS, uCSA, uCSD, uCSM;
 float cornerShade(vec2 uv, float py) {
   vec2 q = (uv - 0.5) * uCSA.xy, hc = 0.5 * uCSA.xy, a = uCSA.zw, n = vec2(-a.y, a.x);
   vec2 d0 = q - vec2(-hc.x, hc.y), d1 = q - vec2(hc.x, -hc.y);
@@ -633,7 +705,7 @@ float cornerShade(vec2 uv, float py) {
   m0 *= m0 * (3.0 - 2.0 * m0); m1 *= m1 * (3.0 - 2.0 * m1);
   float c = uCS.y * pow(1.0 - x0, ${glf(CS.p)}) * m0 + uCS.z * pow(1.0 - x1, ${glf(CS.p)}) * m1;
   if (uCSD.w > 0.5) { // the darkness of the room (DARKNESS): the lamp dimmed everywhere, less over the music
-    float on = smoothstep(${glf(DARKNESS.music[0])}, ${glf(DARKNESS.music[1])}, py) * (1.0 - smoothstep(${glf(DARKNESS.music[2])}, ${glf(DARKNESS.music[3])}, py));
+    float on = smoothstep(uCSM.x, uCSM.y, py) * (1.0 - smoothstep(uCSM.z, uCSM.w, py));
     c = 1.0 - (1.0 - min(c, 0.97)) * (1.0 - mix(uCSD.y, uCSD.x, on));
   }
   return c;
@@ -665,7 +737,7 @@ void main() { vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vP = w.xz 
 // (s; the race, RACE: what it lights, lights that much sooner).
 const CRACK_GLSL = `
 #ifdef CRACKS
-uniform vec4 uCrK, uCrL; uniform vec2 uCrE; uniform float uCrT; uniform vec3 uCrC[2]; varying vec3 vCrW;
+uniform vec4 uCrK, uCrL; uniform vec2 uCrE; uniform float uCrT, uCrS; uniform vec3 uCrC[2]; varying vec3 vCrW;
 vec2 crH(vec2 p) { vec3 a = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973)); a += dot(a, a.yzx + 33.33); return fract((a.xx + a.yz) * a.zy); }
 vec2 crCells(vec2 p) { // (the distance to the nearest edge of a cell, the nearest cell's id 0..1)
   vec2 n = floor(p), f = fract(p), mg = vec2(0.0), mr = vec2(0.0); float md = 8.0;
@@ -676,14 +748,37 @@ vec2 crCells(vec2 p) { // (the distance to the nearest edge of a cell, the neare
 }
 // the cracked piece: base = its own shading, w = the place (world), age = s since it was played, hand: 0 right, 1 left
 vec3 crackShade(vec3 base, vec3 w, float age, float hand) {
+#ifdef DARK_INK
+  if (uCrS > 0.5) { // (dark notes, DARKINK, lit evenly: the hand's own colour at full strength, flaring white as it is played; no cracks to work out)
+#ifdef APPEAR
+    float on = step(0.0, age);
+#else
+    float on = smoothstep(0.0, 0.03, age);
+#endif
+    float fk = exp(-age / ${CRACK.flashT.toFixed(3)}), sh = 0.8 + 0.2 * smoothstep(-0.02, 0.06, w.y);
+    vec3 glow = mix(mix(uCrC[0], uCrC[1], hand), vec3(1.0), ${DARKINK.white[0].toFixed(3)} + ${DARKINK.white[1].toFixed(3)} * fk) * (${DARKINK.glow[0].toFixed(3)} + ${DARKINK.glow[1].toFixed(3)} * fk) * sh * uCrK.x;
+    return base * mix(1.0, 0.25, uCrK.x * on) + glow * on * uCrK.w;
+  }
+#endif
   vec2 p = w.xz * uCrK.y + vec2(0.0, 1.7 * w.y);   // (a little of the height, so the sides crack too)
   vec2 c1 = crCells(p), c2 = crCells(p * ${CRACK.fine.toFixed(2)} + vec2(7.1, 3.3));
   float l1 = 1.0 - smoothstep(0.035, 0.055 + fwidth(c1.x), c1.x);
   float l2 = (1.0 - smoothstep(0.02, 0.035 + fwidth(c2.x), c2.x)) * 0.6 * step(0.4, fract(c2.y * 7.31));
   float g = exp(-c1.x / ${(CRACK.bleed * CRACK.cells).toFixed(3)});
   float fl = 0.6 + 0.4 * fract(sin(dot(vec2(c1.y * 91.7, floor(uCrT * uCrK.z)), vec2(12.9898, 78.233))) * 43758.5453);
-  float on = smoothstep(0.0, 0.03, age), e = (1.0 + ${CRACK.flash.toFixed(2)} * exp(-age / ${CRACK.flashT.toFixed(3)})) * on, line = max(l1, l2);
-  vec3 col = mix(uCrC[0], uCrC[1], hand), light = mix(col, vec3(1.0), 0.65 * line) * (line + 0.3 * g) * fl * e * uCrK.x;
+#ifdef APPEAR
+  float on = step(0.0, age); // (a note that appears as it is played is born in its light: no ramp from dark ink)
+#else
+  float on = smoothstep(0.0, 0.03, age);
+#endif
+  float e = (1.0 + ${CRACK.flash.toFixed(2)} * exp(-age / ${CRACK.flashT.toFixed(3)})) * on, line = max(l1, l2);
+  vec3 col = mix(uCrC[0], uCrC[1], hand);
+  if (uCrS > 0.5) { // (the whole note lit evenly instead: a flash as it is played, settling to a steady glow in its hand's colour)
+    float sh = 0.8 + 0.2 * smoothstep(-0.02, 0.06, w.y);
+    vec3 glow = mix(col, vec3(1.0), 0.3 + 0.35 * exp(-age / ${CRACK.flashT.toFixed(3)})) * (0.42 + 0.3 * e) * sh * uCrK.x;
+    return base * mix(1.0, 0.25, uCrK.x * on) + glow * on * uCrK.w;
+  }
+  vec3 light = mix(col, vec3(1.0), 0.65 * line) * (line + 0.3 * g) * fl * e * uCrK.x;
   return base * mix(1.0, ${CRACK.dark.toFixed(2)}, uCrK.x * on) + light * uCrK.w;
 }
 #endif
@@ -884,9 +979,13 @@ void main() {
 // uLift: the printing ink is drawn as if it stood that many times higher than it is, so a notehead's shadow shows.
 const MASK_VERT = `
 uniform vec3 uKey; uniform vec4 uBox; uniform float uLift; varying float vH;
+attribute vec2 aApp; uniform vec4 uApp; varying float vAge;
+${APPEAR_FN}
 void main() {
   vec4 w = vec4(position, 1.0);
+  vAge = uApp.w > 0.5 ? uApp.x - aApp.x : 1.0;
 #ifdef USE_INSTANCING
+  if (uApp.w > 0.5) w.xyz *= appearScale(vAge, uApp);
   w = instanceMatrix * w;
 #endif
   w = modelMatrix * w;
@@ -895,7 +994,7 @@ void main() {
   vec2 p = w.xz - uKey.xz * (w.y / uKey.y);
   gl_Position = vec4((p - uBox.xy) * uBox.zw * 2.0 - 1.0, 0.0, 1.0);
 }`;
-const MASK_FRAG = 'uniform float uK; varying float vH; void main() { gl_FragColor = vec4(uK, min(vH * 0.25, 1.0), 0.0, 1.0); }';
+const MASK_FRAG = 'uniform float uK; varying float vH; varying float vAge; void main() { if (vAge < 0.0) discard; gl_FragColor = vec4(uK, min(vH * 0.25, 1.0), 0.0, 1.0); }';
 // A Gaussian blur of the mask along one direction (uStep: one texel of the picture drawn; uSig: sigma in those texels).
 const BLUR_FRAG = `
 uniform sampler2D uTex; uniform vec2 uStep; uniform float uSig; varying vec2 vUv;
@@ -913,7 +1012,14 @@ const LINE_VERT = `
 attribute vec3 aOff; attribute vec3 aDir; attribute float aSide;
 uniform vec2 uRes; uniform float uMinPx;
 varying float vAlpha, vAcross, vHalf; varying vec3 vW, vT;
+#ifdef APPEAR
+attribute vec2 aApp; uniform vec4 uApp;
+#endif
 void main() {
+#ifdef APPEAR
+  float age = uApp.x - aApp.x;
+  if (age < 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); vAlpha = 0.0; vAcross = 0.0; vHalf = 0.0; vW = vec3(0.0); vT = vec3(1.0, 0.0, 0.0); return; } // (not played yet)
+#endif
   vec4 w = modelMatrix * vec4(position, 1.0);
   vT = aDir;
   mat4 pv = projectionMatrix * viewMatrix;
@@ -923,6 +1029,9 @@ void main() {
   float hw = abs(off.x * along.y - off.y * along.x);            // half the width across the line, in pixels
   float k = max(1.0, 0.5 * uMinPx / max(hw, 1e-3));
   vAlpha = 1.0 / k;
+#ifdef APPEAR
+  vAlpha *= smoothstep(0.0, uApp.y, age);                         // (a ledger line fades in with its note)
+#endif
   vHalf = hw * k; vAcross = aSide * (vHalf + 1.0);
   w.xyz += aOff * aSide * (vHalf + 1.0) / max(hw, 1e-3);
   vW = w.xyz;
@@ -963,20 +1072,22 @@ void main() {
 // its colour is what you see there, as when a coloured lamp outshines the room light. Laid over the paper this way
 // (colour * a added, the paper below dimmed by uDim * a), halos that overlap never add up past their colour / uDim.
 const HALO_VERT = `
-attribute vec4 aHead; uniform float uTime, uR, uLift;
-varying vec2 vLocal; varying float vCell, vHand;
+attribute vec4 aHead; uniform float uTime, uR, uLift; uniform vec4 uApp;
+varying vec2 vLocal; varying float vCell, vHand, vS;
+${APPEAR_FN}
 void main() {
-  if (aHead.z > uTime) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); vLocal = vec2(0.0); vCell = 0.0; vHand = 0.0; return; } // not played yet
+  if (aHead.z > uTime) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); vLocal = vec2(0.0); vCell = 0.0; vHand = 0.0; vS = 1.0; return; } // not played yet
   vHand = floor(aHead.w / 3.0 + 0.01); vCell = aHead.w - 3.0 * vHand;
+  vS = uApp.w > 0.5 ? max(appearScale(uTime - aHead.z, uApp), 0.05) : 1.0; // (the halo hugs its head as it grows)
   vLocal = position.xy * uR;
   gl_Position = projectionMatrix * viewMatrix * vec4(aHead.x + vLocal.x, uLift, -(aHead.y + vLocal.y), 1.0);
 }`;
 const HALO_FRAG = `
 uniform sampler2D uSdf; uniform float uR, uGrow, uTintD, uFade, uDim; uniform vec2 uK, uW; uniform vec3 uRim[2], uHalo[2]; uniform vec2 uWin;
-varying vec2 vLocal; varying float vCell, vHand;
+varying vec2 vLocal; varying float vCell, vHand, vS;
 void main() {
-  vec2 uv = vec2((vLocal.x / (2.0 * uR) + 0.5 + vCell) / 3.0, vLocal.y / (2.0 * uR) + 0.5);
-  float d = max(texture2D(uSdf, uv).r - uGrow, 0.0);
+  vec2 q = vLocal / vS, uv = vec2((clamp(q.x / (2.0 * uR) + 0.5, 0.0, 1.0) + vCell) / 3.0, q.y / (2.0 * uR) + 0.5);
+  float d = max(texture2D(uSdf, uv).r * vS - uGrow, 0.0);
   float a = min(dot(uK, exp(-d / uW)), 1.0) * (1.0 - smoothstep(uWin.x, uWin.y, length(vLocal))) * uFade;
   vec3 tint = vHand < 0.5 ? mix(uRim[0], uHalo[0], smoothstep(0.0, uTintD, d)) : mix(uRim[1], uHalo[1], smoothstep(0.0, uTintD, d));
   gl_FragColor = vec4(tint * a, uDim * a); // (alpha: how much it dims the paper under it)
@@ -1105,19 +1216,20 @@ const glowCode = (kd, ks, kh = 0, tint = 0) => `
 // mask's window (uBox, as there), adding up. One square per notehead (the halos' own squares and their aHead), drawn
 // once the note has been played: k / (1 + (r / h)^2)^1.5 at r ss from the note (uPool = k, h, R).
 const POOL_VERT = `
-attribute vec4 aHead; uniform float uTime; uniform vec4 uBox; uniform vec3 uPool;
-varying vec2 vLocal; varying float vHand;
+attribute vec4 aHead; uniform float uTime; uniform vec4 uBox; uniform vec3 uPool; uniform vec4 uApp;
+varying vec2 vLocal; varying float vHand, vK;
 void main() {
-  if (aHead.z > uTime) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); vLocal = vec2(0.0); vHand = 0.0; return; } // not played yet
+  if (aHead.z > uTime) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); vLocal = vec2(0.0); vHand = 0.0; vK = 0.0; return; } // not played yet
+  vK = uApp.w > 0.5 ? smoothstep(0.0, uApp.y, uTime - aHead.z) : 1.0; // (its light comes up with the note)
   vHand = floor(aHead.w / 3.0 + 0.01);
   vLocal = position.xy * uPool.z;
   vec2 p = vec2(aHead.x + vLocal.x, -(aHead.y + vLocal.y));
   gl_Position = vec4((p - uBox.xy) * uBox.zw * 2.0 - 1.0, 0.0, 1.0);
 }`;
 const POOL_FRAG = `
-uniform vec3 uPool, uColor[2]; varying vec2 vLocal; varying float vHand;
+uniform vec3 uPool, uColor[2]; varying vec2 vLocal; varying float vHand, vK;
 void main() {
-  float r = length(vLocal), e = uPool.x / pow(1.0 + r * r / (uPool.y * uPool.y), 1.5) * (1.0 - smoothstep(0.7 * uPool.z, uPool.z, r));
+  float r = length(vLocal), e = vK * uPool.x / pow(1.0 + r * r / (uPool.y * uPool.y), 1.5) * (1.0 - smoothstep(0.7 * uPool.z, uPool.z, r));
   gl_FragColor = vec4((vHand < 0.5 ? uColor[0] : uColor[1]) * e, 1.0);
 }`;
 // A light trail: a ribbon along the points of a ball's path (position, world; aTan: the direction of travel there;
@@ -1421,7 +1533,8 @@ function shadowKit(renderer) {
   k.maskCam = new THREE.OrthographicCamera(-1, 1, 1, -1, -50, 50); // (only for choosing what to draw: the shader places it)
   k.maskCam.rotation.x = -Math.PI / 2; k.maskCam.layers.set(SHADOW_LAYER);
   k.ballCasters = new THREE.Scene();
-  k.ballCast = [0, 1].map(() => { const m = new THREE.Mesh(new THREE.SphereGeometry(BALL.r * SHADE.ballSize, 16, 10), k.maskMat); m.frustumCulled = false; m.visible = false; m.layers.set(SHADOW_LAYER); k.ballCasters.add(m); return m; });
+  k.maskU.uApp = { value: new THREE.Vector4() }; // (APPEAR: as the notation's; w = on)
+  k.ballCast = [0, 1].map(() => { const sg = new THREE.SphereGeometry(BALL.r * SHADE.ballSize, 16, 10); sg.setAttribute('aApp', new THREE.BufferAttribute(new Float32Array(sg.attributes.position.count * 2).fill(-1e9), 2)); const m = new THREE.Mesh(sg, k.maskMat); m.frustumCulled = false; m.visible = false; m.layers.set(SHADOW_LAYER); k.ballCasters.add(m); return m; });
   k.blurU = [{ uTex: { value: k.full.texture }, uStep: { value: new THREE.Vector2(1 / (MW / 2), 0) }, uSig: { value: 2 } },
     { uTex: { value: k.a.texture }, uStep: { value: new THREE.Vector2(0, 1 / (MH / 2)) }, uSig: { value: 2 } }];
   k.quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -1566,9 +1679,9 @@ function pinSpots(shapes, { step, margin, per, max }) {
 function lineGeometry(segs) {
   let n = 0;
   for (const s of segs) n += Math.max(1, Math.ceil(Math.hypot(s[2] - s[0], s[3] - s[1]) / 6));
-  const pos = new Float32Array(n * 12), off = new Float32Array(n * 12), dir = new Float32Array(n * 12), side = new Float32Array(n * 4), idx = new Uint32Array(n * 6);
+  const pos = new Float32Array(n * 12), off = new Float32Array(n * 12), dir = new Float32Array(n * 12), side = new Float32Array(n * 4), idx = new Uint32Array(n * 6), app = new Float32Array(n * 8);
   let k = 0;
-  for (const [x0, y0, x1, y1, w] of segs) {
+  for (const [x0, y0, x1, y1, w, ta = -1e9, hand = -1] of segs) {
     const len = Math.hypot(x1 - x0, y1 - y0) || 1e-6, m = Math.max(1, Math.ceil(len / 6));
     const dx = (x1 - x0) / len, dy = (y1 - y0) / len; // page direction; world: (dx, 0, -dy); across it on the paper: (dy, 0, dx)
     for (let i = 0; i < m; i++) {
@@ -1576,6 +1689,7 @@ function lineGeometry(segs) {
       const v = k * 4;
       [[ax, ay, -1], [ax, ay, 1], [bx, by, -1], [bx, by, 1]].forEach(([px, py, s], j) => {
         pos.set([px, LINE.lift, -py], (v + j) * 3); off.set([dy * w / 2, 0, dx * w / 2], (v + j) * 3); dir.set([dx, 0, -dy], (v + j) * 3); side[v + j] = s;
+        app[(v + j) * 2] = ta; app[(v + j) * 2 + 1] = hand;
       });
       idx.set([v, v + 1, v + 2, v + 1, v + 3, v + 2], k * 6);
       k++;
@@ -1586,6 +1700,7 @@ function lineGeometry(segs) {
   g.setAttribute('aOff', new THREE.BufferAttribute(off, 3));
   g.setAttribute('aDir', new THREE.BufferAttribute(dir, 3));
   g.setAttribute('aSide', new THREE.BufferAttribute(side, 1));
+  g.setAttribute('aApp', new THREE.BufferAttribute(app, 2));
   g.setIndex(new THREE.BufferAttribute(idx, 1));
   g.computeBoundingSphere();
   if (g.boundingSphere) g.boundingSphere.radius += 1;
@@ -1653,7 +1768,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
   // the hand's white-hot core colour from the moment it is played (aLitT = that time, aHand = 0 right, 1 left; set per
   // instance), so no work is needed per frame but setting the time.
   // The corner shade's uniforms (see SHADE_GLSL), shared by the paper and the 3D pieces.
-  const csU = { uCS: { value: new THREE.Vector4() }, uCSD: { value: new THREE.Vector4(0, 0, 1, 0) }, uCSA: { value: new THREE.Vector4(16 / 9, 1, 1, 0) }, uCSR: { value: new THREE.Vector2(1 / 1280, 1 / 720) }, uCSV: { value: new THREE.Matrix4() } };
+  const csU = { uCS: { value: new THREE.Vector4() }, uCSD: { value: new THREE.Vector4(0, 0, 1, 0) }, uCSA: { value: new THREE.Vector4(16 / 9, 1, 1, 0) }, uCSM: { value: new THREE.Vector4(...DARKNESS.music) }, uCSR: { value: new THREE.Vector2(1 / 1280, 1 / 720) }, uCSV: { value: new THREE.Matrix4() } };
   // dark paper (DARK): the lamp's pool (see LAMP_GLSL), shared by the paper, the lines and the 3D pieces
   const lampU = { uLamp: { value: new THREE.Vector3() }, uLampA: { value: new THREE.Vector4(1, 40, 38, 1) }, uSpot: { value: new THREE.Vector4(0, 0, 0, 1) }, uSpotB: { value: 1 } };
   const glU = { uGL: { value: Array.from({ length: GLOWS }, () => new THREE.Vector4()) }, uGLC: { value: Array.from({ length: GLOWS }, () => new THREE.Vector3()) } };
@@ -1668,15 +1783,25 @@ export function buildPaper(T, tools, piece, opts = {}) {
   const FRES = `vec3 nn = normalize(normal); float nv = clamp(dot(nn, normalize(vViewPosition)), 0.0, 1.0), f5 = pow(1.0 - nv, 5.0);
           float up = dot(nn, normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz)), fm = 0.04 + 0.96 * f5 * clamp(1.0 - up, 0.0, 1.0);`;
   const shadeMats = []; // (all that the corner shade compiles into: see shadeOn)
-  const crackU = { uCrK: { value: new THREE.Vector4(0, CRACK.cells, CRACK.hz, 1) }, uCrT: { value: 0 }, uCrC: { value: [new THREE.Vector3(1, 1, 1), new THREE.Vector3(1, 1, 1)] }, uCrL: { value: new THREE.Vector4(0, 0, 1, (TOP[1] + BOTTOM[0]) / 2) }, uCrE: { value: new THREE.Vector2() } };
+  const crackU = { uCrK: { value: new THREE.Vector4(0, CRACK.cells, CRACK.hz, 1) }, uCrT: { value: 0 }, uCrS: { value: 0 }, uCrC: { value: [new THREE.Vector3(1, 1, 1), new THREE.Vector3(1, 1, 1)] }, uCrL: { value: new THREE.Vector4(0, 0, 1, (TOP[1] + BOTTOM[0]) / 2) }, uCrE: { value: new THREE.Vector2() } };
   const crackMats = []; // (the materials the cracks compile into: see crackOn)
+  // (APPEAR) uApp = (music time, the pop's length, the size at birth, on); uAppC = each hand's arrival light (linear,
+  // faded); each part carries aApp = (when it appears, its hand: 0 right, 1 left, -1 none)
+  const appU = { uApp: { value: new THREE.Vector4(0, APPEAR.dur, APPEAR.s0, 0) }, uAppC: { value: [new THREE.Vector3(), new THREE.Vector3()] }, uAppG: { value: new THREE.Vector2(APPEAR.glow[0], APPEAR.glow[1]) } };
+  const appMats = [];
+  const APP_V = '#ifdef APPEAR\nattribute vec2 aApp; uniform vec4 uApp; varying vec2 vApp;\n' + APPEAR_FN + '#endif\n';
+  const APP_BEGIN = '#include <begin_vertex>\n#ifdef APPEAR\n vApp = vec2(uApp.x - aApp.x, aApp.y);\n#ifdef USE_INSTANCING\n transformed *= appearScale(vApp.x, uApp);\n#endif\n#endif';
+  const APP_F = '#ifdef APPEAR\nuniform vec4 uApp; uniform vec3 uAppC[2]; uniform vec2 uAppG; varying vec2 vApp;\n#endif\n';
+  const APP_CLIP = '#include <clipping_planes_fragment>\n#if defined(APPEAR) && !defined(USE_INSTANCING)\n if (vApp.x < 0.0) discard;\n#endif';
+  const APP_GLOW = '\n#ifdef APPEAR\n if (vApp.y > -0.5) gl_FragColor.rgb += (vApp.y < 0.5 ? uAppC[0] : uAppC[1]) * uAppG.x * exp(-max(vApp.x, 0.0) / uAppG.y);\n#endif';
   const hook = (m, key, { glints = null, lit = false, crack = false } = {}) => {
     if (crack) crackMats.push(m);
-    shadeMats.push(m);
+    shadeMats.push(m); appMats.push(m);
     const T = m.userData.T, maxOf = () => m.userData.max ?? FX.max ?? FINISH.matte.max; // (read when compiled: a dark paper may change it)
     m.onBeforeCompile = (sh) => {
       const max = maxOf();
-      Object.assign(sh.uniforms, glU, csU, lampU, shineU);
+      Object.assign(sh.uniforms, glU, csU, lampU, shineU, appU);
+      sh.vertexShader = APP_V + sh.vertexShader.replace('#include <begin_vertex>', APP_BEGIN);
       if (crack) { // (CRACKS: the world place, for the cracks)
         Object.assign(sh.uniforms, crackU);
         // (and on the ink, the hand its piece belongs to, aCrH: 0 right, 1 left, -1 none; the lit heads have their own)
@@ -1703,12 +1828,13 @@ export function buildPaper(T, tools, piece, opts = {}) {
    gl_FragColor.rgb += sc * (hr * (1.0 - exp(-sm / hr)) / sm); }`; // (the shine, over it, easing into the room left below its own limit: never dimming what is there, never a flat blown patch)
       // (the cracks: a lit head cracks from its own play time instead of turning white-hot; the rest of a note, from the
       // time the music reaches its place on the page, and only where it stands up from the page)
-      const cracked = !crack ? '' : lit ? '\n#ifdef CRACKS\n if (vLit > 0.5) gl_FragColor.rgb = crackShade(gl_FragColor.rgb, vCrW, uCrT - vLitT, vHand);\n#endif'
-        : '\n#ifdef CRACKS\n if (vCrW.y > 0.015 && vCrW.x > uCrL.y - 1.0) { float crHd = vCrH < -0.5 ? step(-vCrW.z, uCrL.w) : vCrH, crAge = uCrT + mix(uCrE.x, uCrE.y, crHd) - (uCrL.x + (vCrW.x - uCrL.y) / uCrL.z); if (crAge >= 0.0) gl_FragColor.rgb = crackShade(gl_FragColor.rgb, vCrW, crAge, crHd); }\n#endif';
+      const cracked = !crack ? '' : lit ? '\n#ifdef CRACKS\n#ifdef DARK_INK\n if (vLit > 0.5 && uCrS > 1.5) gl_FragColor.rgb = (vHand < 0.5 ? uCore[0] : uCore[1]) * uFade; else\n#endif\n if (vLit > 0.5) gl_FragColor.rgb = crackShade(gl_FragColor.rgb, vCrW, uCrT - vLitT, vHand);\n#endif' // (dark notes in the paper look, uCrS 2: the head white-hot as ever, the rest of the note lit evenly)
+        : '\n#ifdef CRACKS\n if (vCrW.y > 0.015 && vCrW.x > uCrL.y - 1.0) { float crHd = vCrH < -0.5 ? step(-vCrW.z, uCrL.w) : vCrH, crAge = uCrT + mix(uCrE.x, uCrE.y, crHd) - (uCrL.x + (vCrW.x - uCrL.y) / uCrL.z);\n#ifdef APPEAR\n if (vApp.y > -0.5) crAge = max(crAge, vApp.x);\n#endif\n if (crAge >= 0.0) gl_FragColor.rgb = crackShade(gl_FragColor.rgb, vCrW, crAge, crHd); }\n#endif'; // (APPEAR: a part of a note lights no later than it appears, so a stem is never drawn dark)
       const white = lit ? '\n if (vLit > 0.5) gl_FragColor.rgb = (vHand < 0.5 ? uCore[0] : uCore[1]) * uFade;' + (T != null ? '\n if (vLit > 0.5) gl_FragColor.a = 1.0;' : '') : '';
-      sh.fragmentShader = GL_DECL + SHADE_DECL + (crack ? CRACK_GLSL : '') + (crack && !lit ? '#ifdef CRACKS\nvarying float vCrH;\n#endif\n' : '') + (lit ? 'uniform vec3 uCore[2]; uniform float uFade; varying float vLit; varying float vHand; varying float vLitT;\n' : '') +
-        sh.fragmentShader.replace('#include <lights_fragment_end>', end).replace('#include <dithering_fragment>', glass + cap +
-          (crack && lit ? '\n#ifndef CRACKS' + white + '\n#endif' : white) + (lit && T != null ? '\n#ifdef CRACKS\n if (vLit > 0.5) gl_FragColor.a = 1.0;\n#endif' : '') + cracked + '\n#include <dithering_fragment>');
+      const arrive = lit ? '' : crack ? '\n#ifndef CRACKS' + APP_GLOW + '\n#endif' : APP_GLOW; // (the lit heads and the cracked ink flash already)
+      sh.fragmentShader = APP_F + GL_DECL + SHADE_DECL + (crack ? CRACK_GLSL : '') + (crack && !lit ? '#ifdef CRACKS\nvarying float vCrH;\n#endif\n' : '') + (lit ? 'uniform vec3 uCore[2]; uniform float uFade; varying float vLit; varying float vHand; varying float vLitT;\n' : '') +
+        sh.fragmentShader.replace('#include <clipping_planes_fragment>', APP_CLIP).replace('#include <lights_fragment_end>', end).replace('#include <dithering_fragment>', glass + cap +
+          (crack && lit ? '\n#ifndef CRACKS' + white + '\n#endif' : white) + (lit && T != null ? '\n#ifdef CRACKS\n if (vLit > 0.5) gl_FragColor.a = 1.0;\n#endif' : '') + cracked + arrive + '\n#include <dithering_fragment>');
     };
     m.customProgramCacheKey = () => key + ':' + maxOf();
     return m;
@@ -1727,6 +1853,10 @@ export function buildPaper(T, tools, piece, opts = {}) {
   // The cracks (CRACK) compile into the ink and the heads (CRACKS) only while they are on, as the dark paper does.
   let crackIn = false;
   const crackOn = (v) => { if (v === crackIn) return; crackIn = v; for (const m of crackMats) { if (v) m.defines.CRACKS = ''; else delete m.defines.CRACKS; m.needsUpdate = true; } }; hook(face, 'paper-face-' + fid, { glints: F ? F.glints : null });
+  // Dark notes (DARKINK) compile their even light into the same programs (DARK_INK) only while they are on a dark paper
+  // (darkInk: asked for, o.darkNotes; darkInkIn: compiled in).
+  let darkInkIn = false, darkInk = false;
+  const darkInkOn = (v) => { if (v === darkInkIn) return; darkInkIn = v; for (const m of crackMats) { if (v) m.defines.DARK_INK = ''; else delete m.defines.DARK_INK; m.needsUpdate = true; } };
   const raised = [face, chrome];
   const mirrorOf = (base) => { // drawn right after the paper (opaque pass, before everything else), adding light to it
     const m = base.clone();
@@ -1767,6 +1897,10 @@ export function buildPaper(T, tools, piece, opts = {}) {
   let darkIn = false;
   const darkOn = (v) => { if (v === darkIn) return; darkIn = v; for (const m of [...shadeMats, lineMat]) { if (v) m.defines.DARK_PAPER = ''; else delete m.defines.DARK_PAPER; m.needsUpdate = true; } };
   // Marble (a paper with `marble`) compiles its veins into the paper's program (MARBLE), likewise only when chosen.
+  // (APPEAR) compiled into the notation's materials and the thin lines only while the option is on, as the cracks are
+  let appIn = false;
+  const appearOn = (v) => { if (v === appIn) return; appIn = v; for (const m of [...appMats, lineMat]) { if (v) m.defines.APPEAR = ''; else delete m.defines.APPEAR; m.needsUpdate = true; } };
+  Object.assign(lineU, { uApp: appU.uApp });
   let marbleIn = false;
   const marbleOn = (v) => { if (v === marbleIn) return; marbleIn = v; if (v) paperMat.defines.MARBLE = ''; else delete paperMat.defines.MARBLE; paperMat.needsUpdate = true; };
 
@@ -1789,10 +1923,11 @@ export function buildPaper(T, tools, piece, opts = {}) {
   const clearKeep = new THREE.Color();
   // Draws the shadow mask for a window starting at page x x0 (W ss long), with the key light toward paperU.uKey and
   // the balls (`at`: their centres, `shown`) holding back ballK of it.
+  let inkLift = SHADE.inkLift; // (the camera of the frame may set its own: see render)
   function drawShadows(x0, W, ballK, at, shown) {
     if (!sh) return;
     const H = MASK.H, z0 = MASK.z0, { maskU, maskCam, blurU } = sh, box = maskU.uBox.value;
-    box.set(x0, z0, 1 / W, 1 / H); paperU.uMaskBox.value.copy(box); maskU.uKey.value.copy(paperU.uKey.value);
+    box.set(x0, z0, 1 / W, 1 / H); paperU.uMaskBox.value.copy(box); maskU.uKey.value.copy(paperU.uKey.value); maskU.uApp.value.copy(appU.uApp.value);
     maskCam.left = -W / 2 - 3; maskCam.right = W / 2 + 3; maskCam.top = H / 2 + 3; maskCam.bottom = -H / 2 - 3; maskCam.updateProjectionMatrix();
     maskCam.position.set(x0 + W / 2, 20, z0 + H / 2); maskCam.updateMatrixWorld();
     const bs = paperTone.dark ? DARK[paperTone.dark].ballSize / SHADE.ballSize : 1;
@@ -1803,7 +1938,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
     r.setRenderTarget(sh.full); r.clear(true, false, false);
     const bg = scene.background; scene.background = null; scene.overrideMaterial = sh.maskMat;
     maskU.uK.value = SHADE.shadow; maskCam.layers.set(SHADOW_LAYER); r.render(scene, maskCam); // the raised pieces
-    maskU.uLift.value = SHADE.inkLift; maskCam.layers.set(INK_LAYER); r.render(scene, maskCam); // the printing ink
+    maskU.uLift.value = inkLift; maskCam.layers.set(INK_LAYER); r.render(scene, maskCam); // the printing ink
     scene.overrideMaterial = null; scene.background = bg; maskU.uLift.value = 1; maskCam.layers.set(SHADOW_LAYER);
     maskU.uK.value = ballK; r.render(sh.ballCasters, maskCam);
     blurU[0].uSig.value = SHADE.soft / (2 * W / MW); blurU[1].uSig.value = SHADE.soft / (2 * H / MH);
@@ -1826,26 +1961,38 @@ export function buildPaper(T, tools, piece, opts = {}) {
     geo.userData.pins = RAISED.lift > 0 ? pinSpots(shapes, { step: 0.12 * size, margin: RAISED.pin + 0.05, per: 2.2 * size * size, max: 3 }).map(([x, y]) => [x * sx, y]) : []; // (standing solid: no pins)
     return geo;
   });
+  // (APPEAR) every aApp made from the music, with the times it was made with, so the race between the balls can move
+  // them as it moves the notes' lighting: a note appears as it lights (raceAppear, only while the option is on)
+  const appRefs = []; let appRace = 0;
+  const appRef = (attr) => { const base = new Float32Array(attr.count); for (let i = 0; i < attr.count; i++) base[i] = attr.array[2 * i]; if (base.some((v) => v > -1e8)) appRefs.push({ attr, base }); };
+  function raceAppear() {
+    appRace = raceD;
+    for (const { attr, base } of appRefs) {
+      const a = attr.array;
+      for (let i = 0; i < base.length; i++) { const h = a[2 * i + 1]; a[2 * i] = h < 0 || base[i] < -1e8 || !raceD ? base[i] : base[i] - raceD * raceLead(h, base[i]); }
+      attr.needsUpdate = true;
+    }
+  }
   const kind = (name, geo, mat, lift = 0, colors = false) => { if (!kinds.has(name)) kinds.set(name, { geo, mat, lift, colors, list: [] }); return kinds.get(name); };
   const put = (k, x, y, sx = 1, sy = 1, tag = null) => k.list.push([x, y, sx, sy, tag]);
-  const line = (x0, y0, x1, y1, w) => lines.push([x0, y0, x1, y1, w]);
+  const line = (x0, y0, x1, y1, w, ta = -1e9, hand = -1) => lines.push([x0, y0, x1, y1, w, ta, hand]); // (ta, hand: when it appears and for which hand, APPEAR)
   // a stem: raised like the ink (round 5; a printed line before, which looked flat beside the raised heads and beams),
   // w ss wide over all, its outline inset by the bevel's growth; staff: its note's (0 right hand, 1 left), for the
   // colour of its cracks (CRACK)
-  const stem = (x, y0, y1, w, staff = -1) => {
+  const stem = (x, y0, y1, w, staff = -1, ta = -1e9) => { // (ta: its note's time; drawn from the head end y0 to y1 over APPEAR.pen)
     const s = new THREE.Shape(), h = Math.max(0.012, w / 2 - grow), a = Math.min(y0, y1), b = Math.max(y0, y1);
     s.moveTo(x - h, a); s.lineTo(x + h, a); s.lineTo(x + h, b); s.lineTo(x - h, b); s.lineTo(x - h, a);
-    stems.push([x, s, staff]);
+    stems.push([x, s, staff, { ta, y0, y1 }]);
   };
-  const slab = (x0, y0, x1, y1, thick, staff = -1) => { // a beam or thick bar line: a parallelogram with vertical ends, raised like the ink (staff: as a stem's)
+  const slab = (x0, y0, x1, y1, thick, staff = -1, app = null) => { // a beam or thick bar line: a parallelogram with vertical ends, raised like the ink (staff: as a stem's)
     const s = new THREE.Shape(), h = thick / 2 - grow;
     s.moveTo(x0, y0 - h); s.lineTo(x1, y1 - h); s.lineTo(x1, y1 + h); s.lineTo(x0, y0 + h); s.lineTo(x0, y0 - h);
-    slabs.push([(x0 + x1) / 2, s, staff]);
+    slabs.push([(x0 + x1) / 2, s, staff, app]); // (app: { tA, xA, tB, xB }: drawn from the stem at xA, reached at tA + pen, to the one at xB, at tB + pen)
   };
   const raisedSmall = [face, fleck];
-  const raisedPut = (name, x, y, size = 1, sx = 1, small = false) => {
+  const raisedPut = (name, x, y, size = 1, sx = 1, small = false, tag = null) => {
     const geo = raisedGlyph(name, size, sx), k = kind(`r:${name}:${size}:${sx}:${small}`, geo, small ? raisedSmall : raised, RAISED.lift);
-    put(k, x, y);
+    put(k, x, y, 1, 1, tag);
     const pk = kind('pin:small', null, pinMat, 0);
     for (const [px, py] of geo.userData.pins) put(pk, x + px, y + py, RAISED.pin, RAISED.pin);
   };
@@ -1894,10 +2041,10 @@ export function buildPaper(T, tools, piece, opts = {}) {
       for (const h of [...c.heads].reverse()) {
         const hx = c.x + h.dx, tag = { kind: name, t: c.t, staff: c.staff, x: hx, y: h.y, chord: c, mesh: null, index: -1 };
         heads.push(tag); put(k, hx, h.y, 1, 1, tag);
-        if (dotted) put(kind('dot', inkGlyph('augmentationDot', -0.2), ink), c.x + hw + 0.45 + Math.max(0, ...c.heads.map((q) => q.dx)), Number.isInteger(h.y) ? h.y + 0.5 : h.y, 1, 1, { staff: c.staff });
+        if (dotted) put(kind('dot', inkGlyph('augmentationDot', -0.2), ink), c.x + hw + 0.45 + Math.max(0, ...c.heads.map((q) => q.dx)), Number.isInteger(h.y) ? h.y + 0.5 : h.y, 1, 1, { staff: c.staff, t: c.t });
         const ext = hw + 0.38;
-        for (let ly = BOTTOM[c.staff] - 1; ly >= h.y - 0.01; ly--) line(hx - ext, ly, hx + ext, ly, LINE.ledger);
-        for (let ly = TOP[c.staff] + 1; ly <= h.y + 0.01; ly++) line(hx - ext, ly, hx + ext, ly, LINE.ledger);
+        for (let ly = BOTTOM[c.staff] - 1; ly >= h.y - 0.01; ly--) line(hx - ext, ly, hx + ext, ly, LINE.ledger, c.t, c.staff);
+        for (let ly = TOP[c.staff] + 1; ly <= h.y + 0.01; ly++) line(hx - ext, ly, hx + ext, ly, LINE.ledger, c.t, c.staff);
         if (h.acc && ACC[h.acc]) {
           accCol = lastAccY - h.y < 3 ? accCol + 1 : 0; lastAccY = h.y;
           const g = ACC[h.acc], w = ADV[g];
@@ -1906,7 +2053,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
             gap = 0.08; ax = c.x + Math.min(0, h.dx) - hw - gap - w - accCol * 1.05;
             if (ax < px + HEAD_W / 2 + 0.08) { s = 0.8; ax = c.x + Math.min(0, h.dx) - hw - gap - w * s - accCol * 0.9; }
           }
-          raisedPut(g, ax, h.y, s, 1, true);
+          raisedPut(g, ax, h.y, s, 1, true, { staff: c.staff, t: c.t });
         }
       }
       return hw;
@@ -1921,8 +2068,8 @@ export function buildPaper(T, tools, piece, opts = {}) {
         let end = near(c) + d * (3.5 + extra);
         end = d > 0 ? Math.max(end, MID[c.staff]) : Math.min(end, MID[c.staff]);
         const sx = stemX(c, d);
-        stem(sx, far(c) + d * STEM_DY, end, LINE.stem, c.staff);
-        if (c.v < 1) { const f = FLAG[Math.min(2, lv[0] - 1)] + (d > 0 ? 'Up' : 'Down'); put(kind('flag:' + f, inkGlyph(f), ink), sx - LINE.stem / 2, end, 1, 1, { staff: c.staff }); }
+        stem(sx, far(c) + d * STEM_DY, end, LINE.stem, c.staff, c.t);
+        if (c.v < 1) { const f = FLAG[Math.min(2, lv[0] - 1)] + (d > 0 ? 'Up' : 'Down'); put(kind('flag:' + f, inkGlyph(f), ink), sx - LINE.stem / 2, end, 1, 1, { staff: c.staff, t: c.t + APPEAR.pen }); }
         continue;
       }
       const deep = Math.max(...lv), xs = g.map((c) => stemX(c, d)), f = g[0], l = g[g.length - 1];
@@ -1930,21 +2077,23 @@ export function buildPaper(T, tools, piece, opts = {}) {
       let base = y0;
       g.forEach((c, i) => { const need = near(c) + d * (3.0 + (deep - 1) * 0.75), at = base + slope * (xs[i] - xs[0]); if ((need - at) * d > 0) base += need - at; });
       const at = (x) => base + slope * (x - xs[0]);
-      g.forEach((c, i) => stem(xs[i], far(c) + d * STEM_DY, at(xs[i]), LINE.stem, c.staff));
+      g.forEach((c, i) => stem(xs[i], far(c) + d * STEM_DY, at(xs[i]), LINE.stem, c.staff, c.t));
       for (let L = 1; L <= deep; L++) {
-        const off = -d * ((L - 1) * 0.75 + 0.25), seg = (xa, xb) => slab(xa, at(xa) + off, xb, at(xb) + off, 0.5, f.staff);
-        if (L === 1) { seg(xs[0] - LINE.stem / 2, xs[xs.length - 1] + LINE.stem / 2); continue; }
+        const off = -d * ((L - 1) * 0.75 + 0.25), seg = (xa, xb, i, j) => slab(xa, at(xa) + off, xb, at(xb) + off, 0.5, f.staff, { tA: g[i].t, xA: xs[i], tB: g[j].t, xB: xs[j] });
+        if (L === 1) { seg(xs[0] - LINE.stem / 2, xs[xs.length - 1] + LINE.stem / 2, 0, g.length - 1); continue; }
         for (let i = 0; i < g.length; i++) {
           if (lv[i] < L) continue;
-          if (i + 1 < g.length && lv[i + 1] >= L) seg(xs[i], xs[i + 1]);
-          else if (!(i > 0 && lv[i - 1] >= L)) seg(i + 1 < g.length ? xs[i] : xs[i] - 1.1, i + 1 < g.length ? xs[i] + 1.1 : xs[i]);
+          if (i + 1 < g.length && lv[i + 1] >= L) seg(xs[i], xs[i + 1], i, i + 1);
+          else if (!(i > 0 && lv[i - 1] >= L)) seg(i + 1 < g.length ? xs[i] : xs[i] - 1.1, i + 1 < g.length ? xs[i] + 1.1 : xs[i], i, i);
         }
       }
     }
     // rests: whole-bar rests hang from the fourth line, the others sit on the middle of the staff
     for (const r of S.rests) {
       const v = r.whole ? 4 : r.v, name = MUSIC_REST[v] || 'restQuarter', w = ADV[name] || 1;
-      put(kind('rest:' + name, inkGlyph(name, -w / 2), restMat), r.x, MID[r.staff] + (name === 'restWhole' ? 1 : 0));
+      // (APPEAR: a rest is played by no key; it appears as the music reaches it, so a whole-bar rest, in the middle of its
+      // bar, appears halfway through the bar)
+      put(kind('rest:' + name, inkGlyph(name, -w / 2), restMat), r.x, MID[r.staff] + (name === 'restWhole' ? 1 : 0), 1, 1, { t: r.t + Math.max(0, r.x - S.xOf(r.t)) / S.speed, staff: -1 });
     }
     // bar lines, through both staves; a thin and a thick line at the end
     for (const bx of S.barX) line(bx, -LINE.bar / 2, bx, TOP[0] + LINE.bar / 2, LINE.bar);
@@ -1964,22 +2113,25 @@ export function buildPaper(T, tools, piece, opts = {}) {
   function addComposer(text) {
     if (!text || titleBox.isEmpty()) return;
     const shapes = textShapes(text, { size: COMPOSER.size, letterSpacing: 0.02 }), right = titleBox.max.x; // (small solid letters, as the title)
-    titleBox.union(standing(domeOf(flat(extrude(shapes, SMALL))), Math.max(TITLE.x, right - shapes.width), TOP[0] + COMPOSER.above, SMALL.bevelThickness));
+    titleBox.union(standing(domeOf(flat(extrude(shapes, SMALL))), Math.max(TITLE.x, right - shapes.width), TOP[0] + COMPOSER.above, SMALL.bevelThickness, true));
   }
   function addTitle(text) {
     if (!text) return;
     const em = TITLE.cap / (glyphs.text.capHeight || 0.77);
-    let rows = [text], w = textShapes(text, { size: em }).width, scale = Math.min(1, TITLE.maxW / w);
-    if (scale < TITLE.minScale && text.includes(' ')) { // too long for one line, even smaller: two lines, broken at the space nearest the middle
+    // (opts.titleW: a narrower title for a narrow picture, broken onto two lines sooner: when one line would be smaller
+    // than TITLE.narrowRows)
+    const maxW = opts.titleW || TITLE.maxW, minScale = opts.titleW ? TITLE.narrowRows : TITLE.minScale;
+    let rows = [text], w = textShapes(text, { size: em }).width, scale = Math.min(1, maxW / w);
+    if (scale < minScale && text.includes(' ')) { // too long for one line, even smaller: two lines, broken at the space nearest the middle
       let best = -1;
       for (let i = 0; i < text.length; i++) if (text[i] === ' ' && (best < 0 || Math.abs(i - text.length / 2) < Math.abs(best - text.length / 2))) best = i;
       rows = [text.slice(0, best), text.slice(best + 1)];
-      w = Math.max(...rows.map((r) => textShapes(r, { size: em }).width)); scale = Math.min(TITLE.rowScale, TITLE.maxW / w);
+      w = Math.max(...rows.map((r) => textShapes(r, { size: em }).width)); scale = Math.min(TITLE.rowScale, maxW / w);
     }
     const size = em * Math.max(scale, 0.3), cap = TITLE.cap * Math.max(scale, 0.3);
     rows.forEach((row, i) => {
       const geo = domeOf(flat(extrude(textShapes(row, { size, letterSpacing: 0.01 }), TP)));
-      titleBox.union(standing(geo, TITLE.x, TOP[0] + TITLE.gap + (rows.length - 1 - i) * cap * 1.5, TP.bevelThickness));
+      titleBox.union(standing(geo, TITLE.x, TOP[0] + TITLE.gap + (rows.length - 1 - i) * cap * 1.5, TP.bevelThickness, true));
     });
   }
   function addMarks(text) { // the channel's name (MARK)
@@ -1999,8 +2151,10 @@ export function buildPaper(T, tools, piece, opts = {}) {
   // Raised lettering (the title, the channel's name) stands on the paper: solid from the paper up, its bottom bevel
   // (sink) just under the surface so the letters meet the paper cleanly, with their reflection in its sheen. Returns
   // their extent in the world.
-  function standing(geo, x, base, sink = 0) {
+  // (opening: the title and the composer's name, which the opening shot fits itself, see openFit)
+  function standing(geo, x, base, sink = 0, opening = false) {
     const m = cast(new THREE.Mesh(geo, raised)); m.position.set(x, -sink, -base); printed.add(m);
+    if (opening) m.userData.opening = true;
     const r = new THREE.Mesh(geo, mirrored); r.position.set(x, sink, -base); r.scale.y = -1; r.renderOrder = -0.5; printed.add(r);
     if (!geo.boundingBox) geo.computeBoundingBox();
     return geo.boundingBox.clone().translate(new THREE.Vector3(x, -sink, -base));
@@ -2014,14 +2168,18 @@ export function buildPaper(T, tools, piece, opts = {}) {
     const isPin = name.startsWith('pin:'), lift = RAISED.lift;
     for (const items of byChunk.values()) {
       let geo = isPin ? pinGeo : k.geo;
-      if (k.colors || k.mat === ink) { // the shape is shared; each piece of the music adds, per instance, the hand
+      { // the shape is shared; each piece of the music adds, per instance, the hand (and, for APPEAR, when each appears)
         const g = new THREE.BufferGeometry();
         g.setIndex(geo.index);
         for (const [n, a] of Object.entries(geo.attributes)) g.setAttribute(n, a);
+        for (const gr of geo.groups) g.addGroup(gr.start, gr.count, gr.materialIndex); // (the raised signs: black faces and chrome sides)
+        const ap = new Float32Array(items.length * 2);
+        items.forEach((it, i) => { const tg = it[4]; ap[2 * i] = tg && tg.t != null ? tg.t : -1e9; ap[2 * i + 1] = tg && tg.t != null && tg.staff >= 0 ? tg.staff : -1; });
+        appRef(g.setAttribute('aApp', new THREE.InstancedBufferAttribute(ap, 2)).attributes.aApp);
         if (k.colors) { // noteheads: when and in which hand each head lights
           g.setAttribute('aLitT', new THREE.InstancedBufferAttribute(Float32Array.from(items, (it) => it[4].t), 1));
           g.setAttribute('aHand', new THREE.InstancedBufferAttribute(Float32Array.from(items, (it) => it[4].staff), 1));
-        } else g.setAttribute('aCrH', new THREE.InstancedBufferAttribute(Float32Array.from(items, (it) => (it[4] && it[4].staff >= 0 ? it[4].staff : -1)), 1)); // (the ink: the hand of the note a dot or flag belongs to, for its cracks; -1 none)
+        } else if (k.mat === ink) g.setAttribute('aCrH', new THREE.InstancedBufferAttribute(Float32Array.from(items, (it) => (it[4] && it[4].staff >= 0 ? it[4].staff : -1)), 1)); // (the ink: the hand of the note a dot or flag belongs to, for its cracks; -1 none)
         geo = g;
       }
       const m = new THREE.InstancedMesh(geo, k.mat, items.length);
@@ -2042,26 +2200,83 @@ export function buildPaper(T, tools, piece, opts = {}) {
       if (x1 - x0 < CHUNK) { pieces.push(s); continue; }
       for (let a = x0; a < x1 - 1e-6;) {
         const b = Math.min(x1, (Math.floor(a / CHUNK) + 1) * CHUNK);
-        pieces.push([a, y0 + ((y1 - y0) * (a - x0)) / (x1 - x0), b, y0 + ((y1 - y0) * (b - x0)) / (x1 - x0), w]);
+        pieces.push([a, y0 + ((y1 - y0) * (a - x0)) / (x1 - x0), b, y0 + ((y1 - y0) * (b - x0)) / (x1 - x0), w, s[5], s[6]]);
         a = b;
       }
     }
     const byChunk = new Map();
     for (const s of pieces) { const c = Math.floor((s[0] + s[2]) / 2 / CHUNK); if (!byChunk.has(c)) byChunk.set(c, []); byChunk.get(c).push(s); }
-    for (const segs of byChunk.values()) { const m = new THREE.Mesh(lineGeometry(segs), lineMat); m.renderOrder = 2; printed.add(m); }
+    for (const segs of byChunk.values()) { const m = new THREE.Mesh(lineGeometry(segs), lineMat); m.renderOrder = 2; printed.add(m); appRef(m.geometry.attributes.aApp); }
     // beams and stems, merged per piece of the music; each corner carries the hand of the note it belongs to (aCrH,
     // from the shape it comes from), so a note's stem and beam crack in its own hand's colour wherever they reach
-    const chunked = (list) => { const m = new Map(); for (const [x, s, staff] of list) { const c = Math.floor(x / CHUNK); if (!m.has(c)) m.set(c, { shapes: [], staff: [] }); m.get(c).shapes.push(s); m.get(c).staff.push(staff); } return m.values(); };
+    const chunked = (list) => { const m = new Map(); for (const [x, s, staff, app] of list) { const c = Math.floor(x / CHUNK); if (!m.has(c)) m.set(c, { shapes: [], staff: [], app: [] }); m.get(c).shapes.push(s); m.get(c).staff.push(staff); m.get(c).app.push(app); } return m.values(); };
+    // (APPEAR) when each corner appears: a stem is drawn from its head end over APPEAR.pen; a beam from the stem at xA
+    // (reached at tA + pen) to the one at xB (tB + pen), linearly between, so it reaches each stem as that stem is drawn
+    const clamp01 = (u) => Math.min(1, Math.max(0, u));
+    const appOf = (g, app, staff, isStem) => {
+      const own = g.userData.shape, p = g.attributes.position.array, a = new Float32Array(own.length * 2);
+      for (let v = 0; v < own.length; v++) {
+        const q = app[own[v]], x = p[3 * v], y = -p[3 * v + 2];
+        if (!q) { a[2 * v] = -1e9; a[2 * v + 1] = -1; continue; }
+        a[2 * v] = isStem ? q.ta + APPEAR.pen * clamp01((y - q.y0) / (q.y1 - q.y0 || 1)) : q.tA + (q.tB - q.tA) * (q.xB > q.xA ? clamp01((x - q.xA) / (q.xB - q.xA)) : 0) + APPEAR.pen;
+        a[2 * v + 1] = staff[own[v]];
+      }
+      g.setAttribute('aApp', new THREE.BufferAttribute(a, 2)); appRef(g.attributes.aApp);
+      return g;
+    };
     const handOf = (g, staff) => g.setAttribute('aCrH', new THREE.BufferAttribute(Float32Array.from(g.userData.shape, (i) => staff[i]), 1));
-    for (const { shapes, staff } of chunked(slabs)) { const g = handOf(domeOf(flat(extrude(shapes, { ...IP, curveSegments: 1, smooth: 30 })), 'ridge'), staff); printed.add(cast(new THREE.Mesh(g, ink))); }
-    for (const { shapes, staff } of chunked(stems)) { const g = handOf(domeOf(flat(extrude(shapes, { ...IP, curveSegments: 1, smooth: 30 }))), staff); printed.add(cast(new THREE.Mesh(g, ink))); }
+    for (const { shapes, staff, app } of chunked(slabs)) { const g = appOf(handOf(domeOf(flat(extrude(shapes, { ...IP, curveSegments: 1, smooth: 30 })), 'ridge'), staff), app, staff, false); printed.add(cast(new THREE.Mesh(g, ink))); }
+    for (const { shapes, staff, app } of chunked(stems)) { const g = appOf(handOf(domeOf(flat(extrude(shapes, { ...IP, curveSegments: 1, smooth: 30 }))), staff), app, staff, true); printed.add(cast(new THREE.Mesh(g, ink))); }
+  }
+  // How low and how high the printed music reaches on the page between page x x0 and x1: everything printed or
+  // raised (the notes with their stems, beams, flags, dots, ledger lines and signs, the rests, bar lines, the channel's
+  // name; the tempo mark at the start; not the title and composer), as [lo, hi] page y. Worked out once, on first asking, per whole ss
+  // along the page (for the camera that frames the whole piece at once, see stillFit).
+  let reachLo = null, reachHi = null;
+  const REACH0 = 64; // (the first whole ss kept: page x -64, well before the brace)
+  function musicReach(x0 = -Infinity, x1 = Infinity) {
+    if (!reachLo) {
+      const n = (S ? Math.ceil(S.finalX) : 0) + REACH0 + 8;
+      reachLo = new Float32Array(n).fill(Infinity); reachHi = new Float32Array(n).fill(-Infinity);
+      const at = (x, a, b) => { const i = Math.floor(x) + REACH0; if (i >= 0 && i < n) { if (a < reachLo[i]) reachLo[i] = a; if (b > reachHi[i]) reachHi[i] = b; } };
+      const box = new THREE.Box3(), mi = new THREE.Matrix4(), mw = new THREE.Matrix4(), v = new THREE.Vector3();
+      printed.updateMatrixWorld(true);
+      printed.traverse((o) => {
+        if (!o.isMesh || o.scale.y < 0 || o.userData.opening || !o.geometry.attributes.position) return; // (not the lettering's mirror image in the paper, nor the title)
+        const g = o.geometry, p = g.attributes.position;
+        if (o.material.isShaderMaterial && o.material !== lineMat) return; // (the halos' squares)
+        if (o.material === lineMat) { for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); at(v.x, -v.z - LINE.bar / 2, -v.z + LINE.bar / 2); } return; } // (a thin line: its middle, and half its width either side)
+        if (o.isInstancedMesh) {
+          if (!g.boundingBox) g.computeBoundingBox();
+          for (let k = 0; k < o.count; k++) { o.getMatrixAt(k, mi); box.copy(g.boundingBox).applyMatrix4(mw.multiplyMatrices(o.matrixWorld, mi)); for (let x = Math.floor(box.min.x); x <= box.max.x; x++) at(x, -box.max.z, -box.min.z); }
+          return;
+        }
+        for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i).applyMatrix4(o.matrixWorld); at(v.x, -v.z, -v.z); }
+      });
+    }
+    let lo = Infinity, hi = -Infinity;
+    for (let i = Math.max(0, Math.floor(x0) + REACH0), e = Math.min(reachLo.length - 1, Math.floor(x1) + REACH0); i <= e; i++) { if (reachLo[i] < lo) lo = reachLo[i]; if (reachHi[i] > hi) hi = reachHi[i]; }
+    return [lo, hi];
+  }
+  // How low the printed music reaches between page x x0 and x1, quickly (the opening shot's search asks it very often):
+  // the same per-ss heights as musicReach, from a table of the lowest over every run of 2^k of them, built on first asking.
+  let reachMin = null;
+  function lowestIn(x0, x1) {
+    if (!reachMin) {
+      musicReach(); reachMin = [reachLo];
+      for (let k = 1; 1 << k <= reachLo.length; k++) { const p = reachMin[k - 1], s = 1 << (k - 1), a = new Float32Array(reachLo.length - 2 * s + 1); for (let i = 0; i < a.length; i++) a[i] = Math.min(p[i], p[i + s]); reachMin.push(a); }
+    }
+    const i = Math.max(0, Math.floor(x0) + REACH0), j = Math.min(reachLo.length - 1, Math.floor(x1) + REACH0);
+    if (j < i) return Infinity;
+    const k = 31 - Math.clz32(j - i + 1);
+    return Math.min(reachMin[k][i], reachMin[k][j - (1 << k) + 1]);
   }
 
   // ---- the halos of the lit notes: one square per notehead, all in one draw; a note's square appears when it is played ----
   const KINDS = ['solid', 'half', 'whole'], HEAD_GLYPH = ['noteheadBlack', 'noteheadHalf', 'noteheadWhole'];
   const haloU = { uTime: glowU.uTime, uFade: glowU.uFade, uDim: { value: GLOW.dim }, uR: { value: GLOW.R }, uLift: { value: LINE.lift * 0.5 }, uGrow: { value: GLOW.grow }, uTintD: { value: GLOW.tint },
     uK: { value: new THREE.Vector2(...GLOW.k) }, uW: { value: new THREE.Vector2(...GLOW.w) }, uWin: { value: new THREE.Vector2(...GLOW.win) },
-    uRim: { value: looks.map((l) => l.rim) }, uHalo: { value: looks.map((l) => l.halo) }, uSdf: { value: null } };
+    uRim: { value: looks.map((l) => l.rim) }, uHalo: { value: looks.map((l) => l.halo) }, uSdf: { value: null }, uApp: appU.uApp };
   const haloMat = new THREE.ShaderMaterial({ uniforms: haloU, vertexShader: HALO_VERT, fragmentShader: HALO_FRAG, transparent: true, depthWrite: false,
     blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor });
   const quad = new THREE.PlaneGeometry(2, 2);
@@ -2080,7 +2295,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
   // The light map's own scene (drawn each frame into the shadow kit's light target, see drawLight): the pools of the
   // lit notes (the halos' squares again, printed or live) and of the light trails.
   const poolScene = new THREE.Scene();
-  const poolU = { uTime: glowU.uTime, uBox: paperU.uMaskBox, uPool: { value: new THREE.Vector3(POOL.note.k, POOL.note.h, POOL.note.R) }, uColor: { value: [new THREE.Vector3(), new THREE.Vector3()] } };
+  const poolU = { uTime: glowU.uTime, uBox: paperU.uMaskBox, uPool: { value: new THREE.Vector3(POOL.note.k, POOL.note.h, POOL.note.R) }, uColor: { value: [new THREE.Vector3(), new THREE.Vector3()] }, uApp: appU.uApp };
   const poolMat = new THREE.ShaderMaterial({ uniforms: poolU, vertexShader: POOL_VERT, fragmentShader: POOL_FRAG, depthTest: false, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
   const poolOf = (geo) => { const m = new THREE.Mesh(geo, poolMat); m.frustumCulled = false; poolScene.add(m); return m; };
   const printedPools = haloGeo ? poolOf(haloGeo) : null;
@@ -2136,6 +2351,10 @@ export function buildPaper(T, tools, piece, opts = {}) {
   // Smoked glass is drawn after the halos and the thin lines (renderOrder 3), so the staff and the light show through it.
   const isGlass = (m) => !!m && m.transparent && m.userData.T != null;
   scene.traverse((o) => { if (o.isMesh && (Array.isArray(o.material) ? o.material.some(isGlass) : isGlass(o.material))) o.renderOrder = 3; });
+  // (APPEAR) everything else drawn with these materials (the title, the final bar, the live notes and systems) is always
+  // there: it gets the attribute too, never a default value (a missing attribute's value is not reset between draws)
+  const always = (g) => { if (g && g.attributes.position && !g.attributes.aApp) g.setAttribute('aApp', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2).fill(-1e9), 2)); };
+  for (const grp of [printed, liveGroup]) grp.traverse((o) => { if (o.isMesh) always(o.geometry); });
   const setLedger = (i, x0, x1, y) => { // one ledger line from x0 to x1 at page height y
     const a = LG.ledgers.attributes, w = LINE.ledger / 2;
     for (let j = 0; j < 4; j++) {
@@ -2249,6 +2468,14 @@ export function buildPaper(T, tools, piece, opts = {}) {
   // place over the OPENING.after s after the first note (weight 1 until the first note, then 0 from t1 + after on).
   const openW = (L, t) => (L !== layout ? 0 : 1 - sstep(L.t1, L.t1 + OPENING.after, t));
   const NO_OFF = { dh: 0, dy: 0, dx: 0 };
+  // A camera with openAt (the music of "Sheet music + hands", played a little past the middle of the picture) starts
+  // with the place at openAt across the picture instead (a third of the way in), so the opening shot frames the title
+  // and the start of the system as it did; the place then glides out to `at`, eased as the lead is but over the longer
+  // OPENING.glide window (from 6 s before the first note to 8 s after it, weight 1 when playback starts at
+  // t1 - OPENING.at). The first notes are played left of `at` and the page scrolls slower meanwhile: with the lead and
+  // the opening shot easing out as well, at least about a fifth of its usual speed in the slowest pieces (13.5 ss/s,
+  // a long title) and never backwards; the place is past the middle about 6 s after the first note.
+  const openAtW = (L, t) => (L !== layout ? 0 : (1 - sstep(L.t1 - OPENING.glide[0], L.t1 + OPENING.glide[1], t)) / (1 - sstep(L.t1 - OPENING.glide[0], L.t1 + OPENING.glide[1], L.t1 - OPENING.at)));
   // The cinematic camera's share of the pose (see CINE): none until inW[0] s after the first note, all of it from
   // inW[1] s, and none again by outW[1] s before the last note (the plan is back at the Steady pose by then).
   let cineOn = false;
@@ -2261,10 +2488,11 @@ export function buildPaper(T, tools, piece, opts = {}) {
     const h = c.h + c.hAmp * Math.cos((2 * Math.PI * t) / c.hPeriod) + c.rise * sstep(L.tEnd - ENDING.over, L.tEnd, t) + off.dh * w + fh, up = crane(L, t);
     E.set(-c.tilt * DEG, yaw - Math.PI / 2, 0); quat.setFromEuler(E);
     const th = Math.tan((c.fov * DEG) / 2);
-    D.set((2 * c.at[0] - 1) * th * aspect, (1 - 2 * c.at[1]) * th, -1).applyQuaternion(quat);
+    const ax = c.openAt == null ? c.at[0] : c.at[0] + (c.openAt - c.at[0]) * openAtW(L, t); // (see openAtW)
+    D.set((2 * ax - 1) * th * aspect, (1 - 2 * c.at[1]) * th, -1).applyQuaternion(quat);
     const k = h / -D.y, x = camX(L, t) + off.dx * w, z = -(c.y + off.dy * w + frameAt(L, t, c, aspect, 0));
     pos.set(x - D.x * k, h + up, z - D.z * k);
-    ps.x = x; ps.h = h + up; ps.hl = h - off.dh * w - fh + up; ps.yaw = yaw; ps.dNear = (h + up) / Math.sin((c.tilt + c.fov / 2) * DEG); // hl: the height the light follows (the opening shot's and the framing's extra height do not dim the paper)
+    ps.x = x; ps.h = h + up; ps.hl = (c.lampH ?? h - off.dh * w - fh) + up; ps.yaw = yaw; ps.dNear = (h + up) / Math.sin((c.tilt + c.fov / 2) * DEG); // hl: the height the light follows (the opening shot's and the framing's extra height do not dim the paper; a camera with lampH keeps its lamp at that height, however high it stands)
     ps.lam = LIGHT.lam * ps.h; ps.dof = 0; ps.focus = 0; ps.dist = 0; ps.cine = 0; ps.tilt = c.tilt;
     const W = cineOn && layout && L === layout && c.yawAmp ? cineW(L, t) : 0; // (only with the gentle movement on)
     if (W > 0) cineBlend(L, t, c, aspect, pos, quat, ps, W, yaw, h, x, -z, up, k * D.length());
@@ -2281,7 +2509,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
   const FRAME = { m: 0.85, ahead: 0.35, hold: 0.6, reach: [2, 4], sigma: [1.5, 2.5], dt: 0.1, max: 14, maxH: 12 };
   const frm = { aspect: 0, c: null, d: null, h: null, t0: 0 }, frP = new THREE.Vector3(), frQ = new THREE.Quaternion(), frV = new THREE.Vector3(), frD = new THREE.Vector3();
   function frameAt(L, t, c, aspect, d) { // d: 0 = the shift up the page, 1 = the extra height
-    if (L !== layout || !layout) return 0;
+    if (L !== layout || !layout || c.noFrame) return 0; // (noFrame: a camera framed for the whole piece at once, see stillFit)
     if (frm.aspect !== aspect || frm.c !== c) buildFrame(c, aspect);
     const a = d ? frm.h : frm.d, u = (t - frm.t0) / FRAME.dt, i = Math.floor(u);
     return i < 0 ? a[0] : i >= a.length - 1 ? a[a.length - 1] : a[i] + (a[i + 1] - a[i]) * (u - i);
@@ -2341,7 +2569,10 @@ export function buildPaper(T, tools, piece, opts = {}) {
   }
   // The opening offsets for one camera and picture shape, found once (a small search): the least change that keeps
   // the title's corners inside the picture (with a small margin) both when playback starts and at the first note.
-  // Without a title, or when it already fits, nothing changes.
+  // Without a title, or when it already fits, nothing changes. A camera with openBox (the music in "Sheet music +
+  // hands", whose keyboard covers the bottom of the picture) also keeps all the printed music in the picture's width
+  // above openBox.floor all through the opening shot, from the start of the video until the shot has eased out (every
+  // half second), and lets the title rise to openBox.top (both picture heights, -1 at the bottom edge, 1 at the top).
   const fit = { aspect: 0, c: null, off: NO_OFF }, fitPos = new THREE.Vector3(), fitQ = new THREE.Quaternion(), fitPose = { x: 0, h: 0, hl: 0, yaw: 0, dNear: 0, lam: 0, dof: 0, focus: 0, dist: 0, cine: 0 }, fitV = new THREE.Vector3();
   function openFit(L, c, aspect) {
     if (L !== layout || !layout || titleBox.isEmpty()) return NO_OFF;
@@ -2350,6 +2581,12 @@ export function buildPaper(T, tools, piece, opts = {}) {
     const b = titleBox, pts = [];
     for (const x of [b.min.x, b.max.x]) for (const y of [b.min.y, b.max.y]) for (const z of [b.min.z, b.max.z]) pts.push([x, y, z]);
     const th = Math.tan((c.fov * DEG) / 2), times = [L.t1 - OPENING.at, L.t1];
+    const box = c.openBox, top = box ? box.top : 0.9, mTimes = [];
+    // (titleHold: a camera with openBox also keeps the title under the picture's top edge, at openBox.top, until
+    // titleHold s after the first note, while the shot eases out; its sides may leave the picture by then)
+    const hold = box && c.titleHold ? L.t1 + c.titleHold : null;
+    if (hold != null) times.push(hold);
+    if (box) for (let t = OPENING.start; t <= L.t1 + OPENING.after + 1e-6; t += 0.5) mTimes.push(t);
     const over = (off) => { // how far the points stick out of the picture (0 = all inside the margin)
       let worst = 0;
       for (const t of times) {
@@ -2358,8 +2595,22 @@ export function buildPaper(T, tools, piece, opts = {}) {
           fitV.set(x, y, z).sub(fitPos).applyQuaternion(fitQ);
           if (fitV.z > -0.1) return 99;
           const nx = fitV.x / -fitV.z / (th * aspect), ny = fitV.y / -fitV.z / th;
-          worst = Math.max(worst, Math.abs(nx) - 0.95, ny - 0.9, -ny - 0.95);
+          worst = Math.max(worst, t === hold ? -1 : Math.abs(nx) - 0.95, ny - top, -ny - 0.95);
         }
+      }
+      for (const t of mTimes) { // (the page x where the picture's sides cross the floor's height, the lowest music between, how high it stands)
+        poseAt(L, t, c, aspect, fitPos, fitQ, fitPose, off);
+        let xa = Infinity, xb = -Infinity;
+        for (const sx of [-1, 1]) {
+          fitV.set(sx * th * aspect, box.floor * th, -1).applyQuaternion(fitQ);
+          if (fitV.y >= 0) return 99;
+          const x = fitPos.x - (fitV.x * fitPos.y) / fitV.y; xa = Math.min(xa, x); xb = Math.max(xb, x);
+        }
+        const lo = lowestIn(xa, xb);
+        if (lo === Infinity) continue;
+        fitV.set((xa + xb) / 2, 0, -lo).sub(fitPos).applyQuaternion(fitQ.invert());
+        if (fitV.z > -0.1) return 99;
+        worst = Math.max(worst, box.floor - fitV.y / -fitV.z / th);
       }
       return Math.max(0, worst);
     };
@@ -2779,7 +3030,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
   // the direction it came in, the other the direction it leaves in). Every point is where ballAt puts the ball at
   // that time, so the trail is the ball's own path; nothing is carried over from one frame to the next.
   const TT = new Float64Array(TRAIL.max), TK = new Uint8Array(TRAIL.max), tp = new THREE.Vector3();
-  function fillTrail(hand, t, L, c, aspect) {
+  function fillTrail(hand, t, L, c, aspect, leap = false) {
     const list = paths[hand], g = trails[hand].mesh.geometry, P = g.attributes.position.array, D = g.attributes.aTan.array, A = g.attributes.aAge.array;
     let j = -1;
     if (list.length && list[0].t <= t) { let lo = 0, hi = list.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (list[m].t <= t) lo = m; else hi = m - 1; } j = lo; }
@@ -2796,6 +3047,14 @@ export function buildPaper(T, tools, piece, opts = {}) {
       ballAt(hand, TT[i], L, c, aspect, tp);
       P[6 * i] = P[6 * i + 3] = tp.x; P[6 * i + 1] = P[6 * i + 4] = tp.y; P[6 * i + 2] = P[6 * i + 5] = tp.z;
       A[2 * i] = A[2 * i + 1] = (t - TT[i]) / TRAIL.T;
+    }
+    if (leap) for (let i = 0; i < n; i++) { // (no trail along a leap: TRAIL.leap)
+      let lo = -1; // the last landing at or before this point; on a landing's older side the hop is the one arriving there
+      if (list.length && list[0].t <= TT[i]) { let a = 0, b = list.length - 1; while (a < b) { const m = (a + b + 1) >> 1; if (list[m].t <= TT[i]) a = m; else b = m - 1; } lo = a; }
+      const k = TK[i] === 2 ? lo - 1 : lo;
+      if (k < 0 || k + 1 >= list.length) continue;
+      const u = Math.min(1, Math.max(0, (Math.abs(list[k + 1].y - list[k].y) - TRAIL.leap[0]) / (TRAIL.leap[1] - TRAIL.leap[0])));
+      if (u > 0) A[2 * i] = A[2 * i + 1] = Math.max(A[2 * i], u * u * (3 - 2 * u));
     }
     for (let i = 0; i < n; i++) { // the direction of travel: from the older neighbour to the newer one (one-sided at a landing)
       const a = TK[i] === 2 || i === 0 ? i : i - 1, b = TK[i] === 1 || i === n - 1 ? i : i + 1;
@@ -3019,7 +3278,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
   // dk, ck: the darkness of the room and the shadow in the corners (DARKNESS, 0..1), which keep the corner shade on by
   // themselves.
   const cornerOff = (dk = 0, ck = 0) => { paperU.uAccOn.value = 0; shadeOn(dk > 0 || ck > 0); if (dk > 0 || ck > 0) shadeAt(camera0, 0, dk, ck, false); for (const a of arcs) a.halo.visible = a.core.visible = false; };
-  let camera0 = null; // (the camera of the frame being drawn, for cornerOff)
+  let camera0 = null, shadeFit = null; // (the camera of the frame being drawn, for cornerOff; the render's o.shadeFit)
   // The corner shade's uniforms for this frame: K = the corner light's strength (with light = it is on), dk = the darkness
   // of the room, ck = the shadow in the corners.
   function shadeAt(camera, K, dk, ck, light) {
@@ -3032,7 +3291,9 @@ export function buildPaper(T, tools, piece, opts = {}) {
     const d0 = light ? D[0][0] + (D[0][1] - D[0][0]) * K : 0, d1 = light ? D[1][0] + (D[1][1] - D[1][0]) * K : 0;
     csU.uCS.value.set(1, ck > 0 ? Math.max(d0, DARKNESS.depth[0] * ck) : d0, ck > 0 ? Math.max(d1, DARKNESS.depth[1] * ck) : d1, CORNER.shade.dither);
     csU.uCSD.value.set(DARKNESS.amb[0] * dk, DARKNESS.amb[1] * dk, 1 + DARKNESS.reach * ck, dk > 0 || ck > 0 ? 1 : 0);
-    csU.uCSA.value.set(saX, saY, sx, sy); csU.uCSV.value.copy(camera.matrixWorld);
+    const fit = shadeFit || {}, rk = fit.reach || 1; // (see DARKNESS: fitted to this render's camera)
+    csU.uCSA.value.set(saX * rk, saY * rk, sx, sy); csU.uCSV.value.copy(camera.matrixWorld);
+    csU.uCSM.value.set(...(fit.music || DARKNESS.music));
     csU.uCSR.value.set(1 / lineU.uRes.value.x, 1 / lineU.uRes.value.y);
   }
   const sdA = new THREE.Vector3(), sdB = new THREE.Vector3(), accCol = [new THREE.Vector3(), new THREE.Vector3()], arcCol = [new THREE.Vector3(), new THREE.Vector3()];
@@ -3320,11 +3581,11 @@ export function buildPaper(T, tools, piece, opts = {}) {
     iri: m.iridescence, iriIOR: m.iridescenceIOR, iriRange: [m.iridescenceThicknessMinimum, m.iridescenceThicknessMaximum], spec: m.specularIntensity, env: m.userData.env, max: m.userData.max }));
   function applyPaper(pt) {
     paperTone = pt;
-    const dk = pt.dark ? DARK[pt.dark] : null, FD = F && dk ? F.dark || {} : null;
+    const dk = pt.dark ? DARK[pt.dark] : null, dn = !!dk && darkInk, FD = F && dk && !dn ? F.dark || {} : null; // (dark notes: each finish as on light paper)
     paperU.uTintNear.value.copy(tintOf(pt.near)); paperU.uTintFar.value.copy(tintOf(pt.far)); paperU.uCap.value = LIGHT.cap * pt.expo;
-    paperU.uLook.value.set(pt.tone[0], pt.tone[1], SHADE.bump * pt.grain, pt.marble ? 0 : SHADE.cockle); // (polished stone lies flat)
-    // a dark paper (DARK): light ink, its lamp, softer marks of the glows, the satin sheen
-    darkOn(!!dk);
+    paperU.uLook.value.set(pt.tone[0], pt.tone[1], SHADE.bump * pt.grain, pt.marble ? 0 : SHADE.cockle * (pt.cockle ?? 1)); // (polished stone lies flat)
+    // a dark paper (DARK): light ink, its lamp, softer marks of the glows, the satin sheen; or dark notes (DARKINK)
+    darkOn(!!dk); darkInkOn(dn);
     paperU.uShade.value.x = dk ? dk.amb : SHADE.amb;
     const pol = !dk && pt.polish; // (light marble's polish: its mirror of the lit notes and its sheen, as a dark paper's)
     paperU.uDark.value.set(dk ? dk.pool : 1, dk ? dk.corner : 1, dk ? dk.sheen : pol ? pol[2] : 0, dk ? dk.room : pol ? pol[3] : 0);
@@ -3341,17 +3602,20 @@ export function buildPaper(T, tools, piece, opts = {}) {
     paperU.uRefl.value.set(REFL.k * (dk ? dk.refl : pol ? pol[0] : 1), dk ? dk.gloss : pol ? pol[1] : REFL.gloss, 0, REFL.narrow);
     haloU.uDim.value = dk ? dk.haloDim : GLOW.dim;
     if (!F) {
-      ink.color.set(pt.ink); headMat.color.set(pt.ink); restMat.color.set(pt.ink); inkLinear.set(dk ? dk.line : pt.ink);
-      face.color.set(dk ? dk.face : PAL.face); face.roughness = dk ? dk.faceRough : 0.1;
+      const ik = dn ? DARKINK.ink : pt.ink, pale = dk && !dn; // (pale: the dark paper's light ink and pearl signs)
+      ink.color.set(ik); headMat.color.set(ik); restMat.color.set(ik); inkLinear.set(dn ? DARKINK.line : dk ? dk.line : pt.ink);
+      face.color.set(pale ? dk.face : PAL.face); face.roughness = pale ? dk.faceRough : 0.1;
     } else {
+      const kd = dn ? DARKINK.deep[fid] ?? 1 : 1; // (dark notes: a middle tone kept deep)
       parts.forEach(([m, k], i) => {
         const o = own[i], d = (FD && FD[k]) || {}; if (d.color) m.color.set(d.color); else m.color.copy(o.color); m.roughness = d.roughness ?? o.roughness; m.metalness = d.metalness ?? o.metalness;
         if (d.sheenColor) m.sheenColor.set(d.sheenColor); else m.sheenColor.copy(o.sheenColor); // (and the newer finishes' sheen, clear coat, iridescence, room and limit)
         m.sheen = d.sheen ?? o.sheen; m.sheenRoughness = d.sheenRough ?? o.sheenRough; m.clearcoat = d.cc ?? o.cc; m.clearcoatRoughness = d.ccr ?? o.ccr; m.specularIntensity = d.spec ?? o.spec;
         m.iridescence = d.iri ?? o.iri; m.iridescenceIOR = d.iriIOR ?? o.iriIOR; [m.iridescenceThicknessMinimum, m.iridescenceThicknessMaximum] = d.iriRange || o.iriRange; m.userData.env = d.env ?? o.env;
         const mx = d.max ?? o.max; if (m.userData.max !== mx) { m.userData.max = mx; m.needsUpdate = true; }
+        if (kd < 1) { m.color.multiplyScalar(kd); m.sheenColor.multiplyScalar(kd); }
       });
-      inkLinear.set((FD && FD.line) || F.line);
+      inkLinear.set((FD && FD.line) || F.line); if (dn) inkLinear.multiplyScalar(DARKINK.lineK);
       lineMax = (FD && FD.wall && FD.wall.max) ?? F.wall.max;
     }
     // (the paper's mirror of the title: its tops' and, since round 12, its walls' material as this paper has them)
@@ -3369,9 +3633,11 @@ export function buildPaper(T, tools, piece, opts = {}) {
   const probe = { balls: [new THREE.Vector3(), new THREE.Vector3()], shown: [false, false], corner: 'off', sparks: 0, fade: 1, ballFade: 1, tc: layout ? layout.tc : null, tEnd: layout ? layout.tEnd : null, camera: null, t: 0, glows: 0 };
   function render(t, camera, o = {}) {
     if (S) setRace(o.paths !== false ? clamp01(o.race ?? 0) : 0); probe.race = raceD; // (the race between the balls, optional, and only with the balls shown: before the camera, which follows them)
+    if (!!o.darkNotes !== darkInk) { darkInk = !!o.darkNotes; if (paperTone.dark) applyPaper(paperTone); } // (dark notes, DARKINK: only a dark paper changes)
+    const dn = darkInkIn; probe.darkNotes = dn;
     setBallStyle(o.ballStyle); probe.ballStyle = ballStyle; // (the balls' style: light, or dark energy)
     pickCam(o.camMove); // (a moving camera chosen on purpose moves even with the gentle movement off: that only calms Steady)
-    const c = camFor(camera.aspect, o.motion !== false || cineOn), live = !!o.live || !S, L = live ? liveLayout : layout;
+    const c = o.cam || camFor(camera.aspect, o.motion !== false || cineOn), live = !!o.live || !S, L = live ? liveLayout : layout;
     if (camera.fov !== c.fov || camera.near !== NEAR || camera.far !== FAR) { camera.fov = c.fov; camera.near = NEAR; camera.far = FAR; camera.updateProjectionMatrix(); }
     printed.visible = !live; liveGroup.visible = live;
     if (printedPools) printedPools.visible = !live;
@@ -3384,7 +3650,9 @@ export function buildPaper(T, tools, piece, opts = {}) {
     // (and at the start it fades in from black, smoothly too; not in live playing)
     const fIn = L === layout ? sstep(OPENING.start, OPENING.start + OPENING.fadeIn, t) : 1;
     const fS = fIn * (1 - sstep(L.f0, L.f1, t)), fB = fIn * (1 - sstep(L.f0 + ENDING.ballLag, L.f1, t));
-    const linS = Math.pow(fS, 2.2), linB = Math.pow(fB, 2.2) * (paperTone.dark ? linS : 1); // (on dark paper the balls and their light go with the rest: no points of light left in the dark)
+    // (o.fade false: drawn at full light, the caller fading the whole picture by probe.fade itself, as "Sheet music +
+    // hands" does with its keys and light)
+    const linS = o.fade === false ? 1 : Math.pow(fS, 2.2), linB = o.fade === false ? 1 : Math.pow(fB, 2.2) * (paperTone.dark ? linS : 1); // (on dark paper the balls and their light go with the rest: no points of light left in the dark)
     // the light pool and the key light travel with the camera: with the Steady camera (the cinematic camera keeps
     // them where the Steady camera has them, so the picture's brightness and the shadows do not swing as it moves;
     // reflections, glints and sheen still follow the real camera, uCam)
@@ -3403,7 +3671,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
     paper.position.set(camera.position.x, 0, camera.position.z);
     // (the texture's place counted from a whole number of its larger tiles, so its numbers stay small)
     paperU.uOrigin.value.set(Math.floor(camera.position.x / GRAIN.toneTile) * GRAIN.toneTile, Math.floor(camera.position.z / GRAIN.toneTile) * GRAIN.toneTile);
-    const az = (c.yaw + LIGHT.off) * DEG, el = LIGHT.elev * DEG; // fixed for each camera: the shadows never swim
+    const az = (c.yaw + LIGHT.off) * DEG, el = (c.elev ?? LIGHT.elev) * DEG; // fixed for each camera: the shadows never swim (a camera may set its own elevation)
     keyDir.set(-Math.cos(az) * Math.cos(el), Math.sin(el), Math.sin(az) * Math.cos(el));
     paperU.uKey.value.copy(keyDir);
     point.set(sp.x, 0, -c.y);
@@ -3422,7 +3690,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
     // the cinematic camera: a lens focused on the place being played (out.dof: how much of it, 0 for the Steady
     // camera; focusZ: that place's depth in front of the camera), and far lines fading only beyond its own distance
     out.dof = p.dof; out.focusZ = p.focus; out.range = p.dist * CINE.dof.range;
-    { const ex = p.cine * Math.max(0, p.dist - 55); lineU.uFar0.value = 70 + ex; lineU.uFar1.value = 130 + 1.3 * ex; }
+    { const ex = p.cine * Math.max(0, p.dist - 55), f = c.far || [70, 130]; lineU.uFar0.value = f[0] + ex; lineU.uFar1.value = f[1] + 1.3 * ex; } // (c.far: a camera standing higher fades its lines further off)
     glowN = 0; glowCam = camera;
     // the notes' shine (SHINE) and the balls' brightness (BALLK), from the app's two sliders
     const sh01 = clamp01(o.shine ?? SHINE.def), bk = ballGain(clamp01(o.ballK ?? BALLK.def));
@@ -3443,7 +3711,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
       paperU.uPoolColor.value[hand].copy(ballTint[hand]).lerp(WHITE, POOL.ball.pale).multiplyScalar(linB * bk.refl * dk);
       setGlow(bp.x, bp.y, bp.z, GLINT.r.ball, paperU.uPoolColor.value[hand], GLINT.k.ball * bk.light / bk.refl); // (its pale light, as above: already faded)
       if (trailOn) {
-        fillTrail(hand, t, L, c, camera.aspect);
+        fillTrail(hand, t, L, c, camera.aspect, !!o.trailLeap);
         const v = ballTint[hand], lum = 0.2126 * v.x + 0.7152 * v.y + 0.0722 * v.z;
         tr.u.uColor.value.copy(v).multiplyScalar(TRAIL.lum / lum); tr.u.uFade.value = linB; tr.u.uMinPx.value = TRAIL.minPx * (o.pr || 1); tr.pu.uColor.value.copy(v).multiplyScalar(linB);
       }
@@ -3466,7 +3734,7 @@ export function buildPaper(T, tools, piece, opts = {}) {
     const cs = Math.max(0, CORNER.ids.indexOf(o.corner)), np = Math.round(Math.min(1, Math.max(0, Number(o.sparks) || 0)) * SPARK.max);
     if (cs || np) touches(t, live, np, linB);
     // the darkness of the room and the shadow in the corners (optional: DARKNESS)
-    const dk = clamp01(o.dark ?? 0), shk = clamp01(o.cornerDark ?? 0); camera0 = camera; probe.dark = dk; probe.cornerDark = shk;
+    const dk = clamp01(o.dark ?? 0), shk = clamp01(o.cornerDark ?? 0); camera0 = camera; shadeFit = o.shadeFit || null; probe.dark = dk; probe.cornerDark = shk;
     if (cs) corner(cs, camera, o.pr || 1, linS, Math.min(1, Math.max(0, o.cornerK ?? 0.5)), dk, shk); else cornerOff(dk, shk);
     const zk = clamp01(o.zap ?? 0); // the electric notes (optional)
     if (zk > 0 && linB > 0) zap(t, live, camera, o.pr || 1, linB, zk); else zapOff();
@@ -3475,14 +3743,24 @@ export function buildPaper(T, tools, piece, opts = {}) {
     if (ck > 0 && !live && o.paths !== false && linB > 0) current(t, L, c, camera, o.pr || 1, linB, ck); else currentOff();
     probe.current = ck;
     // the cracks of light in the notes (optional)
-    const crk = clamp01(o.cracks ?? 0);
+    // (dark notes, DARKINK: with no cracks chosen, every note lights whole and evenly as it is played, its head
+    // white-hot in the paper look: uCrS 2; "Sheet music + hands" asks for the even light itself, o.crackSolid)
+    const crk0 = clamp01(o.cracks ?? 0), dnLit = dn && !(crk0 > 0) && !o.crackSolid, crk = dnLit ? DARKINK.solid : crk0;
     crackOn(crk > 0 && !!S);
     if (crk > 0 && S) {
       crackU.uCrK.value.set(crk, CRACK.cells, CRACK.hz, linS); crackU.uCrT.value = live ? 1e9 : t; crackU.uCrL.value.set(S.t0, S.start, S.speed, (TOP[1] + BOTTOM[0]) / 2);
-      crackU.uCrE.value.set(raceD * raceLead(0, t), raceD * raceLead(1, t));
-      for (let h = 0; h < 2; h++) full(crackU.uCrC.value[h], looks[h].halo).multiplyScalar(CRACK.gain);
+      crackU.uCrE.value.set(raceD * raceLead(0, t), raceD * raceLead(1, t)); crackU.uCrS.value = o.crackSolid ? 1 : dnLit ? 2 : 0;
+      // (each hand's colour: its halo's, `gain` times as bright and a little toward white; for dark notes lit evenly,
+      // DARKINK, the halo's own colour at full strength, so it glows deep and true on the dark note)
+      for (let h = 0; h < 2; h++) { const v = looks[h].halo; if (dn && crackU.uCrS.value > 0.5) crackU.uCrC.value[h].copy(v).divideScalar(Math.max(v.x, v.y, v.z, 1e-6)); else full(crackU.uCrC.value[h], v).multiplyScalar(CRACK.gain); }
     }
     probe.cracks = crk;
+    // the notes appear as they are played (optional, APPEAR): the printed music only (live notes appear as played anyway)
+    const app = !!o.appear && !!S;
+    appearOn(app); probe.appear = app;
+    if (app && appRace !== raceD) raceAppear();
+    appU.uApp.value.set(t, APPEAR.dur, APPEAR.s0, app && !live ? 1 : 0);
+    if (app) for (let h = 0; h < 2; h++) appU.uAppC.value[h].copy(looks[h].halo).multiplyScalar(linS);
     sparkMesh.visible = sparkPool.visible = np > 0;
     if (np) {
       sparkGeo.instanceCount = np * 2 * SPARK.slots; sparkMU.uMinPx.value = SPARK.minPx * (o.pr || 1); sparkMU.uFade.value = linB;
@@ -3491,9 +3769,11 @@ export function buildPaper(T, tools, piece, opts = {}) {
     probe.corner = CORNER.ids[cs]; probe.sparks = np;
     // the shadows of everything raised, in a window of the page that steps along in whole texels, and the glows' light
     // on the paper over the same window
-    const mk = camera.aspect < 1 ? MASK.tall : MASK.wide, pad = cineOn && !live && c.yawAmp ? CINE.shadowPad : 1, mW = mk.W * pad, texel = mW / MASK.texels[0]; // (wider for the cinematic camera's high views, the same all through its piece)
+    const mk = c.mask || (camera.aspect < 1 ? MASK.tall : MASK.wide), pad = cineOn && !live && c.yawAmp ? CINE.shadowPad : 1, mW = mk.W * pad, texel = mW / MASK.texels[0]; // (wider for the cinematic camera's high views, the same all through its piece; c.mask: a camera's own window)
     const ballHold = paperTone.dark ? DARK[paperTone.dark].ball : SHADE.ball; // (a dark orb holds back more: DARKBALL.shadow)
-    drawShadows(Math.floor((p.x - mk.back * pad) / texel) * texel, mW, (ballStyle === 'dark' ? Math.max(ballHold, DARKBALL.shadow) : ballHold) * linB, probe.balls, probe.shown);
+    inkLift = c.inkLift ?? SHADE.inkLift;
+    const mx0 = mk.centre ? camera.position.x - mW / 2 : p.x - mk.back * pad; // (mk.centre: a level camera's window, centred on its picture whatever `at` is)
+    drawShadows(Math.floor(mx0 / texel) * texel, mW, (ballStyle === 'dark' ? Math.max(ballHold, DARKBALL.shadow) : ballHold) * linB, probe.balls, probe.shown);
     drawLight();
     probe.fade = fS; probe.ballFade = fB; probe.camera = camera; probe.t = t;
     return out;
@@ -3510,5 +3790,9 @@ export function buildPaper(T, tools, piece, opts = {}) {
     pose, probe, framing: frm, get cine() { return cine; }, plans, race: { surges, lead: raceLead, set: setRace, get D() { return raceD; } },
     // the camera's pose at music time t for a picture shape, without drawing (for checking the motion from outside)
     poseOf: (t, aspect, pos, quat, camMove = 'steady', motion = true) => { const keep = cineOn, keepPlan = cine; pickCam(camMove); const r = layout ? poseAt(layout, t, camFor(aspect, motion || cineOn), aspect, poseV, poseR, poseQ) : null; cineOn = keep; cine = keepPlan; if (r) { pos.x = poseV.x; pos.y = poseV.y; pos.z = poseV.z; quat.x = poseR.x; quat.y = poseR.y; quat.z = poseR.z; quat.w = poseR.w; } return r; }, uniforms: { paper: paperU, line: lineU, glow: glowU, halo: haloU, glows: glU, pool: poolU, balls: ballU }, lights: { key, edge, ambient }, trails,
-    materials: { ink, head: headMat, face, chrome, fleck, pin: pinMat, paper: paperMat, line: lineMat }, printed, camX: (t) => camX(layout || liveLayout, t), timing: layout };
+    materials: { ink, head: headMat, face, chrome, fleck, pin: pinMat, paper: paperMat, line: lineMat }, printed, camX: (t) => camX(layout || liveLayout, t), timing: layout,
+    // how low and high the printed music reaches ([lo, hi] page y) between page x x0 and x1; musicSpan(): from just
+    // before the first note to the end (what a camera framing the whole piece must keep in view; the opening shot fits
+    // the title itself)
+    musicReach, musicSpan: () => (layout ? musicReach(layout.xOf(layout.t1) - 2) : [BOTTOM[1], TOP[0]]) };
 }
